@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <title>US Valuation Monitor</title>
+    <title>US Company Valuation Monitor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -23,18 +23,18 @@
       <header class="app-header panel hero-panel">
         <div class="hero-main">
           <p class="eyebrow">US VALUATION INTELLIGENCE</p>
-          <h1>美国股市估值监测台</h1>
-          <p class="subtitle">直接查看各指数估值卡片，点击后进入详情页查看深度分析。</p>
+          <h1>美国企业估值监测台</h1>
+          <p class="subtitle">聚焦美股市值前100公司，支持卡片总览、公司详情与多公司对比分析。</p>
         </div>
         <div class="header-actions hero-actions">
-          <a id="enter-company-board-btn" class="btn board-switch-btn" href="./companies.html">企业估值</a>
+          <a id="back-to-index-btn" class="btn ghost board-switch-btn" href="./index.html">返回指数估值</a>
           <div id="updated-chip" class="status-chip subtle">--</div>
         </div>
       </header>
 
       <nav class="view-tabs panel">
         <button class="tab is-active" data-view="overview" type="button">总览</button>
-        <button class="tab" data-view="detail" type="button">指数详情</button>
+        <button class="tab" data-view="detail" type="button">公司详情</button>
         <button class="tab" data-view="compare" type="button">对比分析</button>
         <button class="tab" data-view="settings" type="button">偏好设置</button>
       </nav>
@@ -42,23 +42,21 @@
       <section id="view-overview" class="view-panel is-active">
         <article class="panel">
           <div class="panel-title-row">
-            <h2>指数估值卡片</h2>
+            <h2>企业估值卡片（Top 100）</h2>
             <span id="snapshot-date" class="hint"></span>
           </div>
           <div class="toolbar-grid">
             <label>
-              组别
+              范围
               <select id="overview-group-filter">
                 <option value="all">全部</option>
-                <option value="core">核心指数</option>
-                <option value="sector">行业指数</option>
                 <option value="watchlist">仅自选</option>
               </select>
             </label>
             <label>
               排序
               <select id="overview-sort-select">
-                <option value="attention">市场热度（核心→行业）</option>
+                <option value="market_cap_desc">市值从高到低</option>
                 <option value="percentile_desc">分位从高到低</option>
                 <option value="percentile_asc">分位从低到高</option>
                 <option value="pe_desc">PE 从高到低</option>
@@ -68,23 +66,27 @@
             </label>
             <label>
               搜索
-              <input id="overview-search" type="text" placeholder="指数名称 / 代码" />
+              <input id="overview-search" type="text" placeholder="公司名称 / 股票代码" />
             </label>
           </div>
           <div id="snapshot-grid" class="snapshot-grid"></div>
+          <div class="overview-footer">
+            <span id="overview-count-hint" class="hint"></span>
+            <button id="overview-load-more" class="btn ghost" type="button">展开更多</button>
+          </div>
         </article>
       </section>
 
       <section id="view-detail" class="view-panel">
         <article class="panel">
           <div class="panel-title-row">
-            <h2>指数估值时序</h2>
+            <h2>公司估值时序</h2>
             <span id="detail-range" class="hint"></span>
           </div>
 
           <div class="detail-controls">
             <label>
-              指数
+              公司
               <select id="detail-index"></select>
             </label>
             <label>
@@ -127,7 +129,7 @@
       <section id="view-compare" class="view-panel">
         <article class="panel">
           <div class="panel-title-row">
-            <h2>多指数对比</h2>
+            <h2>多公司对比</h2>
             <span class="hint">同区间对齐展示原始估值走势</span>
           </div>
 
@@ -190,7 +192,7 @@
                 <table class="compare-table compare-cross-table">
                   <thead>
                     <tr>
-                      <th>指数</th>
+                      <th>公司</th>
                       <th>当前值</th>
                       <th>百分位</th>
                       <th>状态</th>
@@ -218,11 +220,9 @@
             <div class="panel soft">
               <h3>显示偏好（固定深色专业风）</h3>
               <label>
-                总览默认分组
+                总览默认范围
                 <select id="settings-default-group">
                   <option value="all">全部</option>
-                  <option value="core">核心指数</option>
-                  <option value="sector">行业指数</option>
                   <option value="watchlist">仅自选</option>
                 </select>
               </label>
@@ -240,7 +240,7 @@
             </div>
 
             <div class="panel soft">
-              <h3>自选指数池（用于总览筛选与对比快速选择）</h3>
+              <h3>自选公司池（用于总览筛选与对比快速选择）</h3>
               <div id="watchlist-box" class="watchlist-box"></div>
             </div>
           </div>
@@ -251,6 +251,6 @@
     <div id="toast" class="toast"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <script type="module" src="./app.js?v=20260225-company-board-v2"></script>
+    <script type="module" src="./company-app.js?v=20260225-company-top100-v2"></script>
   </body>
 </html>

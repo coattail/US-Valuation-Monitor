@@ -261,6 +261,11 @@ h3 {
   width: 100%;
 }
 
+.board-switch-btn {
+  text-decoration: none;
+  text-align: center;
+}
+
 .status-chip {
   padding: 8px 12px;
   border-radius: 999px;
@@ -344,6 +349,22 @@ input {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes boardFlipOut {
+  0% {
+    opacity: 1;
+    transform: perspective(1400px) rotateY(0deg) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: perspective(1400px) rotateY(-16deg) translateY(16px) scale(0.985);
+  }
+}
+
+body.is-board-flipping .app-shell {
+  transform-origin: 50% 40%;
+  animation: boardFlipOut 0.46s cubic-bezier(0.25, 0.84, 0.28, 1) forwards;
 }
 
 @keyframes cardSweep {
@@ -694,6 +715,18 @@ input:focus {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
   gap: 10px;
+}
+
+.overview-footer {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.overview-footer .btn[hidden] {
+  display: none !important;
 }
 
 .snapshot-grid.is-searching {
@@ -1597,6 +1630,11 @@ input:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  body.is-board-flipping .app-shell {
+    animation: none;
+    opacity: 0.92;
+  }
+
   .snapshot-card::after {
     animation: none;
     opacity: 0.12;

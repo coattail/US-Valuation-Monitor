@@ -33,7 +33,7 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          if git diff --quiet -- data/standardized/valuation-history.json; then
+          if git diff --quiet -- data/standardized/valuation-history.json data/standardized/company-valuation-history.json; then
             echo "No dataset changes detected."
             exit 0
           fi
@@ -41,6 +41,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/standardized/valuation-history.json
+          git add data/standardized/valuation-history.json data/standardized/company-valuation-history.json
           git commit -m "chore: daily data refresh"
           git push

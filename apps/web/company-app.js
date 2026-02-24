@@ -1,16 +1,17 @@
 const DATA_PATH_CANDIDATES = [
-  "/data/standardized/valuation-history.json",
-  "../../data/standardized/valuation-history.json",
-  "./valuation-history.json",
+  "/data/standardized/company-valuation-history.json",
+  "../../data/standardized/company-valuation-history.json",
+  "./company-valuation-history.json",
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "usvm-watchlist",
-  overviewGroup: "usvm-overview-group",
-  compareRange: "usvm-compare-range",
-  compareMetric: "usvm-compare-metric",
-  compareStartDate: "usvm-compare-start-date",
-  compareEndDate: "usvm-compare-end-date",
+  watchlist: "usvm-company-watchlist",
+  overviewGroup: "usvm-company-overview-group",
+  overviewSort: "usvm-company-overview-sort",
+  compareRange: "usvm-company-compare-range",
+  compareMetric: "usvm-company-compare-metric",
+  compareStartDate: "usvm-company-compare-start-date",
+  compareEndDate: "usvm-company-compare-end-date",
 };
 
 const METRIC_CONFIG = {
@@ -31,21 +32,7 @@ const COMPARE_LINE_COLORS = [
   "#f5a5c8",
 ];
 
-const CORE_ATTENTION_ORDER = ["sp500", "nasdaq100", "dow30", "russell2000", "us_total_market", "sp400"];
-const SECTOR_ATTENTION_ORDER = [
-  "sector_technology",
-  "sector_financials",
-  "sector_healthcare",
-  "sector_energy",
-  "sector_consumer_discretionary",
-  "sector_communication",
-  "sector_industrials",
-  "sector_consumer_staples",
-  "sector_utilities",
-  "sector_real_estate",
-  "sector_materials",
-];
-const DEFAULT_COMPARE_INDEX_IDS = ["sp500", "dow30", "nasdaq100"];
+const DEFAULT_COMPARE_COMPANY_SYMBOLS = ["NVDA", "AAPL", "MSFT"];
 
 const TRADING_DAYS_PER_YEAR = 252;
 
@@ -58,7 +45,8 @@ const state = {
   overview: {
     group: localStorage.getItem(STORAGE_KEYS.overviewGroup) || "all",
     search: "",
-    sort: "attention",
+    sort: localStorage.getItem(STORAGE_KEYS.overviewSort) || "market_cap_desc",
+    visibleCount: 20,
   },
 
   detail: {
@@ -89,7 +77,6 @@ const state = {
 const elements = {
   dataModeChip: document.getElementById("data-mode-chip"),
   updatedChip: document.getElementById("updated-chip"),
-  enterCompanyBoardBtn: document.getElementById("enter-company-board-btn"),
   tabButtons: [...document.querySelectorAll(".tab")],
   viewPanels: [...document.querySelectorAll(".view-panel")],
 
@@ -98,6 +85,8 @@ const elements = {
   overviewSortSelect: document.getElementById("overview-sort-select"),
   overviewSearch: document.getElementById("overview-search"),
   snapshotGrid: document.getElementById("snapshot-grid"),
+  overviewCountHint: document.getElementById("overview-count-hint"),
+  overviewLoadMore: document.getElementById("overview-load-more"),
 
   detailIndex: document.getElementById("detail-index"),
   detailMetric: document.getElementById("detail-metric"),
@@ -175,6 +164,15 @@ function fmtSigned(value, digits = 2, asPct = false) {
 
 function fmtPct(value, digits = 1) {
   return `${fmt(Number(value) * 100, digits)}%`;
+}
+
+function fmtMarketCap(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "--";
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  return `$${n.toFixed(0)}`;
 }
 
 function getLineEndLabelLayout(chartWidth, seriesCount = 1) {
@@ -267,30 +265,17 @@ function zScoreWindow(values, startIndex, endIndex, current) {
   return (current - avg) / sigma;
 }
 
-function attentionRankFor(indexId, group) {
-  const coreRank = CORE_ATTENTION_ORDER.indexOf(indexId);
-  const sectorRank = SECTOR_ATTENTION_ORDER.indexOf(indexId);
-
-  if (group === "core") return coreRank >= 0 ? coreRank : 999;
-  if (group === "sector") return sectorRank >= 0 ? sectorRank : 999;
-  return 999;
-}
-
 function compareByAttention(a, b) {
-  const ga = a.group === "core" ? 0 : 1;
-  const gb = b.group === "core" ? 0 : 1;
-  if (ga !== gb) return ga - gb;
-
-  const ra = attentionRankFor(a.indexId || a.id, a.group);
-  const rb = attentionRankFor(b.indexId || b.id, b.group);
-  if (ra !== rb) return ra - rb;
-
-  return (a.displayName || "").localeCompare(b.displayName || "");
+  const rankA = Number(a.rank || a.order || 9999);
+  const rankB = Number(b.rank || b.order || 9999);
+  if (rankA !== rankB) return rankA - rankB;
+  return (a.displayName || "").localeCompare(b.displayName || "", "en");
 }
 
 function getDefaultCompareSelection() {
-  const valid = DEFAULT_COMPARE_INDEX_IDS.filter((id) => state.metaRows.some((item) => item.id === id));
-  return valid.length ? valid : state.watchlist.slice(0, 4);
+  const bySymbol = Object.fromEntries(state.metaRows.map((item) => [item.symbol, item.id]));
+  const picked = DEFAULT_COMPARE_COMPANY_SYMBOLS.map((symbol) => bySymbol[symbol]).filter(Boolean);
+  return picked.length ? picked : state.metaRows.slice(0, 4).map((item) => item.id);
 }
 
 function snapshotToneVars(percentile) {
@@ -372,13 +357,15 @@ function buildMetaRows() {
       id: item.id,
       symbol: item.symbol,
       displayName: item.displayName,
-      group: item.group,
+      group: "company",
       description: item.description,
       startDate: item.points[0]?.date || "",
       endDate: item.points[item.points.length - 1]?.date || "",
       pointCount: item.points.length,
       forwardStartDate: item.forwardStartDate || item.points[item.points.length - 1]?.date || "",
-      order: 999,
+      rank: Number(item.rank || 9999),
+      marketCap: Number(item.marketCap || 0),
+      order: Number(item.rank || 9999),
     }))
     .sort((a, b) => compareByAttention(a, b));
 
@@ -447,7 +434,9 @@ function buildSnapshotRows() {
       indexId: indexData.id,
       symbol: indexData.symbol,
       displayName: indexData.displayName,
-      group: indexData.group,
+      group: "company",
+      rank: Number(indexData.rank || 9999),
+      marketCap: Number(indexData.marketCap || 0),
       date: latestRaw.date,
       pe_ttm: latestRaw.pe_ttm,
       pe_forward: latestRaw.pe_forward,
@@ -469,12 +458,7 @@ function getOverviewFilteredRows() {
   const keyword = state.overview.search.trim().toLowerCase();
 
   const rows = state.snapshotRows.filter((row) => {
-    const groupOk =
-      state.overview.group === "all"
-        ? true
-        : state.overview.group === "watchlist"
-          ? state.watchlist.includes(row.indexId)
-          : row.group === state.overview.group;
+    const groupOk = state.overview.group === "watchlist" ? state.watchlist.includes(row.indexId) : true;
 
     if (!groupOk) return false;
     if (!keyword) return true;
@@ -485,6 +469,8 @@ function getOverviewFilteredRows() {
 
   rows.sort((a, b) => {
     switch (state.overview.sort) {
+      case "market_cap_desc":
+        return Number(b.marketCap || 0) - Number(a.marketCap || 0);
       case "attention":
         return compareByAttention(a, b);
       case "percentile_asc":
@@ -494,7 +480,7 @@ function getOverviewFilteredRows() {
       case "pb_desc":
         return b.pb - a.pb;
       case "name":
-        return a.displayName.localeCompare(b.displayName);
+        return a.displayName.localeCompare(b.displayName, "en");
       case "percentile_desc":
       default:
         return b.percentile_full - a.percentile_full;
@@ -540,10 +526,11 @@ function renderSnapshotGrid(rows) {
         <div class="name-row">
           <div>
             <div class="${nameClass}" title="${row.displayName}">${row.displayName}</div>
-            <div class="symbol">${row.symbol} · ${row.group === "core" ? "核心" : "行业"}</div>
+            <div class="symbol">${row.symbol} · 美股公司</div>
           </div>
           ${snapshotBadge(row)}
         </div>
+        <div class="line"><span>市值</span><strong>${fmtMarketCap(row.marketCap)}</strong></div>
         <div class="line"><span>PE(TTM)</span><strong>${fmt(row.pe_ttm, 2)}</strong></div>
         <div class="line"><span>PE(FWD)</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
         <div class="line"><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
@@ -557,6 +544,25 @@ function renderSnapshotGrid(rows) {
 
   for (const card of elements.snapshotGrid.querySelectorAll(".snapshot-card")) {
     card.addEventListener("click", () => openDetailIndex(card.dataset.indexId));
+  }
+}
+
+function updateOverviewFooter(totalRows, shownRows, isSearching) {
+  if (elements.overviewCountHint) {
+    if (!totalRows) {
+      elements.overviewCountHint.textContent = "暂无符合条件的公司";
+    } else {
+      const suffix = isSearching ? "（搜索结果）" : "";
+      elements.overviewCountHint.textContent = `已显示 ${shownRows} / ${totalRows} 家${suffix}`;
+    }
+  }
+
+  if (!elements.overviewLoadMore) return;
+
+  const canLoadMore = !isSearching && shownRows < totalRows;
+  elements.overviewLoadMore.hidden = !canLoadMore;
+  if (canLoadMore) {
+    elements.overviewLoadMore.textContent = `展开更多（+${Math.min(20, totalRows - shownRows)}）`;
   }
 }
 
@@ -696,8 +702,12 @@ function bindDetailZoomSync() {
 function renderOverview() {
   const rows = getOverviewFilteredRows();
   const isSearching = state.overview.search.trim().length > 0;
+  const shownRows = isSearching
+    ? rows
+    : rows.slice(0, Math.max(20, Math.min(state.overview.visibleCount, rows.length)));
   elements.snapshotGrid.classList.toggle("is-searching", isSearching);
-  renderSnapshotGrid(rows);
+  renderSnapshotGrid(shownRows);
+  updateOverviewFooter(rows.length, shownRows.length, isSearching);
 }
 
 function sanitizeLegacyStaticMetricOption() {
@@ -1370,7 +1380,7 @@ function renderCompareSummary(rows, metricCfg, crossSectionRows = null) {
   const medianPct = median(points.map((point) => point?.percentile_full || 0));
 
   elements.compareSummary.innerHTML = [
-    { label: "对比指数", value: `${rows.length} 个` },
+    { label: "对比公司", value: `${rows.length} 家` },
     { label: "对齐区间", value: `${alignedStart} ~ ${alignedEnd}` },
     { label: "中位分位", value: fmtPct(medianPct, 1) },
   ]
@@ -1453,7 +1463,7 @@ function renderCompareCharts() {
     const noDataMessage =
       state.compare.startDate || state.compare.endDate
         ? "当前日期范围样本不足（每条曲线至少需要 2 个点）"
-        : "请至少选择一个有效指数";
+        : "请至少选择一个有效公司";
     elements.compareTableBody.innerHTML = `<tr><td colspan="4" class="hint">${noDataMessage}</td></tr>`;
     renderCompareSummary([], metricCfg);
     chart?.clear();
@@ -1643,12 +1653,12 @@ function renderSettings() {
   elements.watchlistBox.innerHTML = state.metaRows
     .map((item) => {
       const checked = state.watchlist.includes(item.id) ? "checked" : "";
-      const groupLabel = item.group === "core" ? "核心" : "行业";
+      const rankLabel = Number.isFinite(item.rank) ? `#${item.rank}` : "公司";
       return `
       <label class="watch-item">
         <span class="watch-item-main">
           <span class="watch-item-name">${item.displayName}</span>
-          <span class="watch-item-meta">${groupLabel} · ${item.symbol}</span>
+          <span class="watch-item-meta">${rankLabel} · ${item.symbol}</span>
         </span>
         <input class="watch-item-check" type="checkbox" data-index-id="${item.id}" ${checked} />
       </label>`;
@@ -1797,21 +1807,6 @@ function applyDataSourceBadge(sourceText = "") {
 }
 
 function bindEvents() {
-  elements.enterCompanyBoardBtn?.addEventListener("click", (event) => {
-    const href = event.currentTarget?.getAttribute("href") || "./companies.html";
-    event.preventDefault();
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      window.location.href = href;
-      return;
-    }
-
-    document.body.classList.add("is-board-flipping");
-    window.setTimeout(() => {
-      window.location.href = href;
-    }, 320);
-  });
-
   elements.tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
       switchView(button.dataset.view);
@@ -1820,16 +1815,25 @@ function bindEvents() {
 
   elements.overviewGroupFilter.addEventListener("change", (event) => {
     state.overview.group = event.target.value;
+    state.overview.visibleCount = 20;
     renderOverview();
   });
 
   elements.overviewSortSelect.addEventListener("change", (event) => {
     state.overview.sort = event.target.value;
+    state.overview.visibleCount = 20;
+    localStorage.setItem(STORAGE_KEYS.overviewSort, state.overview.sort);
     renderOverview();
   });
 
   elements.overviewSearch.addEventListener("input", (event) => {
     state.overview.search = event.target.value;
+    state.overview.visibleCount = 20;
+    renderOverview();
+  });
+
+  elements.overviewLoadMore?.addEventListener("click", () => {
+    state.overview.visibleCount += 20;
     renderOverview();
   });
 
@@ -1905,7 +1909,7 @@ function initSelections() {
   }
 
   if (![...elements.overviewSortSelect.options].some((option) => option.value === state.overview.sort)) {
-    state.overview.sort = "attention";
+    state.overview.sort = "market_cap_desc";
   }
 
   elements.overviewGroupFilter.value = state.overview.group;
