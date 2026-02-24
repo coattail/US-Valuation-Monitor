@@ -61,8 +61,8 @@ const TOP_COMPANY_URLS = [
   "https://companiesmarketcap.com/usa/largest-companies-in-the-usa-by-market-cap/",
 ];
 
-const HISTORY_START_DATE = "2021-01-01";
-const CONCURRENCY = 8;
+const HISTORY_START_DATE = "2000-01-01";
+const CONCURRENCY = 3;
 const REQUEST_TIMEOUT_MS = 12000;
 
 const USER_AGENT =
@@ -79,7 +79,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function roundTo(value: number, digits = 4): number {
+function roundTo(value: number, digits = 3): number {
   const ratio = 10 ** digits;
   return Math.round(value * ratio) / ratio;
 }
@@ -111,7 +111,20 @@ function sanitizeRatio(value: unknown): number | null {
   return n;
 }
 
-async function fetchText(url: string, retries = 1, timeoutMs = REQUEST_TIMEOUT_MS): Promise<string> {
+function isRejectedPayload(text: string): boolean {
+  const raw = String(text || "").trim().toLowerCase();
+  if (!raw) return true;
+  if (raw.includes("exceeded the daily hits limit")) return true;
+  if (raw.includes("just a moment") && raw.includes("cf-chl")) return true;
+  return false;
+}
+
+async function fetchText(
+  url: string,
+  retries = 1,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+  directFirst = false
+): Promise<string> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -129,16 +142,18 @@ async function fetchText(url: string, retries = 1, timeoutMs = REQUEST_TIMEOUT_M
         url,
       ];
 
-      const commandCandidates: string[][] = [baseArgs, ["--noproxy", "*", ...baseArgs]];
+      const proxyCmd = baseArgs;
+      const directCmd = ["--noproxy", "*", ...baseArgs];
+      const commandCandidates: string[][] = directFirst ? [directCmd, proxyCmd] : [proxyCmd, directCmd];
 
       for (const args of commandCandidates) {
         try {
           const { stdout } = await execFileAsync("curl", args, { maxBuffer: 24 * 1024 * 1024 });
           const text = String(stdout || "").trim();
-          if (text) return text;
+          if (!isRejectedPayload(text)) return text;
         } catch (error) {
           const partial = String((error as { stdout?: string })?.stdout || "").trim();
-          if (partial) return partial;
+          if (!isRejectedPayload(partial)) return partial;
         }
       }
 
@@ -249,7 +264,8 @@ async function fetchCloseHistory(symbol: string): Promise<ClosePoint[]> {
   for (const candidate of candidates) {
     const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(candidate)}.us&i=d`;
     try {
-      const csv = await fetchText(url, 1, 28000);
+      await sleep(120);
+      const csv = await fetchText(url, 2, 32000, true);
       const points = parseStooqCsv(csv);
       if (points.length >= 200) return points;
     } catch {
