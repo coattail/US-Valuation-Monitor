@@ -18,7 +18,6 @@ const METRIC_CONFIG = {
   pe_forward: { label: "PE (Forward)", digits: 2 },
   pb: { label: "PB", digits: 2 },
   earnings_yield: { label: "Earnings Yield", digits: 2, percentage: true },
-  erp_proxy: { label: "ERP Proxy", digits: 2, percentage: true },
 };
 
 const COMPARE_LINE_COLORS = [
@@ -333,10 +332,6 @@ function metricValueFromRaw(point, metric) {
   if (metric === "earnings_yield") {
     return point.pe_ttm > 0 ? 1 / point.pe_ttm : 0;
   }
-  if (metric === "erp_proxy") {
-    const earningsYield = point.pe_ttm > 0 ? 1 / point.pe_ttm : 0;
-    return earningsYield - point.us10y_yield;
-  }
   return Number(point[metric]);
 }
 
@@ -442,16 +437,10 @@ function buildSnapshotRows() {
   state.snapshotRows = state.dataset.indices.map((indexData) => {
     const latestRaw = indexData.points[indexData.points.length - 1];
     const peSeries = getMetricSeries(indexData.id, "pe_ttm");
-    const erpSeries = getMetricSeries(indexData.id, "erp_proxy");
     const latestPe = peSeries[peSeries.length - 1];
-    const latestErp = erpSeries[erpSeries.length - 1];
 
     const lookbackIndex = Math.max(0, peSeries.length - TRADING_DAYS_PER_YEAR);
     const peRef = peSeries[lookbackIndex]?.value ?? peSeries[0]?.value ?? latestRaw.pe_ttm;
-    const erpRef = erpSeries[lookbackIndex]?.value ?? erpSeries[0]?.value ?? 0;
-
-    const earningsYield = latestRaw.pe_ttm > 0 ? 1 / latestRaw.pe_ttm : 0;
-    const erpProxy = earningsYield - latestRaw.us10y_yield;
 
     return {
       indexId: indexData.id,
@@ -462,16 +451,11 @@ function buildSnapshotRows() {
       pe_ttm: latestRaw.pe_ttm,
       pe_forward: latestRaw.pe_forward,
       pb: latestRaw.pb,
-      us10y_yield: latestRaw.us10y_yield,
-      earnings_yield: earningsYield,
-      erp_proxy: erpProxy,
       percentile_5y: latestPe?.percentile_5y ?? 0.5,
       percentile_10y: latestPe?.percentile_10y ?? 0.5,
       percentile_full: latestPe?.percentile_full ?? 0.5,
       z_score_3y: latestPe?.z_score_3y ?? 0,
-      erp_percentile_full: latestErp?.percentile_full ?? 0.5,
       pe_ttm_change_1y: peRef ? (latestRaw.pe_ttm - peRef) / Math.abs(peRef) : 0,
-      erp_change_1y_bp: (erpProxy - erpRef) * 10000,
       regime: latestPe?.regime ?? "neutral",
       startDate: indexData.points[0]?.date || "",
       endDate: indexData.points[indexData.points.length - 1]?.date || "",
@@ -562,10 +546,9 @@ function renderSnapshotGrid(rows) {
         <div class="line"><span>PE(TTM)</span><strong>${fmt(row.pe_ttm, 2)}</strong></div>
         <div class="line"><span>PE(FWD)</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
         <div class="line"><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
-        <div class="line"><span>ERP</span><strong>${fmtSigned(row.erp_proxy * 100, 2, true)}</strong></div>
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(row.pe_ttm_change_1y * 100, 1, true)}</strong></div>
         <div class="line"><span>百分位</span><strong style="color:${percentileColor(row.percentile_full)}">${fmtPct(row.percentile_full, 1)}</strong></div>
-        <div class="line line-muted"><span>可得历史</span><strong>${row.startDate} ~ ${row.endDate}</strong></div>
+        <div class="line line-muted"><span>数据区间</span><strong>${row.startDate} ~ ${row.endDate}</strong></div>
         <div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>
       </article>`;
     })

@@ -5,7 +5,6 @@ const METRIC_OPTIONS = [
   { label: "PE(Forward)", value: "pe_forward" },
   { label: "PB", value: "pb" },
   { label: "Earnings Yield", value: "earnings_yield" },
-  { label: "ERP Proxy", value: "erp_proxy" },
 ];
 
 function toPercent(value) {

@@ -38,7 +38,6 @@ const METRIC_SET = new Set<MetricId>([
   "pe_forward",
   "pb",
   "earnings_yield",
-  "erp_proxy",
 ]);
 
 type UserMap<T> = Record<string, T>;
