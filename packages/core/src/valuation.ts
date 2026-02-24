@@ -10,18 +10,6 @@ function resolveRegime(percentileFull: number): Regime {
   return "neutral";
 }
 
-function deriveStaticPe(point: RawValuationPoint): number {
-  const peTtm = Number(point.pe_ttm);
-  const rawStatic = Number(point.pe_static);
-
-  if (Number.isFinite(rawStatic) && rawStatic > 0) {
-    return rawStatic;
-  }
-
-  if (!Number.isFinite(peTtm) || peTtm <= 0) return 0;
-  return clamp(peTtm, 0.1, 999);
-}
-
 export function enrichSeries(points: RawValuationPoint[]): ValuationPoint[] {
   const result: ValuationPoint[] = [];
   const peSeries: number[] = [];
@@ -31,27 +19,23 @@ export function enrichSeries(points: RawValuationPoint[]): ValuationPoint[] {
 
   for (let i = 0; i < points.length; i += 1) {
     const point = points[i];
-    const normalizedPoint: RawValuationPoint = {
-      ...point,
-      pe_static: deriveStaticPe(point),
-    };
-    peSeries.push(normalizedPoint.pe_ttm);
+    peSeries.push(point.pe_ttm);
 
-    const percentile5y = percentileRankWindow(peSeries, i - window5 + 1, i, normalizedPoint.pe_ttm);
-    const percentile10y = percentileRankWindow(peSeries, i - window10 + 1, i, normalizedPoint.pe_ttm);
-    const percentileFull = percentileRankWindow(peSeries, 0, i, normalizedPoint.pe_ttm);
+    const percentile5y = percentileRankWindow(peSeries, i - window5 + 1, i, point.pe_ttm);
+    const percentile10y = percentileRankWindow(peSeries, i - window10 + 1, i, point.pe_ttm);
+    const percentileFull = percentileRankWindow(peSeries, 0, i, point.pe_ttm);
 
-    const earningsYield = normalizedPoint.pe_ttm > 0 ? 1 / normalizedPoint.pe_ttm : 0;
-    const erpProxy = earningsYield - normalizedPoint.us10y_yield;
+    const earningsYield = point.pe_ttm > 0 ? 1 / point.pe_ttm : 0;
+    const erpProxy = earningsYield - point.us10y_yield;
 
     result.push({
-      ...normalizedPoint,
+      ...point,
       earnings_yield: clamp(earningsYield, -1, 1),
       erp_proxy: clamp(erpProxy, -1, 1),
       percentile_5y: percentile5y,
       percentile_10y: percentile10y,
       percentile_full: percentileFull,
-      z_score_3y: zScoreWindow(peSeries, i - window3 + 1, i, normalizedPoint.pe_ttm),
+      z_score_3y: zScoreWindow(peSeries, i - window3 + 1, i, point.pe_ttm),
       regime: resolveRegime(percentileFull),
     });
   }
@@ -119,7 +103,6 @@ export function buildSnapshot(indexId: string, points: RawValuationPoint[]): Sna
     group: meta.group,
     date: latest.date,
     pe_ttm: latest.pe_ttm,
-    pe_static: latest.pe_static,
     pe_forward: latest.pe_forward,
     pb: latest.pb,
     earnings_yield: latest.earnings_yield,

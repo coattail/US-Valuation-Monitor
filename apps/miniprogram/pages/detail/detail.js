@@ -2,7 +2,6 @@ const { request } = require("../../utils/api");
 
 const METRIC_OPTIONS = [
   { label: "PE(TTM)", value: "pe_ttm" },
-  { label: "PE(Static)", value: "pe_static" },
   { label: "PE(Forward)", value: "pe_forward" },
   { label: "PB", value: "pb" },
   { label: "Earnings Yield", value: "earnings_yield" },

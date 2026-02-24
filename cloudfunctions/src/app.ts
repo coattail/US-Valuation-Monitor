@@ -35,7 +35,6 @@ const ALERTS_FILE = ["data", "runtime", "alerts.json"];
 const ALERT_STATE_FILE = ["data", "runtime", "alert-state.json"];
 const METRIC_SET = new Set<MetricId>([
   "pe_ttm",
-  "pe_static",
   "pe_forward",
   "pb",
   "earnings_yield",

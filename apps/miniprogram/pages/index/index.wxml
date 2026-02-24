@@ -10,7 +10,6 @@
         </view>
         <view class="numbers">
           <view>PE {{item.pe_ttm.toFixed(2)}}</view>
-          <view>静态PE {{item.pe_static.toFixed(2)}}</view>
           <view>分位 {{item.percentileText}}</view>
         </view>
       </view>

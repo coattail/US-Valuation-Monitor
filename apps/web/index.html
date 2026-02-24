@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>US Valuation Monitor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -10,7 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700&family=Source+Serif+4:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260224-compare-layout-v11" />
   </head>
   <body data-theme="terminal">
     <div class="site-bg"></div>
@@ -87,7 +90,6 @@
               指标
               <select id="detail-metric">
                 <option value="pe_ttm">PE (TTM)</option>
-                <option value="pe_static">PE (Static)</option>
                 <option value="pe_forward">PE (Forward)</option>
                 <option value="pb">PB</option>
                 <option value="earnings_yield">Earnings Yield</option>
@@ -134,7 +136,6 @@
               指标
               <select id="compare-metric">
                 <option value="pe_ttm">PE (TTM)</option>
-                <option value="pe_static">PE (Static)</option>
                 <option value="pe_forward">PE (Forward)</option>
                 <option value="pb">PB</option>
                 <option value="earnings_yield">Earnings Yield</option>
@@ -152,6 +153,17 @@
                 <option value="1y">1Y</option>
               </select>
             </label>
+            <div class="compare-date-range">
+              <label>
+                起始时间
+                <input id="compare-start-date" type="date" />
+              </label>
+              <label>
+                结束时间
+                <input id="compare-end-date" type="date" />
+              </label>
+              <button id="compare-reset-date" class="btn ghost compare-date-reset" type="button">清空日期</button>
+            </div>
             <label class="inline-check">
               <input id="compare-watchlist-only" type="checkbox" />
               仅展示自选池
@@ -162,15 +174,21 @@
           <div id="compare-index-picker" class="compare-picker"></div>
           <div id="compare-summary" class="compare-summary"></div>
 
-          <div id="compare-chart" class="chart-large"></div>
-          <div class="layout-two">
-            <div id="compare-latest-chart" class="chart-medium panel soft"></div>
-            <div class="panel soft">
+          <div class="compare-main-layout">
+            <div class="compare-line-panel panel soft">
+              <div class="panel-title-row compact">
+                <h3 id="compare-chart-title">对比走势 · PE (TTM)</h3>
+                <span class="hint">折线图数据口径与当前指标一致</span>
+              </div>
+              <div id="compare-chart" class="chart-large compare-chart-large"></div>
+            </div>
+            <div class="compare-side-panel panel soft">
               <div class="panel-title-row compact">
                 <h3>当前横截面</h3>
+                <span class="hint">名称颜色与折线颜色一致</span>
               </div>
-              <div class="table-wrap">
-                <table class="compare-table">
+              <div class="table-wrap compare-table-wrap">
+                <table class="compare-table compare-cross-table">
                   <thead>
                     <tr>
                       <th>指数</th>
@@ -234,6 +252,6 @@
     <div id="toast" class="toast"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=20260224-compare-layout-v11"></script>
   </body>
 </html>

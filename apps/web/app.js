@@ -9,6 +9,8 @@ const STORAGE_KEYS = {
   overviewGroup: "usvm-overview-group",
   compareRange: "usvm-compare-range",
   compareMetric: "usvm-compare-metric",
+  compareStartDate: "usvm-compare-start-date",
+  compareEndDate: "usvm-compare-end-date",
 };
 
 const METRIC_CONFIG = {
@@ -69,6 +71,8 @@ const state = {
   compare: {
     metric: localStorage.getItem(STORAGE_KEYS.compareMetric) || "pe_ttm",
     range: localStorage.getItem(STORAGE_KEYS.compareRange) || "max",
+    startDate: localStorage.getItem(STORAGE_KEYS.compareStartDate) || "",
+    endDate: localStorage.getItem(STORAGE_KEYS.compareEndDate) || "",
     indexIds: [],
     watchlistOnly: false,
   },
@@ -107,12 +111,15 @@ const elements = {
 
   compareMetric: document.getElementById("compare-metric"),
   compareRange: document.getElementById("compare-range"),
+  compareStartDate: document.getElementById("compare-start-date"),
+  compareEndDate: document.getElementById("compare-end-date"),
+  compareResetDate: document.getElementById("compare-reset-date"),
   compareWatchlistOnly: document.getElementById("compare-watchlist-only"),
   compareApply: document.getElementById("compare-apply"),
   compareIndexPicker: document.getElementById("compare-index-picker"),
   compareSummary: document.getElementById("compare-summary"),
   compareChart: document.getElementById("compare-chart"),
-  compareLatestChart: document.getElementById("compare-latest-chart"),
+  compareChartTitle: document.getElementById("compare-chart-title"),
   compareTableBody: document.getElementById("compare-table-body"),
 
   settingsSave: document.getElementById("settings-save"),
@@ -128,7 +135,6 @@ const charts = {
   detail: null,
   detailPercentile: null,
   compare: null,
-  compareLatest: null,
 };
 
 const detailZoomSyncState = {
@@ -148,6 +154,11 @@ function safeJsonParse(rawValue, fallback) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function roundTo(value, digits = 2) {
+  const ratio = 10 ** digits;
+  return Math.round(Number(value) * ratio) / ratio;
 }
 
 function fmt(value, digits = 2) {
@@ -313,8 +324,8 @@ function regimeFromPercentile(percentile) {
 }
 
 function regimeLabel(regime) {
-  if (regime === "high") return "高估关注";
-  if (regime === "low") return "低估关注";
+  if (regime === "high") return "高估";
+  if (regime === "low") return "低估";
   return "中性";
 }
 
@@ -518,27 +529,32 @@ function openDetailIndex(indexId) {
 
 function snapshotBadge(row) {
   if (row.regime === "high") {
-    return '<span class="badge high">高估关注</span>';
+    return '<span class="badge high">高估</span>';
   }
   if (row.regime === "low") {
-    return '<span class="badge low">低估关注</span>';
+    return '<span class="badge low">低估</span>';
   }
   return '<span class="badge neutral">中性</span>';
 }
 
 function renderSnapshotGrid(rows) {
   elements.snapshotDate.textContent = rows[0]?.date ? `更新到 ${rows[0].date}` : "--";
+  const isSearching = state.overview.search.trim().length > 0;
 
   elements.snapshotGrid.innerHTML = rows
     .map((row) => {
-      const pinLeft = clamp(row.percentile_full * 100, 0, 100);
+      const rawPct = clamp(row.percentile_full * 100, 0, 100);
+      const pinLeft = rawPct;
       const peChangeTone = row.pe_ttm_change_1y >= 0 ? "up" : "down";
       const toneVars = snapshotToneVars(row.percentile_full);
+      const searchCardLayoutStyle = isSearching ? "max-width:320px;width:100%;justify-self:start;" : "";
+      const nameLength = String(row.displayName || "").length;
+      const nameClass = nameLength >= 28 ? "name name--tight" : nameLength >= 20 ? "name name--compact" : "name";
       return `
-      <article class="snapshot-card" data-index-id="${row.indexId}" style="${toneVars}">
+      <article class="snapshot-card" data-index-id="${row.indexId}" style="${toneVars}${searchCardLayoutStyle}">
         <div class="name-row">
           <div>
-            <div class="name">${row.displayName}</div>
+            <div class="${nameClass}" title="${row.displayName}">${row.displayName}</div>
             <div class="symbol">${row.symbol} · ${row.group === "core" ? "核心" : "行业"}</div>
           </div>
           ${snapshotBadge(row)}
@@ -550,7 +566,7 @@ function renderSnapshotGrid(rows) {
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(row.pe_ttm_change_1y * 100, 1, true)}</strong></div>
         <div class="line"><span>百分位</span><strong style="color:${percentileColor(row.percentile_full)}">${fmtPct(row.percentile_full, 1)}</strong></div>
         <div class="line line-muted"><span>可得历史</span><strong>${row.startDate} ~ ${row.endDate}</strong></div>
-        <div class="percent-track-mini"><span class="pin" style="left:${pinLeft}%"></span></div>
+        <div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>
       </article>`;
     })
     .join("");
@@ -602,6 +618,44 @@ function applyZoomRange(chart, range) {
   });
 }
 
+function resolveYAxisRangeFromSeriesData(seriesData, startPercent, endPercent) {
+  if (!Array.isArray(seriesData) || !seriesData.length) return null;
+
+  const values = seriesData
+    .map((item) => (Array.isArray(item) ? Number(item[1]) : Number(item?.value?.[1])))
+    .filter((value) => Number.isFinite(value));
+  if (!values.length) return null;
+
+  const total = values.length;
+  const lo = clamp(Math.floor((clamp(startPercent, 0, 100) / 100) * (total - 1)), 0, total - 1);
+  const hi = clamp(Math.ceil((clamp(endPercent, 0, 100) / 100) * (total - 1)), 0, total - 1);
+  const from = Math.min(lo, hi);
+  const to = Math.max(lo, hi);
+
+  const visible = values.slice(from, to + 1).filter((value) => Number.isFinite(value));
+  if (!visible.length) return null;
+
+  let min = Math.min(...visible);
+  let max = Math.max(...visible);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+
+  const span = Math.max(max - min, 1e-6);
+  const pad = Math.max(span * 0.12, 0.45);
+
+  min -= pad * 0.65;
+  max += pad * 0.35;
+
+  if (min === max) {
+    min -= pad;
+    max += pad;
+  }
+
+  return {
+    min: roundTo(min, 3),
+    max: roundTo(max, 3),
+  };
+}
+
 function bindDetailZoomSync() {
   const mainChart = charts.detail;
   const percentileChart = charts.detailPercentile;
@@ -609,6 +663,22 @@ function bindDetailZoomSync() {
 
   mainChart.off("datazoom");
   percentileChart.off("datazoom");
+
+  const applyMainYAxisRange = (range) => {
+    const seriesData = mainChart.getOption?.()?.series?.[0]?.data || [];
+    const yRange = resolveYAxisRangeFromSeriesData(seriesData, range?.start ?? 0, range?.end ?? 100);
+    if (!yRange) return;
+
+    mainChart.setOption(
+      {
+        yAxis: {
+          min: yRange.min,
+          max: yRange.max,
+        },
+      },
+      false
+    );
+  };
 
   const scheduleSync = (sourceChart, targetChart, payload) => {
     if (detailZoomSyncState.syncing) return;
@@ -628,17 +698,36 @@ function bindDetailZoomSync() {
 
       detailZoomSyncState.syncing = true;
       applyZoomRange(task.targetChart, task.range);
+      applyMainYAxisRange(task.range);
       detailZoomSyncState.syncing = false;
     });
   };
 
   mainChart.on("datazoom", (payload) => scheduleSync(mainChart, percentileChart, payload));
   percentileChart.on("datazoom", (payload) => scheduleSync(percentileChart, mainChart, payload));
+
+  applyMainYAxisRange(extractZoomRange(mainChart));
 }
 
 function renderOverview() {
   const rows = getOverviewFilteredRows();
+  const isSearching = state.overview.search.trim().length > 0;
+  elements.snapshotGrid.classList.toggle("is-searching", isSearching);
   renderSnapshotGrid(rows);
+}
+
+function sanitizeLegacyStaticMetricOption() {
+  const cleanSelect = (selectEl) => {
+    if (!selectEl) return;
+    [...selectEl.options].forEach((option) => {
+      if (String(option.value || "").trim() === "pe_static") {
+        option.remove();
+      }
+    });
+  };
+
+  cleanSelect(elements.detailMetric);
+  cleanSelect(elements.compareMetric);
 }
 
 function filterRowsByRange(rows, rangeCode) {
@@ -654,6 +743,95 @@ function filterRowsByRange(rows, rangeCode) {
     return rows;
   }
   return filtered;
+}
+
+function normalizeCompareDateRange(startDate = "", endDate = "") {
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(String(startDate || "")) ? String(startDate) : "";
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(String(endDate || "")) ? String(endDate) : "";
+  if (start && end && start > end) {
+    return { startDate: end, endDate: start };
+  }
+  return { startDate: start, endDate: end };
+}
+
+function filterRowsByCustomDateRange(rows, startDate = "", endDate = "") {
+  if (!rows.length) return rows;
+  const { startDate: start, endDate: end } = normalizeCompareDateRange(startDate, endDate);
+  if (!start && !end) return rows;
+
+  return rows.filter((row) => {
+    if (start && row.date < start) return false;
+    if (end && row.date > end) return false;
+    return true;
+  });
+}
+
+function resolveCompareDateBounds() {
+  const indexIds = state.compare.indexIds.length
+    ? state.compare.indexIds
+    : state.watchlist.slice(0, 4);
+
+  let minDate = "";
+  let maxDate = "";
+
+  for (const indexId of indexIds) {
+    const fullRows = getMetricSeries(indexId, state.compare.metric);
+    if (!fullRows.length) continue;
+
+    const rangedRows = filterRowsByRange(fullRows, state.compare.range);
+    if (!rangedRows.length) continue;
+
+    const firstDate = rangedRows[0].date;
+    const lastDate = rangedRows[rangedRows.length - 1].date;
+
+    if (!minDate || firstDate < minDate) minDate = firstDate;
+    if (!maxDate || lastDate > maxDate) maxDate = lastDate;
+  }
+
+  return { minDate, maxDate };
+}
+
+function syncCompareDateInputBounds() {
+  const { minDate, maxDate } = resolveCompareDateBounds();
+
+  if (elements.compareStartDate) {
+    elements.compareStartDate.min = minDate;
+    elements.compareStartDate.max = maxDate;
+  }
+
+  if (elements.compareEndDate) {
+    elements.compareEndDate.min = minDate;
+    elements.compareEndDate.max = maxDate;
+  }
+
+  let nextStart = state.compare.startDate;
+  let nextEnd = state.compare.endDate;
+
+  if (minDate && nextStart && nextStart < minDate) nextStart = minDate;
+  if (maxDate && nextStart && nextStart > maxDate) nextStart = maxDate;
+  if (minDate && nextEnd && nextEnd < minDate) nextEnd = minDate;
+  if (maxDate && nextEnd && nextEnd > maxDate) nextEnd = maxDate;
+
+  if (nextStart !== state.compare.startDate || nextEnd !== state.compare.endDate) {
+    setCompareDateRange(nextStart, nextEnd);
+  }
+}
+
+function setCompareDateRange(startDate = "", endDate = "", shouldPersist = true) {
+  const normalized = normalizeCompareDateRange(startDate, endDate);
+  state.compare.startDate = normalized.startDate;
+  state.compare.endDate = normalized.endDate;
+
+  if (elements.compareStartDate) elements.compareStartDate.value = normalized.startDate;
+  if (elements.compareEndDate) elements.compareEndDate.value = normalized.endDate;
+
+  if (shouldPersist) {
+    if (normalized.startDate) localStorage.setItem(STORAGE_KEYS.compareStartDate, normalized.startDate);
+    else localStorage.removeItem(STORAGE_KEYS.compareStartDate);
+
+    if (normalized.endDate) localStorage.setItem(STORAGE_KEYS.compareEndDate, normalized.endDate);
+    else localStorage.removeItem(STORAGE_KEYS.compareEndDate);
+  }
 }
 
 function syncDetailSelectors() {
@@ -704,7 +882,6 @@ function renderDetailStats(fullRows, viewRows) {
     ["区间最高", metricCfg.percentage ? fmtSigned(max * 100, metricCfg.digits, true) : fmt(max, metricCfg.digits)],
     ["估值状态", regimeLabel(latest.regime)],
     ["可得历史", `${fullRows[0].date} ~ ${fullRows[fullRows.length - 1].date}`],
-    ["样本点", `${fullRows.length}`],
   ]
     .map(
       ([k, v]) => `
@@ -722,8 +899,12 @@ function renderDetailChart(indexMeta, rows) {
   const chart = ensureChart("detail", elements.detailChart);
   if (!chart) return;
   const metricCfg = METRIC_CONFIG[state.detail.metric];
+  const detailChartWidth = elements.detailChart?.clientWidth || 0;
   const endLabelLayout = getLineEndLabelLayout(elements.detailChart?.clientWidth, 1);
   const detailLabelFontSize = Math.max(endLabelLayout.fontSize + 4, 16);
+  const detailRightPadding = Math.round(
+    Math.max(detailChartWidth * 0.035, Math.min(endLabelLayout.rightSpace + 18, 102))
+  );
 
   const metricFormatter = (value) =>
     metricCfg.percentage ? `${fmt(value * 100, metricCfg.digits)}%` : fmt(value, metricCfg.digits);
@@ -735,7 +916,7 @@ function renderDetailChart(indexMeta, rows) {
         top: 4,
         textStyle: { color: "#88a4b8" },
       },
-      grid: { left: 58, right: endLabelLayout.rightSpace + 26, top: 46, bottom: 94 },
+      grid: { left: 58, right: detailRightPadding, top: 46, bottom: 94 },
       tooltip: {
         trigger: "axis",
         formatter(params) {
@@ -799,7 +980,7 @@ function renderDetailChart(indexMeta, rows) {
         {
           name: metricCfg.label,
           type: "line",
-          smooth: true,
+          smooth: false,
           showSymbol: false,
           lineStyle: { width: 2.2, color: "#1ba596" },
           areaStyle: {
@@ -818,7 +999,7 @@ function renderDetailChart(indexMeta, rows) {
           endLabel: {
             show: true,
             position: "right",
-            distance: 12,
+            distance: 8,
             formatter(params) {
               return metricFormatter(params.value?.[1]);
             },
@@ -841,19 +1022,23 @@ function renderDetailChart(indexMeta, rows) {
 
   const start = rows[0]?.date || "--";
   const end = rows[rows.length - 1]?.date || "--";
-  elements.detailRange.textContent = `${indexMeta.displayName} · ${start} ~ ${end}（${rows.length} 点）`;
+  elements.detailRange.textContent = `${indexMeta.displayName} · ${start} ~ ${end}`;
 }
 
 function renderDetailPercentileChart(rows) {
   const chart = ensureChart("detailPercentile", elements.detailPercentileChart);
   if (!chart) return;
+  const percentileChartWidth = elements.detailPercentileChart?.clientWidth || 0;
   const endLabelLayout = getLineEndLabelLayout(elements.detailPercentileChart?.clientWidth, 1);
   const detailLabelFontSize = Math.max(endLabelLayout.fontSize + 4, 16);
+  const percentileRightPadding = Math.round(
+    Math.max(percentileChartWidth * 0.04, Math.min(endLabelLayout.rightSpace + 14, 92))
+  );
 
   chart.setOption(
     {
       animationDuration: 420,
-      grid: { left: 48, right: endLabelLayout.rightSpace + 26, top: 24, bottom: 88 },
+      grid: { left: 48, right: percentileRightPadding, top: 24, bottom: 88 },
       tooltip: {
         trigger: "axis",
         formatter(params) {
@@ -909,7 +1094,7 @@ function renderDetailPercentileChart(rows) {
         {
           name: "百分位",
           type: "line",
-          smooth: true,
+          smooth: false,
           showSymbol: false,
           lineStyle: { width: 2, color: "rgba(123, 164, 255, 0.95)" },
           areaStyle: {
@@ -928,7 +1113,7 @@ function renderDetailPercentileChart(rows) {
           endLabel: {
             show: true,
             position: "right",
-            distance: 12,
+            distance: 8,
             formatter(params) {
               return `${fmt(params.value?.[1], 1)}%`;
             },
@@ -1012,18 +1197,21 @@ function buildCompareRows() {
 
   const metric = state.compare.metric;
   const range = state.compare.range;
+  const customStart = state.compare.startDate;
+  const customEnd = state.compare.endDate;
 
   const seriesList = indexIds
     .map((indexId) => {
       const full = getMetricSeries(indexId, metric);
-      const filtered = filterRowsByRange(full, range);
+      const ranged = filterRowsByRange(full, range);
+      const filtered = filterRowsByCustomDateRange(ranged, customStart, customEnd);
       return {
         indexId,
         full,
         rows: filtered,
       };
     })
-    .filter((item) => item.rows.length > 20);
+    .filter((item) => item.rows.length >= 2);
 
   if (!seriesList.length) return [];
 
@@ -1038,7 +1226,7 @@ function buildCompareRows() {
       ...item,
       rows,
     };
-  });
+  }).filter((item) => item.rows.length >= 2);
 }
 
 function getSeriesPointAtOrBefore(seriesRows, targetDate) {
@@ -1079,61 +1267,85 @@ function buildCompareCrossSection(rows, targetDate = "") {
     .sort((a, b) => b.latest.value - a.latest.value);
 }
 
-function renderCompareLatestViews(latestRows, metricCfg, latestChart) {
+function measureVisualNameLength(text) {
+  const raw = String(text || "");
+  if (!raw) return 0;
+  let size = 0;
+  for (const ch of raw) {
+    size += /[^\x00-\xff]/.test(ch) ? 2 : 1;
+  }
+  return size;
+}
+
+function tuneCompareTableLayout(latestRows) {
+  const sidePanel = elements.compareTableBody?.closest(".compare-side-panel");
+  if (!sidePanel) return;
+
   if (!latestRows.length) {
-    elements.compareTableBody.innerHTML = '<tr><td colspan="4" class="hint">当前区间无可用样本</td></tr>';
-    if (latestChart) latestChart.clear();
+    sidePanel.style.removeProperty("--compare-name-col");
+    sidePanel.style.removeProperty("--compare-rest-col");
+    sidePanel.style.removeProperty("--compare-head-font");
+    sidePanel.style.removeProperty("--compare-cell-font");
+    sidePanel.style.removeProperty("--compare-name-font");
     return;
   }
 
-  const maxLabelCharCount = Math.max(...latestRows.map((item) => String(item.name || "").replace(/[^\x00-\xff]/g, "xx").length));
-  const latestLeftPadding = clamp(maxLabelCharCount * 8 + 30, 130, 320);
+  const panelWidth = sidePanel.clientWidth || 420;
+  const maxNameLen = latestRows.reduce((max, item) => Math.max(max, measureVisualNameLength(item.name)), 0);
+  const rowCount = latestRows.length;
 
-  if (latestChart) {
-    latestChart.setOption(
-      {
-        animationDuration: 220,
-        animationDurationUpdate: 160,
-        animationEasingUpdate: "cubicOut",
-        grid: { left: latestLeftPadding, right: 18, top: 18, bottom: 26 },
-        tooltip: {
-          trigger: "axis",
-          axisPointer: { type: "shadow" },
-        },
-        xAxis: {
-          type: "value",
-          axisLabel: {
-            color: "#8aa5b8",
-            formatter(value) {
-              return metricCfg.percentage ? `${fmt(value, 1)}%` : fmt(value, 2);
-            },
-          },
-          splitLine: { lineStyle: { color: "rgba(120,150,170,0.15)" } },
-        },
-        yAxis: {
-          type: "category",
-          data: latestRows.map((item) => item.name),
-          axisLabel: {
-            color: "#8aa5b8",
-            margin: 14,
-          },
-        },
-        series: [
-          {
-            type: "bar",
-            data: latestRows.map((item) => (metricCfg.percentage ? item.latest.value * 100 : item.latest.value)),
-            itemStyle: {
-              borderRadius: [0, 8, 8, 0],
-              color(params) {
-                const pct = latestRows[params.dataIndex]?.latest?.percentile_full || 0.5;
-                return percentileColor(pct);
-              },
-            },
-          },
-        ],
-      },
-      true
-    );
+  let nameCol = 48;
+  if (maxNameLen <= 16) nameCol = 44;
+  else if (maxNameLen <= 20) nameCol = 47;
+  else if (maxNameLen <= 26) nameCol = 51;
+  else nameCol = 54;
+
+  if (rowCount <= 4) {
+    nameCol = Math.max(nameCol, 56);
+  } else if (rowCount <= 6) {
+    nameCol = Math.max(nameCol, 52);
+  }
+
+  if (panelWidth >= 520 && rowCount <= 4) {
+    nameCol += 2;
+  }
+  if (panelWidth <= 420) nameCol += 2;
+  if (panelWidth <= 380) nameCol += 2;
+  nameCol = clamp(nameCol, 44, 62);
+
+  const restCol = (100 - nameCol) / 3;
+  const compactNames = maxNameLen >= 24;
+
+  let headFont = panelWidth >= 470 ? 0.82 : panelWidth >= 420 ? 0.8 : 0.77;
+  let cellFont = panelWidth >= 470 ? 0.95 : panelWidth >= 420 ? 0.92 : 0.88;
+  let nameFont = panelWidth >= 470 ? 0.97 : panelWidth >= 420 ? 0.93 : 0.88;
+
+  if (rowCount >= 10) {
+    headFont -= 0.03;
+    cellFont -= 0.04;
+    nameFont -= 0.05;
+  } else if (rowCount <= 5) {
+    cellFont += 0.02;
+    nameFont += 0.03;
+  }
+
+  if (compactNames) {
+    nameFont -= 0.05;
+  }
+
+  sidePanel.style.setProperty("--compare-name-col", `${nameCol.toFixed(2)}%`);
+  sidePanel.style.setProperty("--compare-rest-col", `${restCol.toFixed(2)}%`);
+  sidePanel.style.setProperty("--compare-head-font", `${clamp(headFont, 0.72, 0.88).toFixed(3)}rem`);
+  sidePanel.style.setProperty("--compare-cell-font", `${clamp(cellFont, 0.82, 1.0).toFixed(3)}rem`);
+  sidePanel.style.setProperty("--compare-name-font", `${clamp(nameFont, 0.82, 1.02).toFixed(3)}rem`);
+}
+
+function renderCompareLatestViews(latestRows, metricCfg, lineColorByIndexId) {
+  tuneCompareTableLayout(latestRows);
+
+  if (!latestRows.length) {
+    elements.compareTableBody.innerHTML = '<tr><td colspan="4" class="hint">当前区间无可用样本</td></tr>';
+    return;
   }
 
   elements.compareTableBody.innerHTML = latestRows
@@ -1142,9 +1354,15 @@ function renderCompareLatestViews(latestRows, metricCfg, latestChart) {
       const valueText = metricCfg.percentage
         ? `${fmt(item.latest.value * 100, metricCfg.digits)}%`
         : fmt(item.latest.value, metricCfg.digits);
+      const lineColor = lineColorByIndexId?.get(item.indexId) || "#9bb6ff";
       return `
       <tr>
-        <td>${item.name}</td>
+        <td class="compare-name-cell" style="color:${lineColor}">
+          <div class="compare-name-content">
+            <span class="line-dot" style="background:${lineColor}"></span>
+            <span class="compare-name-text" title="${item.name}">${item.name}</span>
+          </div>
+        </td>
         <td>${valueText}</td>
         <td style="color:${percentileColor(item.latest.percentile_full)}">${fmtPct(item.latest.percentile_full, 1)}</td>
         <td>${regime}</td>
@@ -1165,20 +1383,11 @@ function renderCompareSummary(rows, metricCfg, crossSectionRows = null) {
   const points = Array.isArray(crossSectionRows) && crossSectionRows.length
     ? crossSectionRows.map((item) => item.latest)
     : rows.map((item) => item.rows[item.rows.length - 1]).filter(Boolean);
-  const latestValues = points.map((point) => point?.value).filter((value) => Number.isFinite(value));
-  const max = latestValues.length ? Math.max(...latestValues) : 0;
-  const min = latestValues.length ? Math.min(...latestValues) : 0;
-  const spread = max - min;
   const medianPct = median(points.map((point) => point?.percentile_full || 0));
-
-  const spreadText = metricCfg.percentage
-    ? fmtSigned(spread * 100, metricCfg.digits, true)
-    : fmtSigned(spread, metricCfg.digits);
 
   elements.compareSummary.innerHTML = [
     { label: "对比指数", value: `${rows.length} 个` },
     { label: "对齐区间", value: `${alignedStart} ~ ${alignedEnd}` },
-    { label: "当前离散度", value: spreadText },
     { label: "中位分位", value: fmtPct(medianPct, 1) },
   ]
     .map(
@@ -1191,29 +1400,92 @@ function renderCompareSummary(rows, metricCfg, crossSectionRows = null) {
     .join("");
 }
 
+function resolveCompareYAxisRange(rows, metricCfg, startPercent, endPercent) {
+  if (!rows.length) return null;
+
+  const timelineLength = rows[0]?.rows?.length || 0;
+  if (!timelineLength) return null;
+
+  const startIdx = clamp(Math.floor((clamp(startPercent, 0, 100) / 100) * (timelineLength - 1)), 0, timelineLength - 1);
+  const endIdx = clamp(Math.ceil((clamp(endPercent, 0, 100) / 100) * (timelineLength - 1)), 0, timelineLength - 1);
+  const lo = Math.min(startIdx, endIdx);
+  const hi = Math.max(startIdx, endIdx);
+
+  const values = [];
+  for (const item of rows) {
+    for (let i = lo; i <= hi; i += 1) {
+      const point = item.rows[i];
+      if (!point) continue;
+      const value = metricCfg.percentage ? point.value * 100 : point.value;
+      if (Number.isFinite(value)) values.push(value);
+    }
+  }
+
+  if (!values.length) return null;
+
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+
+  const span = Math.max(max - min, 1e-6);
+  const pad = Math.max(span * 0.12, metricCfg.percentage ? 0.35 : 0.55);
+
+  min -= pad * 0.68;
+  max += pad * 0.38;
+
+  if (min === max) {
+    min -= pad;
+    max += pad;
+  }
+
+  return {
+    min: roundTo(min, 3),
+    max: roundTo(max, 3),
+  };
+}
+
 function renderCompareCharts() {
   const metricCfg = METRIC_CONFIG[state.compare.metric];
-  const rows = buildCompareRows();
-  const endLabelLayout = getLineEndLabelLayout(elements.compareChart?.clientWidth, rows.length);
-  const compareLabelFontSize = Math.max(endLabelLayout.fontSize + 3, 15);
+  syncCompareDateInputBounds();
 
-  if (!rows.length) {
-    elements.compareTableBody.innerHTML = '<tr><td colspan="4" class="hint">请至少选择一个有效指数</td></tr>';
-    renderCompareSummary([], metricCfg);
-    return;
+  if (elements.compareChartTitle) {
+    const hasCustomDate = Boolean(state.compare.startDate || state.compare.endDate);
+    const dateTag = hasCustomDate
+      ? ` · ${state.compare.startDate || "最早"} ~ ${state.compare.endDate || "最新"}`
+      : "";
+    elements.compareChartTitle.textContent = `对比走势 · ${metricCfg.label}${dateTag}`;
   }
 
   const chart = ensureChart("compare", elements.compareChart);
-  const latestChart = ensureChart("compareLatest", elements.compareLatestChart);
+  const rows = buildCompareRows();
+  const compareChartWidth = elements.compareChart?.clientWidth || 0;
+  const endLabelLayout = getLineEndLabelLayout(compareChartWidth, rows.length);
+  const compareLabelFontSize = Math.max(endLabelLayout.fontSize + 3, 15);
+  const compareRightPadding = Math.round(
+    Math.max(24, Math.min(endLabelLayout.rightSpace * 0.38 + 10, compareChartWidth * 0.06, 50))
+  );
+
+  if (!rows.length) {
+    const noDataMessage =
+      state.compare.startDate || state.compare.endDate
+        ? "当前日期范围样本不足（每条曲线至少需要 2 个点）"
+        : "请至少选择一个有效指数";
+    elements.compareTableBody.innerHTML = `<tr><td colspan="4" class="hint">${noDataMessage}</td></tr>`;
+    renderCompareSummary([], metricCfg);
+    chart?.clear();
+    return;
+  }
 
   const legend = [];
   const lineSeries = [];
+  const lineColorByIndexId = new Map();
 
   for (const [seriesIndex, item] of rows.entries()) {
     const meta = state.metaRows.find((m) => m.id === item.indexId);
     if (!meta) continue;
     legend.push(meta.displayName);
     const lineColor = COMPARE_LINE_COLORS[seriesIndex % COMPARE_LINE_COLORS.length];
+    lineColorByIndexId.set(item.indexId, lineColor);
 
     const data = item.rows.map((row) => {
       const raw = metricCfg.percentage ? row.value * 100 : row.value;
@@ -1223,7 +1495,7 @@ function renderCompareCharts() {
     lineSeries.push({
       name: meta.displayName,
       type: "line",
-      smooth: true,
+      smooth: false,
       showSymbol: false,
       lineStyle: {
         width: 2.5,
@@ -1235,7 +1507,7 @@ function renderCompareCharts() {
       endLabel: {
         show: true,
         position: "right",
-        distance: 12,
+        distance: 6,
         align: "left",
         verticalAlign: "middle",
         formatter(params) {
@@ -1263,7 +1535,7 @@ function renderCompareCharts() {
           top: 4,
           textStyle: { color: "#88a4b8" },
         },
-        grid: { left: 60, right: endLabelLayout.rightSpace + 22, top: 46, bottom: 94 },
+        grid: { left: 60, right: compareRightPadding, top: 46, bottom: 94 },
         tooltip: {
           trigger: "axis",
         },
@@ -1275,12 +1547,12 @@ function renderCompareCharts() {
           {
             type: "inside",
             xAxisIndex: 0,
-            filterMode: "none",
+            filterMode: "filter",
           },
           {
             type: "slider",
             xAxisIndex: 0,
-            filterMode: "none",
+            filterMode: "filter",
             height: 24,
             bottom: 12,
             brushSelect: false,
@@ -1326,15 +1598,33 @@ function renderCompareCharts() {
   const defaultFocusDate = timeline[timeline.length - 1] || "";
   let activeFocusDate = defaultFocusDate;
   let rafSyncId = 0;
+  let pendingZoomRange = { start: 0, end: 100 };
+
+  const applyCompareYAxisRange = (startPercent, endPercent) => {
+    if (!chart) return;
+    const range = resolveCompareYAxisRange(rows, metricCfg, startPercent, endPercent);
+    if (!range) return;
+
+    chart.setOption(
+      {
+        yAxis: {
+          min: range.min,
+          max: range.max,
+        },
+      },
+      false
+    );
+  };
 
   const syncCrossSection = (focusDate) => {
     const finalDate = focusDate || defaultFocusDate;
     const crossSectionRows = buildCompareCrossSection(rows, finalDate);
     renderCompareSummary(rows, metricCfg, crossSectionRows);
-    renderCompareLatestViews(crossSectionRows, metricCfg, latestChart);
+    renderCompareLatestViews(crossSectionRows, metricCfg, lineColorByIndexId);
   };
 
   syncCrossSection(defaultFocusDate);
+  applyCompareYAxisRange(0, 100);
 
   if (!chart || timeline.length < 2) return;
 
@@ -1345,13 +1635,18 @@ function renderCompareCharts() {
     const endPercent = clamp(Number(dz?.end ?? 100), 0, 100);
     const index = clamp(Math.round((endPercent / 100) * (timeline.length - 1)), 0, timeline.length - 1);
     const nextFocusDate = fromEndValue || timeline[index] || defaultFocusDate;
-
-    if (!nextFocusDate || nextFocusDate === activeFocusDate) return;
-    activeFocusDate = nextFocusDate;
+    pendingZoomRange = {
+      start: clamp(Number(dz?.start ?? 0), 0, 100),
+      end: endPercent,
+    };
 
     if (rafSyncId) cancelAnimationFrame(rafSyncId);
     rafSyncId = requestAnimationFrame(() => {
-      syncCrossSection(nextFocusDate);
+      applyCompareYAxisRange(pendingZoomRange.start, pendingZoomRange.end);
+      if (nextFocusDate) {
+        activeFocusDate = nextFocusDate;
+      }
+      syncCrossSection(activeFocusDate);
       rafSyncId = 0;
     });
   });
@@ -1411,15 +1706,20 @@ function resetSettings() {
   state.settings.defaultCompareRange = "max";
   state.overview.group = "all";
   state.compare.range = "max";
+  state.compare.startDate = "";
+  state.compare.endDate = "";
   state.watchlist = state.metaRows.slice(0, 6).map((item) => item.id);
   state.compare.indexIds = getDefaultCompareSelection();
 
   localStorage.removeItem(STORAGE_KEYS.watchlist);
   localStorage.removeItem(STORAGE_KEYS.overviewGroup);
   localStorage.removeItem(STORAGE_KEYS.compareRange);
+  localStorage.removeItem(STORAGE_KEYS.compareStartDate);
+  localStorage.removeItem(STORAGE_KEYS.compareEndDate);
 
   elements.overviewGroupFilter.value = state.overview.group;
   elements.compareRange.value = state.compare.range;
+  setCompareDateRange("", "", false);
 
   buildCompareIndexList();
   renderOverview();
@@ -1471,7 +1771,6 @@ function switchView(view) {
     }
     if (view === "compare") {
       charts.compare?.resize();
-      charts.compareLatest?.resize();
     }
   };
 
@@ -1570,12 +1869,25 @@ function bindEvents() {
     renderCompareCharts();
   });
 
+  const handleCompareDateInput = () => {
+    setCompareDateRange(elements.compareStartDate?.value || "", elements.compareEndDate?.value || "");
+    renderCompareCharts();
+  };
+
+  elements.compareStartDate?.addEventListener("change", handleCompareDateInput);
+  elements.compareEndDate?.addEventListener("change", handleCompareDateInput);
+  elements.compareResetDate?.addEventListener("click", () => {
+    setCompareDateRange("", "");
+    renderCompareCharts();
+  });
+
   elements.compareWatchlistOnly.addEventListener("change", (event) => {
     state.compare.watchlistOnly = event.target.checked;
     buildCompareIndexList();
   });
 
   elements.compareApply.addEventListener("click", () => {
+    setCompareDateRange(elements.compareStartDate?.value || "", elements.compareEndDate?.value || "");
     collectCompareSelection();
     renderCompareCharts();
     showToast("对比配置已应用");
@@ -1603,6 +1915,7 @@ function initSelections() {
 
   elements.compareMetric.value = state.compare.metric;
   elements.compareRange.value = state.compare.range;
+  setCompareDateRange(state.compare.startDate, state.compare.endDate, false);
   elements.compareWatchlistOnly.checked = state.compare.watchlistOnly;
 
   if (!state.compare.indexIds.length) {
@@ -1612,6 +1925,7 @@ function initSelections() {
 
 async function bootstrap() {
   applyTheme();
+  sanitizeLegacyStaticMetricOption();
   bindEvents();
 
   try {
