@@ -61,16 +61,17 @@ export function buildMetricSeries(
 
   for (let i = 0; i < enriched.length; i += 1) {
     const point = enriched[i];
-    const metricValue = pickMetricValue(point, metric);
-    values.push(metricValue);
-
     if ((fromDate && point.date < fromDate) || (toDate && point.date > toDate)) {
       continue;
     }
 
-    const percentile5 = percentileRankWindow(values, i - window5 + 1, i, metricValue);
-    const percentile10 = percentileRankWindow(values, i - window10 + 1, i, metricValue);
-    const percentileFull = percentileRankWindow(values, 0, i, metricValue);
+    const metricValue = pickMetricValue(point, metric);
+    values.push(metricValue);
+    const valueIndex = values.length - 1;
+
+    const percentile5 = percentileRankWindow(values, valueIndex - window5 + 1, valueIndex, metricValue);
+    const percentile10 = percentileRankWindow(values, valueIndex - window10 + 1, valueIndex, metricValue);
+    const percentileFull = percentileRankWindow(values, 0, valueIndex, metricValue);
 
     rows.push({
       date: point.date,

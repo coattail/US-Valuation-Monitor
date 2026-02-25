@@ -30,6 +30,19 @@ test("buildMetricSeries supports pe_forward", () => {
   assert.ok(rows.every((item) => item.value > 0));
 });
 
+test("buildMetricSeries percentile uses filtered range only", () => {
+  const points = [
+    { date: "2026-01-02", pe_ttm: 50, pe_forward: 48, pb: 6, us10y_yield: 0.03 },
+    { date: "2026-01-03", pe_ttm: 10, pe_forward: 9, pb: 2, us10y_yield: 0.03 },
+    { date: "2026-01-04", pe_ttm: 20, pe_forward: 18, pb: 3, us10y_yield: 0.03 },
+  ];
+
+  const rows = buildMetricSeries(points, "pe_ttm", "2026-01-03", "2026-01-04");
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].percentile_full, 1);
+  assert.equal(rows[1].percentile_full, 1);
+});
+
 test("buildSnapshot returns latest row", () => {
   const snapshot = buildSnapshot("sp500", rawPoints);
   assert.equal(snapshot.date, "2026-01-07");

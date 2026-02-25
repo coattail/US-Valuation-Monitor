@@ -401,10 +401,11 @@ function getMetricSeries(indexId, metric) {
     }
     const value = metricValueFromRaw(point, metric);
     values.push(value);
+    const valueIndex = values.length - 1;
 
-    const pct5 = percentileWindow(values, i - TRADING_DAYS_PER_YEAR * 5 + 1, i, value);
-    const pct10 = percentileWindow(values, i - TRADING_DAYS_PER_YEAR * 10 + 1, i, value);
-    const pctFull = percentileWindow(values, 0, i, value);
+    const pct5 = percentileWindow(values, valueIndex - TRADING_DAYS_PER_YEAR * 5 + 1, valueIndex, value);
+    const pct10 = percentileWindow(values, valueIndex - TRADING_DAYS_PER_YEAR * 10 + 1, valueIndex, value);
+    const pctFull = percentileWindow(values, 0, valueIndex, value);
 
     result.push({
       date: point.date,
@@ -412,7 +413,7 @@ function getMetricSeries(indexId, metric) {
       percentile_5y: pct5,
       percentile_10y: pct10,
       percentile_full: pctFull,
-      z_score_3y: zScoreWindow(values, i - TRADING_DAYS_PER_YEAR * 3 + 1, i, value),
+      z_score_3y: zScoreWindow(values, valueIndex - TRADING_DAYS_PER_YEAR * 3 + 1, valueIndex, value),
       regime: regimeFromPercentile(pctFull),
     });
   }
@@ -760,6 +761,34 @@ function filterRowsByCustomDateRange(rows, startDate = "", endDate = "") {
   });
 }
 
+function recomputeRangeRollingStats(rows) {
+  if (!rows.length) return rows;
+
+  const values = [];
+  const result = [];
+
+  for (const row of rows) {
+    const value = Number(row.value);
+    values.push(value);
+    const valueIndex = values.length - 1;
+
+    const pct5 = percentileWindow(values, valueIndex - TRADING_DAYS_PER_YEAR * 5 + 1, valueIndex, value);
+    const pct10 = percentileWindow(values, valueIndex - TRADING_DAYS_PER_YEAR * 10 + 1, valueIndex, value);
+    const pctFull = percentileWindow(values, 0, valueIndex, value);
+
+    result.push({
+      ...row,
+      percentile_5y: pct5,
+      percentile_10y: pct10,
+      percentile_full: pctFull,
+      z_score_3y: zScoreWindow(values, valueIndex - TRADING_DAYS_PER_YEAR * 3 + 1, valueIndex, value),
+      regime: regimeFromPercentile(pctFull),
+    });
+  }
+
+  return result;
+}
+
 function resolveCompareDateBounds() {
   const indexIds = state.compare.indexIds.length
     ? state.compare.indexIds
@@ -841,7 +870,7 @@ function renderDetailPercentileTrack(latest) {
   const left = `${(full * 100).toFixed(1)}%`;
 
   elements.detailPercentileTrack.innerHTML = `
-    <div class="title">当前百分位位置（全历史）</div>
+    <div class="title">当前百分位位置（当前区间）</div>
     <div class="bar"><span class="pin" style="left:${left}"></span></div>
     <div class="labels">
       <span>0% 低估</span>
@@ -855,6 +884,7 @@ function renderDetailPercentileTrack(latest) {
 
 function renderDetailStats(fullRows, viewRows) {
   const latest = viewRows[viewRows.length - 1];
+  const latestFull = fullRows[fullRows.length - 1] || latest;
   const metricCfg = METRIC_CONFIG[state.detail.metric];
   const values = viewRows.map((row) => row.value);
 
@@ -868,14 +898,15 @@ function renderDetailStats(fullRows, viewRows) {
 
   elements.detailStats.innerHTML = [
     ["当前值", valueText],
-    ["百分位(5Y)", fmtPct(latest.percentile_5y, 1)],
-    ["百分位(10Y)", fmtPct(latest.percentile_10y, 1)],
-    ["百分位(全历史)", fmtPct(latest.percentile_full, 1)],
+    ["百分位(当前区间)", fmtPct(latest.percentile_full, 1)],
+    ["百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
+    ["滚动百分位(5Y)", fmtPct(latest.percentile_5y, 1)],
+    ["滚动百分位(10Y)", fmtPct(latest.percentile_10y, 1)],
     ["区间变动", fmtSigned(change, 2, true)],
     ["区间最低", metricCfg.percentage ? fmtSigned(min * 100, metricCfg.digits, true) : fmt(min, metricCfg.digits)],
     ["区间最高", metricCfg.percentage ? fmtSigned(max * 100, metricCfg.digits, true) : fmt(max, metricCfg.digits)],
     ["估值状态", regimeLabel(latest.regime)],
-    ["数据区间", `${fullRows[0].date} ~ ${fullRows[fullRows.length - 1].date}`],
+    ["数据区间", `${viewRows[0].date} ~ ${viewRows[viewRows.length - 1].date}`],
   ]
     .map(
       ([k, v]) => `
@@ -1136,7 +1167,8 @@ function renderDetail() {
   if (!indexId) return;
 
   const fullRows = getMetricSeries(indexId, metric);
-  const viewRows = filterRowsByRange(fullRows, state.detail.range);
+  const rangedRows = filterRowsByRange(fullRows, state.detail.range);
+  const viewRows = recomputeRangeRollingStats(rangedRows);
 
   const indexMeta = state.metaRows.find((item) => item.id === indexId);
   if (!indexMeta || !viewRows.length) return;
@@ -1199,10 +1231,11 @@ function buildCompareRows() {
       const full = getMetricSeries(indexId, metric);
       const ranged = filterRowsByRange(full, range);
       const filtered = filterRowsByCustomDateRange(ranged, customStart, customEnd);
+      const normalized = recomputeRangeRollingStats(filtered);
       return {
         indexId,
         full,
-        rows: filtered,
+        rows: normalized,
       };
     })
     .filter((item) => item.rows.length >= 2);
