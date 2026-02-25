@@ -323,6 +323,90 @@ function regimeFromPercentile(percentile) {
   return "neutral";
 }
 
+function computeLatestPeStats(points) {
+  if (!Array.isArray(points) || !points.length) {
+    return {
+      percentile_5y: 0.5,
+      percentile_10y: 0.5,
+      percentile_full: 0.5,
+      z_score_3y: 0,
+      regime: "neutral",
+      pe_ttm_change_1y: 0,
+    };
+  }
+
+  const latest = points[points.length - 1];
+  const latestPe = Number(latest?.pe_ttm);
+  if (!Number.isFinite(latestPe)) {
+    return {
+      percentile_5y: 0.5,
+      percentile_10y: 0.5,
+      percentile_full: 0.5,
+      z_score_3y: 0,
+      regime: "neutral",
+      pe_ttm_change_1y: 0,
+    };
+  }
+
+  const total = points.length;
+  const start5 = Math.max(0, total - TRADING_DAYS_PER_YEAR * 5);
+  const start10 = Math.max(0, total - TRADING_DAYS_PER_YEAR * 10);
+  const start3 = Math.max(0, total - TRADING_DAYS_PER_YEAR * 3);
+  const lookbackIndex = Math.max(0, total - TRADING_DAYS_PER_YEAR);
+
+  let fullCount = 0;
+  let count5 = 0;
+  let count10 = 0;
+  let sum3 = 0;
+  let sumSq3 = 0;
+  let len3 = 0;
+
+  for (let i = 0; i < total; i += 1) {
+    const pe = Number(points[i]?.pe_ttm);
+    if (!Number.isFinite(pe)) continue;
+
+    if (pe <= latestPe) {
+      fullCount += 1;
+      if (i >= start5) count5 += 1;
+      if (i >= start10) count10 += 1;
+    }
+
+    if (i >= start3) {
+      sum3 += pe;
+      sumSq3 += pe * pe;
+      len3 += 1;
+    }
+  }
+
+  const len5 = Math.max(1, total - start5);
+  const len10 = Math.max(1, total - start10);
+  const pctFull = clamp(fullCount / Math.max(1, total), 0, 1);
+  const pct5 = clamp(count5 / len5, 0, 1);
+  const pct10 = clamp(count10 / len10, 0, 1);
+
+  let zScore3y = 0;
+  if (len3 > 1) {
+    const avg = sum3 / len3;
+    const variance = Math.max(0, (sumSq3 - (sum3 * sum3) / len3) / (len3 - 1));
+    const sigma = Math.sqrt(variance);
+    if (sigma > 1e-12) {
+      zScore3y = (latestPe - avg) / sigma;
+    }
+  }
+
+  const peRef = Number(points[lookbackIndex]?.pe_ttm);
+  const peChange1y = Number.isFinite(peRef) && Math.abs(peRef) > 1e-12 ? (latestPe - peRef) / Math.abs(peRef) : 0;
+
+  return {
+    percentile_5y: pct5,
+    percentile_10y: pct10,
+    percentile_full: pctFull,
+    z_score_3y: zScore3y,
+    regime: regimeFromPercentile(pctFull),
+    pe_ttm_change_1y: peChange1y,
+  };
+}
+
 function regimeLabel(regime) {
   if (regime === "high") return "高估";
   if (regime === "low") return "低估";
@@ -437,12 +521,9 @@ function getMetricSeries(indexId, metric) {
 
 function buildSnapshotRows() {
   state.snapshotRows = state.dataset.indices.map((indexData) => {
-    const latestRaw = indexData.points[indexData.points.length - 1];
-    const peSeries = getMetricSeries(indexData.id, "pe_ttm");
-    const latestPe = peSeries[peSeries.length - 1];
-
-    const lookbackIndex = Math.max(0, peSeries.length - TRADING_DAYS_PER_YEAR);
-    const peRef = peSeries[lookbackIndex]?.value ?? peSeries[0]?.value ?? latestRaw.pe_ttm;
+    const points = Array.isArray(indexData.points) ? indexData.points : [];
+    const latestRaw = points[points.length - 1] || {};
+    const latestPe = computeLatestPeStats(points);
 
     return {
       indexId: indexData.id,
@@ -453,15 +534,15 @@ function buildSnapshotRows() {
       pe_ttm: latestRaw.pe_ttm,
       pe_forward: latestRaw.pe_forward,
       pb: latestRaw.pb,
-      percentile_5y: latestPe?.percentile_5y ?? 0.5,
-      percentile_10y: latestPe?.percentile_10y ?? 0.5,
-      percentile_full: latestPe?.percentile_full ?? 0.5,
-      z_score_3y: latestPe?.z_score_3y ?? 0,
-      pe_ttm_change_1y: peRef ? (latestRaw.pe_ttm - peRef) / Math.abs(peRef) : 0,
-      regime: latestPe?.regime ?? "neutral",
-      startDate: indexData.points[0]?.date || "",
-      endDate: indexData.points[indexData.points.length - 1]?.date || "",
-      pointCount: indexData.points.length,
+      percentile_5y: latestPe.percentile_5y,
+      percentile_10y: latestPe.percentile_10y,
+      percentile_full: latestPe.percentile_full,
+      z_score_3y: latestPe.z_score_3y,
+      pe_ttm_change_1y: latestPe.pe_ttm_change_1y,
+      regime: latestPe.regime,
+      startDate: points[0]?.date || "",
+      endDate: points[points.length - 1]?.date || "",
+      pointCount: points.length,
     };
   });
 }
@@ -1971,8 +2052,6 @@ async function bootstrap() {
     buildCompareIndexList();
 
     renderOverview();
-    renderDetail();
-    renderCompareCharts();
     renderSettings();
 
     applyDataSourceBadge(state.dataset.source);
