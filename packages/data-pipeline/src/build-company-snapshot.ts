@@ -676,12 +676,12 @@ async function fetchCloseHistory(symbol: string, slug: string): Promise<ClosePoi
 
 function parseCompaniesMarketCapRatioSeries(html: string): MetricPoint[] {
   const text = String(html || "");
-  const matches = [...text.matchAll(/data\s*=\s*(\[\{[\s\S]*?\}\]);/g)];
-  if (!matches.length) return [];
+  const arrayMatches = [...text.matchAll(/data\s*=\s*(\[\{[\s\S]*?\}\]);/g)];
+  const yearlyMatches = [...text.matchAll(/data\s*=\s*(\{[\s\S]*?\});/g)];
 
   let best: Array<{ d?: unknown; v?: unknown }> = [];
 
-  for (const match of matches) {
+  for (const match of arrayMatches) {
     try {
       const parsed = JSON.parse(match[1]) as Array<{ d?: unknown; v?: unknown }>;
       if (Array.isArray(parsed) && parsed.length > best.length) {
@@ -693,12 +693,58 @@ function parseCompaniesMarketCapRatioSeries(html: string): MetricPoint[] {
   }
 
   const byDate = new Map<string, MetricPoint>();
+  if (best.length) {
+    for (const item of best) {
+      const date = toIsoDateFromEpoch(item?.d);
+      const value = sanitizeSignedRatio(item?.v);
+      if (!date || !value) continue;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      if (date < HISTORY_START_DATE) continue;
+      byDate.set(date, {
+        date,
+        ts: toTs(date),
+        value,
+      });
+    }
+  }
 
-  for (const item of best) {
-    const date = toIsoDateFromEpoch(item?.d);
-    const value = sanitizeSignedRatio(item?.v);
-    if (!date || !value) continue;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+  if (byDate.size) {
+    return [...byDate.values()].sort((a, b) => a.ts - b.ts);
+  }
+
+  let bestYearly: Record<string, unknown> | null = null;
+  let bestYearlyCount = 0;
+
+  for (const match of yearlyMatches) {
+    try {
+      const parsed = JSON.parse(match[1]) as Record<string, unknown>;
+      const validCount = Object.entries(parsed).filter(([key, value]) => {
+        if (!/^\d{4}$/.test(key)) return false;
+        const year = Number(key);
+        if (!Number.isFinite(year) || year < 1900 || year > 2100) return false;
+        return sanitizeSignedRatio(value) !== null;
+      }).length;
+
+      if (validCount > bestYearlyCount) {
+        bestYearly = parsed;
+        bestYearlyCount = validCount;
+      }
+    } catch {
+      // keep trying
+    }
+  }
+
+  if (!bestYearly || !bestYearlyCount) return [];
+
+  for (const [key, rawValue] of Object.entries(bestYearly)) {
+    if (!/^\d{4}$/.test(key)) continue;
+    const year = Number(key);
+    if (!Number.isFinite(year) || year < 1900 || year > 2100) continue;
+
+    const value = sanitizeSignedRatio(rawValue);
+    if (!value) continue;
+
+    const date = `${key}-12-31`;
     if (date < HISTORY_START_DATE) continue;
     byDate.set(date, {
       date,
