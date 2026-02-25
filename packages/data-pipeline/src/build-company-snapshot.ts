@@ -65,6 +65,7 @@ const ROOT_DIR = path.resolve(path.dirname(CURRENT_FILE), "../../..");
 const OUTPUT_DIR = path.join(ROOT_DIR, "data", "standardized");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "company-valuation-history.json");
 const execFileAsync = promisify(execFile);
+let companiesMarketCapFetchChain: Promise<unknown> = Promise.resolve();
 
 const TOP_COMPANY_URLS = [
   "https://companiesmarketcap.com/usd/",
@@ -76,7 +77,7 @@ const TOP_COMPANY_URLS = [
 ];
 
 const HISTORY_START_DATE = "2000-01-01";
-const CONCURRENCY = 3;
+const CONCURRENCY = 2;
 const REQUEST_TIMEOUT_MS = 12000;
 
 const USER_AGENT =
@@ -87,6 +88,12 @@ const DEFAULT_METRICS = {
   pe_ttm: 20,
   pe_forward: 18,
   pb: 3,
+};
+
+const METRIC_MAX = {
+  pe_ttm: 5000,
+  pe_forward: 5000,
+  pb: 5000,
 };
 
 function sleep(ms: number): Promise<void> {
@@ -125,6 +132,13 @@ function sanitizeRatio(value: unknown): number | null {
   return n;
 }
 
+function sanitizeSignedRatio(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (Math.abs(n) < 1e-8) return null;
+  return n;
+}
+
 function toIsoDateFromEpoch(epochLike: unknown): string | null {
   const value = Number(epochLike);
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -147,6 +161,9 @@ function isRejectedPayload(text: string): boolean {
   const raw = String(text || "").trim().toLowerCase();
   if (!raw) return true;
   if (raw.includes("exceeded the daily hits limit")) return true;
+  if (raw.includes("too many requests")) return true;
+  if (raw.includes("enable javascript and cookies to continue")) return true;
+  if (raw.includes("<title>just a moment")) return true;
   if (raw.includes("just a moment") && raw.includes("cf-chl")) return true;
   return false;
 }
@@ -219,6 +236,22 @@ async function mapLimit<T, R>(
 
   await Promise.all(workers);
   return results;
+}
+
+function enqueueCompaniesMarketCapFetch<T>(task: () => Promise<T>): Promise<T> {
+  const run = companiesMarketCapFetchChain.then(task, task);
+  companiesMarketCapFetchChain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+async function fetchCompaniesMarketCapText(url: string, retries: number, timeoutMs: number): Promise<string> {
+  return enqueueCompaniesMarketCapFetch(async () => {
+    await sleep(140);
+    return fetchText(url, retries, timeoutMs);
+  });
 }
 
 function parseTopCompanies(html: string): CompanySeed[] {
@@ -326,7 +359,7 @@ async function fetchCloseHistoryFromCompaniesMarketCap(slug: string): Promise<Cl
 
   for (const url of urls) {
     try {
-      const html = await fetchText(url, 1, 18000);
+      const html = await fetchCompaniesMarketCapText(url, 3, 20000);
       const series = parseCompaniesMarketCapRatioSeries(html);
       const points = series
         .map((item) => ({ date: item.date, ts: item.ts, close: item.value }))
@@ -570,7 +603,7 @@ function parseCompaniesMarketCapRatioSeries(html: string): MetricPoint[] {
 
   for (const item of best) {
     const date = toIsoDateFromEpoch(item?.d);
-    const value = sanitizeRatio(item?.v);
+    const value = sanitizeSignedRatio(item?.v);
     if (!date || !value) continue;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
     if (date < HISTORY_START_DATE) continue;
@@ -595,7 +628,7 @@ async function fetchCompaniesMarketCapMetricSeries(slug: string, metricPath: "pe
 
   for (const url of urls) {
     try {
-      const html = await fetchText(url, 2, 18000);
+      const html = await fetchCompaniesMarketCapText(url, 3, 20000);
       const series = parseCompaniesMarketCapRatioSeries(html);
       if (series.length >= 8) return series;
     } catch {
@@ -639,9 +672,9 @@ function parseRatioPayloadFromScript(rawText: string): RatioPayload | null {
 
   for (let i = 0; i < dateKeys.length; i += 1) {
     const key = dateKeys[i];
-    const pe = sanitizeRatio(peRaw[i]);
-    const peForward = sanitizeRatio(fwdRaw[i]);
-    const pb = sanitizeRatio(pbRaw[i]);
+    const pe = sanitizeSignedRatio(peRaw[i]);
+    const peForward = sanitizeSignedRatio(fwdRaw[i]);
+    const pb = sanitizeSignedRatio(pbRaw[i]);
 
     if (i === 0 || key === "TTM") {
       latest = {
@@ -749,9 +782,9 @@ function mergeRatioPayloads(
   for (const item of stockPayload?.anchors || []) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date)) continue;
     upsert(item.date, {
-      pe_ttm: sanitizeRatio(item.pe_ttm),
-      pe_forward: sanitizeRatio(item.pe_forward),
-      pb: sanitizeRatio(item.pb),
+      pe_ttm: sanitizeSignedRatio(item.pe_ttm),
+      pe_forward: sanitizeSignedRatio(item.pe_forward),
+      pb: sanitizeSignedRatio(item.pb),
     });
   }
 
@@ -766,11 +799,11 @@ function mergeRatioPayloads(
   const latest = {
     pe_ttm:
       longPeSeries[longPeSeries.length - 1]?.value ??
-      sanitizeRatio(stockPayload?.latest.pe_ttm ?? null),
-    pe_forward: sanitizeRatio(stockPayload?.latest.pe_forward ?? null),
+      sanitizeSignedRatio(stockPayload?.latest.pe_ttm ?? null),
+    pe_forward: sanitizeSignedRatio(stockPayload?.latest.pe_forward ?? null),
     pb:
       longPbSeries[longPbSeries.length - 1]?.value ??
-      sanitizeRatio(stockPayload?.latest.pb ?? null),
+      sanitizeSignedRatio(stockPayload?.latest.pb ?? null),
   };
 
   const anchors = [...mergedByDate.values()]
@@ -855,9 +888,9 @@ function buildUnifiedAnchors(closePoints: ClosePoint[], ratioPayload: RatioPaylo
     if (item.date < firstDate || item.date > lastDate) continue;
     byDate.set(item.date, {
       date: item.date,
-      pe_ttm: sanitizeRatio(item.pe_ttm),
-      pe_forward: sanitizeRatio(item.pe_forward),
-      pb: sanitizeRatio(item.pb),
+      pe_ttm: sanitizeSignedRatio(item.pe_ttm),
+      pe_forward: sanitizeSignedRatio(item.pe_forward),
+      pb: sanitizeSignedRatio(item.pb),
     });
   }
 
@@ -877,9 +910,9 @@ function buildUnifiedAnchors(closePoints: ClosePoint[], ratioPayload: RatioPaylo
 
     byDate.set(lastDate, {
       date: lastDate,
-      pe_ttm: current.pe_ttm ?? sanitizeRatio(latest.pe_ttm),
-      pe_forward: current.pe_forward ?? sanitizeRatio(latest.pe_forward),
-      pb: current.pb ?? sanitizeRatio(latest.pb),
+      pe_ttm: current.pe_ttm ?? sanitizeSignedRatio(latest.pe_ttm),
+      pe_forward: current.pe_forward ?? sanitizeSignedRatio(latest.pe_forward),
+      pb: current.pb ?? sanitizeSignedRatio(latest.pb),
     });
   }
 
@@ -901,12 +934,12 @@ function buildMetricAnchorDenominators(
   const byDate = new Map<string, MetricAnchorDenominator>();
 
   for (const item of anchors) {
-    const ratio = sanitizeRatio(item[key]);
+    const ratio = sanitizeSignedRatio(item[key]);
     if (!ratio) continue;
 
     const closeAtAnchor = getCloseAtOrBefore(closePoints, item.date).close;
     const denominator = closeAtAnchor / ratio;
-    if (!Number.isFinite(denominator) || denominator <= 0) continue;
+    if (!Number.isFinite(denominator) || Math.abs(denominator) < 1e-8) continue;
 
     byDate.set(item.date, {
       date: item.date,
@@ -956,7 +989,9 @@ function projectMetricByAnchorWindow(
       anchorIndex += 1;
     }
 
-    const denominator = Math.max(ordered[anchorIndex].denominator, 1e-6);
+    const rawDenominator = ordered[anchorIndex].denominator;
+    const denominator =
+      Math.abs(rawDenominator) < 1e-6 ? (rawDenominator < 0 ? -1e-6 : 1e-6) : rawDenominator;
     out.push(roundTo(clamp(point.close / denominator, min, max), 4));
   }
 
@@ -972,19 +1007,19 @@ function buildValuationSeries(closePoints: ClosePoint[], ratioPayload: RatioPayl
   const forwardScale = deriveForwardScale(unifiedAnchors, ratioPayload?.latest || null);
   const firstForwardTs = Math.min(
     ...unifiedAnchors
-      .map((item) => (sanitizeRatio(item.pe_forward) ? toTs(item.date) : Number.POSITIVE_INFINITY))
+      .map((item) => (sanitizeSignedRatio(item.pe_forward) ? toTs(item.date) : Number.POSITIVE_INFINITY))
       .filter((ts) => Number.isFinite(ts))
   );
 
   const enrichedAnchors = unifiedAnchors.map((item) => {
-    if (sanitizeRatio(item.pe_forward)) return item;
-    const peTtm = sanitizeRatio(item.pe_ttm);
+    if (sanitizeSignedRatio(item.pe_forward)) return item;
+    const peTtm = sanitizeSignedRatio(item.pe_ttm);
     if (!peTtm) return item;
 
     if (!Number.isFinite(firstForwardTs) || toTs(item.date) < firstForwardTs) {
       return {
         ...item,
-        pe_forward: sanitizeRatio(peTtm * forwardScale),
+        pe_forward: sanitizeSignedRatio(peTtm * forwardScale),
       };
     }
 
@@ -1005,9 +1040,24 @@ function buildValuationSeries(closePoints: ClosePoint[], ratioPayload: RatioPayl
   );
   const pbAnchors = buildMetricAnchorDenominators(closePoints, enrichedAnchors, "pb", DEFAULT_METRICS.pb);
 
-  const peSeries = projectMetricByAnchorWindow(closePoints, peAnchors.anchors, 0.3, 450);
-  const forwardSeries = projectMetricByAnchorWindow(closePoints, forwardAnchors.anchors, 0.2, 420);
-  const pbSeries = projectMetricByAnchorWindow(closePoints, pbAnchors.anchors, 0.1, 120);
+  const peSeries = projectMetricByAnchorWindow(
+    closePoints,
+    peAnchors.anchors,
+    -METRIC_MAX.pe_ttm,
+    METRIC_MAX.pe_ttm
+  );
+  const forwardSeries = projectMetricByAnchorWindow(
+    closePoints,
+    forwardAnchors.anchors,
+    -METRIC_MAX.pe_forward,
+    METRIC_MAX.pe_forward
+  );
+  const pbSeries = projectMetricByAnchorWindow(
+    closePoints,
+    pbAnchors.anchors,
+    -METRIC_MAX.pb,
+    METRIC_MAX.pb
+  );
 
   const points: SnapshotPoint[] = [];
 
@@ -1017,7 +1067,10 @@ function buildValuationSeries(closePoints: ClosePoint[], ratioPayload: RatioPayl
     let peForward = forwardSeries[i];
 
     if (!Number.isFinite(peForward) && Number.isFinite(peTtm)) {
-      peForward = roundTo(clamp((peTtm as number) * forwardScale, 0.2, 420), 4);
+      peForward = roundTo(
+        clamp((peTtm as number) * forwardScale, -METRIC_MAX.pe_forward, METRIC_MAX.pe_forward),
+        4
+      );
     }
 
     if (!Number.isFinite(peTtm) || !Number.isFinite(pb) || !Number.isFinite(peForward)) {
