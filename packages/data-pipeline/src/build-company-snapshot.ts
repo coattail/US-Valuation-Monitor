@@ -91,9 +91,9 @@ const DEFAULT_METRICS = {
 };
 
 const METRIC_MAX = {
-  pe_ttm: 5000,
-  pe_forward: 5000,
-  pb: 5000,
+  pe_ttm: 1_000_000,
+  pe_forward: 1_000_000,
+  pb: 1_000_000,
 };
 
 function sleep(ms: number): Promise<void> {
@@ -124,12 +124,6 @@ function decodeHtml(raw: string): string {
     .replace(/&#39;|&#x27;/g, "'")
     .replace(/&#x2F;/g, "/")
     .replace(/&nbsp;/g, " ");
-}
-
-function sanitizeRatio(value: unknown): number | null {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
 }
 
 function sanitizeSignedRatio(value: unknown): number | null {
@@ -481,6 +475,111 @@ function mergeCloseSeries(base: ClosePoint[], overlay: ClosePoint[]): ClosePoint
   return [...byDate.values()].sort((a, b) => a.ts - b.ts);
 }
 
+function businessDaysBetween(startDate: string, endDate: string): string[] {
+  const out: string[] = [];
+  const endTs = toTs(endDate);
+  const cursor = new Date(`${startDate}T00:00:00Z`);
+  cursor.setUTCDate(cursor.getUTCDate() + 1);
+
+  while (cursor.getTime() < endTs) {
+    const weekday = cursor.getUTCDay();
+    if (weekday !== 0 && weekday !== 6) {
+      out.push(cursor.toISOString().slice(0, 10));
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return out;
+}
+
+function densifyCloseSeriesWithRecentDailyVol(closePoints: ClosePoint[]): ClosePoint[] {
+  if (closePoints.length < 2) return closePoints;
+
+  const points = [...closePoints].sort((a, b) => a.ts - b.ts);
+  const dailyReturns: number[] = [];
+
+  for (let i = 1; i < points.length; i += 1) {
+    const gap = Math.round((points[i].ts - points[i - 1].ts) / 86400000);
+    if (gap <= 4 && points[i - 1].close > 0 && points[i].close > 0) {
+      const daily = points[i].close / points[i - 1].close - 1;
+      if (Number.isFinite(daily) && daily > -0.95 && daily < 2.5) {
+        dailyReturns.push(daily);
+      }
+    }
+  }
+
+  if (!dailyReturns.length) return points;
+
+  const template = dailyReturns.slice(-Math.min(252, dailyReturns.length));
+  const filled: ClosePoint[] = [points[0]];
+
+  let syntheticSegment = 0;
+
+  for (let i = 1; i < points.length; i += 1) {
+    const left = points[i - 1];
+    const right = points[i];
+    const gap = Math.round((right.ts - left.ts) / 86400000);
+
+    if (gap <= 4) {
+      filled.push(right);
+      continue;
+    }
+
+    const dates = businessDaysBetween(left.date, right.date);
+    if (!dates.length) {
+      filled.push(right);
+      continue;
+    }
+
+    const steps = dates.length + 1;
+    const targetRatio = right.close / left.close;
+
+    const seed = (syntheticSegment * 17) % template.length;
+    syntheticSegment += 1;
+
+    const baseLogs = Array.from({ length: steps }, (_, index) => {
+      const daily = clamp(template[(seed + index) % template.length], -0.35, 0.35);
+      return Math.log1p(daily);
+    });
+
+    const logBase = baseLogs.reduce((sum, item) => sum + item, 0);
+    const logTarget = Math.log(Math.max(targetRatio, 1e-9));
+
+    let runningClose = left.close;
+
+    if (Number.isFinite(logBase) && Number.isFinite(logTarget)) {
+      const drift = (logTarget - logBase) / steps;
+      if (Number.isFinite(drift) && Math.abs(drift) < 1.6) {
+        for (let j = 0; j < dates.length; j += 1) {
+          const stepLog = clamp(baseLogs[j] + drift, -1.5, 1.5);
+          runningClose *= Math.exp(stepLog);
+          filled.push({
+            date: dates[j],
+            ts: toTs(dates[j]),
+            close: Math.max(runningClose, 1e-8),
+          });
+        }
+        filled.push(right);
+        continue;
+      }
+    }
+
+    const geometricFactor = Math.exp(logTarget / steps);
+    for (let j = 0; j < dates.length; j += 1) {
+      runningClose *= geometricFactor;
+      filled.push({
+        date: dates[j],
+        ts: toTs(dates[j]),
+        close: Math.max(runningClose, 1e-8),
+      });
+    }
+
+    filled.push(right);
+  }
+
+  return filled;
+}
+
 async function fetchCloseHistoryFromYahoo(symbol: string): Promise<ClosePoint[]> {
   const candidates = [...new Set([symbol, symbol.replace(/\./g, "-"), symbol.replace(/-/g, ".")])]
     .map((item) => item.trim().toUpperCase())
@@ -550,35 +649,29 @@ async function fetchCloseHistory(symbol: string, slug: string): Promise<ClosePoi
   const fromNasdaq = await fetchCloseHistoryFromNasdaq(symbol);
   const fromCompaniesMarketCap = await fetchCloseHistoryFromCompaniesMarketCap(slug);
 
+  let selected: ClosePoint[] = [];
+
   if (fromStooq.length >= 200 && fromCompaniesMarketCap.length >= 24) {
-    return mergeCloseSeries(fromCompaniesMarketCap, fromStooq);
+    selected = mergeCloseSeries(fromCompaniesMarketCap, fromStooq);
+  } else if (fromStooq.length >= 200) {
+    selected = fromStooq;
+  } else if (fromYahoo.length >= 200 && fromCompaniesMarketCap.length >= 24) {
+    selected = mergeCloseSeries(fromCompaniesMarketCap, fromYahoo);
+  } else if (fromNasdaq.length >= 200 && fromCompaniesMarketCap.length >= 24) {
+    selected = mergeCloseSeries(fromCompaniesMarketCap, fromNasdaq);
+  } else if (fromYahoo.length >= 200) {
+    selected = fromYahoo;
+  } else if (fromNasdaq.length >= 200) {
+    selected = fromNasdaq;
+  } else if (fromCompaniesMarketCap.length >= 24) {
+    selected = fromCompaniesMarketCap;
   }
 
-  if (fromStooq.length >= 200) {
-    return fromStooq;
+  if (!selected.length) {
+    return [];
   }
 
-  if (fromYahoo.length >= 200 && fromCompaniesMarketCap.length >= 24) {
-    return mergeCloseSeries(fromCompaniesMarketCap, fromYahoo);
-  }
-
-  if (fromNasdaq.length >= 200 && fromCompaniesMarketCap.length >= 24) {
-    return mergeCloseSeries(fromCompaniesMarketCap, fromNasdaq);
-  }
-
-  if (fromYahoo.length >= 200) {
-    return fromYahoo;
-  }
-
-  if (fromNasdaq.length >= 200) {
-    return fromNasdaq;
-  }
-
-  if (fromCompaniesMarketCap.length >= 24) {
-    return fromCompaniesMarketCap;
-  }
-
-  return [];
+  return densifyCloseSeriesWithRecentDailyVol(selected);
 }
 
 function parseCompaniesMarketCapRatioSeries(html: string): MetricPoint[] {
@@ -830,8 +923,8 @@ function mergeRatioPayloads(
 function deriveForwardScale(anchors: RatioAnchor[], latest: RatioPayload["latest"] | null): number {
   const overlapRatios = anchors
     .map((item) => {
-      const pe = sanitizeRatio(item.pe_ttm);
-      const fwd = sanitizeRatio(item.pe_forward);
+      const pe = sanitizeSignedRatio(item.pe_ttm);
+      const fwd = sanitizeSignedRatio(item.pe_forward);
       if (!pe || !fwd) return null;
       const ratio = fwd / pe;
       if (!Number.isFinite(ratio) || ratio <= 0.2 || ratio >= 2.8) return null;
@@ -842,8 +935,8 @@ function deriveForwardScale(anchors: RatioAnchor[], latest: RatioPayload["latest
   const fromAnchor = median(overlapRatios);
   if (fromAnchor) return fromAnchor;
 
-  const latestPe = sanitizeRatio(latest?.pe_ttm ?? null);
-  const latestFwd = sanitizeRatio(latest?.pe_forward ?? null);
+  const latestPe = sanitizeSignedRatio(latest?.pe_ttm ?? null);
+  const latestFwd = sanitizeSignedRatio(latest?.pe_forward ?? null);
   if (latestPe && latestFwd) {
     const ratio = latestFwd / latestPe;
     if (Number.isFinite(ratio) && ratio > 0.2 && ratio < 2.8) {
