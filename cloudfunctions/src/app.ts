@@ -1,6 +1,8 @@
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 import {
@@ -30,9 +32,11 @@ import { generateDataset, validateDataset } from "../../packages/data-pipeline/s
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_ROOT = path.resolve(path.dirname(CURRENT_FILE), "../..");
 const DATA_FILE = ["data", "standardized", "valuation-history.json"];
+const COMPANY_DATA_FILE = ["data", "standardized", "company-valuation-history.json"];
 const WATCHLIST_FILE = ["data", "runtime", "watchlists.json"];
 const ALERTS_FILE = ["data", "runtime", "alerts.json"];
 const ALERT_STATE_FILE = ["data", "runtime", "alert-state.json"];
+const execFileAsync = promisify(execFile);
 const METRIC_SET = new Set<MetricId>([
   "pe_ttm",
   "pe_forward",
@@ -370,6 +374,55 @@ export async function applyDailyUpdate(
   return { createdAlerts, dataset: updatedDataset };
 }
 
+function normalizeCompanySymbols(rawSymbols: unknown): string[] {
+  if (!Array.isArray(rawSymbols)) return [];
+  return [
+    ...new Set(
+      rawSymbols
+        .map((item) => String(item || "").trim().toUpperCase())
+        .filter((item) => /^[A-Z0-9.\-]{1,16}$/.test(item))
+    ),
+  ];
+}
+
+async function runCompanyDataRefresh(
+  rootDir: string,
+  symbols: string[]
+): Promise<{
+  generatedAt: string;
+  seriesCount: number;
+  mode: "full" | "filtered";
+  symbols: string[];
+}> {
+  const scriptPath = path.join(rootDir, "packages", "data-pipeline", "src", "build-company-snapshot.ts");
+  const normalizedSymbols = normalizeCompanySymbols(symbols);
+  const env = { ...process.env };
+  if (normalizedSymbols.length) {
+    env.COMPANY_SYMBOLS = normalizedSymbols.join(",");
+  }
+
+  await execFileAsync("node", [scriptPath], {
+    cwd: rootDir,
+    env,
+    maxBuffer: 20 * 1024 * 1024,
+  });
+
+  const companyDataset = await readJsonFile<{
+    generatedAt?: string;
+    indices?: unknown[];
+  }>(resolvePath(rootDir, COMPANY_DATA_FILE), {
+    generatedAt: "",
+    indices: [],
+  });
+
+  return {
+    generatedAt: String(companyDataset.generatedAt || ""),
+    seriesCount: Array.isArray(companyDataset.indices) ? companyDataset.indices.length : 0,
+    mode: normalizedSymbols.length ? "filtered" : "full",
+    symbols: normalizedSymbols,
+  };
+}
+
 export function createApiServer(options: ApiServerOptions = {}): http.Server {
   const rootDir = options.rootDir || DEFAULT_ROOT;
 
@@ -499,6 +552,20 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
           ok: true,
           generatedAt: result.dataset.generatedAt,
           createdAlerts: result.createdAlerts,
+        });
+        return;
+      }
+
+      if (url.pathname === "/api/jobs/company-refresh" && req.method === "POST") {
+        const body = (await readBody(req)) as { symbols?: unknown[] };
+        const symbols = normalizeCompanySymbols(body?.symbols);
+        const result = await runCompanyDataRefresh(rootDir, symbols);
+        json(res, 200, {
+          ok: true,
+          generatedAt: result.generatedAt,
+          seriesCount: result.seriesCount,
+          mode: result.mode,
+          symbols: result.symbols,
         });
         return;
       }

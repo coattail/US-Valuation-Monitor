@@ -44,20 +44,91 @@ interface MetricPoint {
 interface MetricAnchorDenominator {
   date: string;
   ts: number;
+  ratio: number;
   denominator: number;
 }
 
 interface SnapshotPoint {
   date: string;
+  close: number | null;
   pe_ttm: number;
-  pe_forward: number;
+  pe_forward: number | null;
   pb: number;
   us10y_yield: number;
+}
+
+interface QuarterlyEpsPoint {
+  date: string;
+  eps: number;
+  source: "actual" | "expected";
+  availableDate?: string;
+}
+
+interface QuarterlyNetIncomePoint {
+  date: string;
+  netIncome: number;
+  source: "actual" | "expected";
+}
+
+interface QuarterlyShareCountPoint {
+  date: string;
+  shares: number;
+}
+
+interface StockAnalysisIncomeStatementQuarterlyPayload {
+  epsRows: QuarterlyEpsPoint[];
+  netIncomeRows: QuarterlyNetIncomePoint[];
+  shareRows: QuarterlyShareCountPoint[];
+}
+
+interface StockAnalysisForecastQuarterlyPayload {
+  epsRows: QuarterlyEpsPoint[];
+  netIncomeRows: QuarterlyNetIncomePoint[];
+}
+
+interface QuarterlyFinancialSeriesResult {
+  quarterlyEps: QuarterlyEpsPoint[];
+  quarterlyNetIncome: QuarterlyNetIncomePoint[];
+}
+
+interface SecQuarterlyEpsSeriesResult {
+  rows: QuarterlyEpsPoint[];
+  availabilityByQuarter: Map<string, string>;
+}
+
+interface SplitEvent {
+  date: string;
+  ratio: number;
 }
 
 interface PreviousSeries {
   forwardStartDate: string;
   points: SnapshotPoint[];
+  quarterlyEps?: QuarterlyEpsPoint[];
+  quarterlyNetIncome?: QuarterlyNetIncomePoint[];
+}
+
+interface FetchTextOptions {
+  headers?: string[];
+}
+
+interface StockAnalysisDataRatioPayloadResult {
+  payload: RatioPayload | null;
+  selectedSource: string;
+  availableSources: string[];
+}
+
+interface StockAnalysisStatisticsRatioPayloadResult {
+  payload: RatioPayload | null;
+  redirectPath: string;
+}
+
+interface YchartsSeriesResult {
+  securityId: string;
+  price: MetricPoint[];
+  pe_ttm: MetricPoint[];
+  pe_forward: MetricPoint[];
+  pb: MetricPoint[];
 }
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
@@ -66,6 +137,9 @@ const OUTPUT_DIR = path.join(ROOT_DIR, "data", "standardized");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "company-valuation-history.json");
 const execFileAsync = promisify(execFile);
 let companiesMarketCapFetchChain: Promise<unknown> = Promise.resolve();
+let yahooSplitFetchChain: Promise<unknown> = Promise.resolve();
+let ychartsFetchChain: Promise<unknown> = Promise.resolve();
+let secTickerToCikMapPromise: Promise<Map<string, string>> | null = null;
 
 const TOP_COMPANY_URLS = [
   "https://companiesmarketcap.com/usd/",
@@ -95,6 +169,53 @@ const METRIC_MAX = {
   pe_forward: 1_000_000,
   pb: 1_000_000,
 };
+
+const LONG_SERIES_FRESH_DAYS = 120;
+const MAX_REASONABLE_DATA_DATE_OFFSET_DAYS = 14;
+const STOCK_LATEST_OUTLIER_FACTOR = 3.2;
+const STOCK_TTM_BASIS_MISMATCH_FACTOR = 3.5;
+const MIN_FORWARD_ANCHORS_FOR_HISTORY = 4;
+const ENABLE_DIRECT_FETCH_FALLBACK = process.env.ENABLE_DIRECT_FETCH_FALLBACK === "1";
+const STOCK_ANALYSIS_SOURCE_PRIORITY = ["fai", "nasdaq", "fmp", "spg"];
+const SEC_USER_AGENT = process.env.SEC_USER_AGENT || "us-valuation-monitor/1.0 contact@example.com";
+const ADR_LATEST_PE_DIVISOR_BY_SYMBOL: Record<
+  string,
+  Partial<Record<"pe_ttm" | "pe_forward", number>>
+> = {
+  // TSM ADR is commonly quoted on Yahoo/WSJ with a different per-share basis in latest TTM fields.
+  // We only normalize TTM here; forward PE may come from another source basis and should not reuse this factor.
+  TSM: { pe_ttm: 5 },
+};
+const YAHOO_KEY_STATISTICS_HOSTS = [
+  "https://uk.finance.yahoo.com",
+  "https://finance.yahoo.com",
+  "https://fr.finance.yahoo.com",
+];
+const YCHARTS_CALC_PRICE = "price";
+const YCHARTS_CALC_PE = "pe_ratio";
+const YCHARTS_CALC_PB = "price_to_book_value";
+const YCHARTS_CALC_FORWARD_PE = "forward_pe_ratio";
+const YCHARTS_CALC_FORWARD_PE_1Y = "forward_pe_ratio_1y";
+const YAHOO_LATEST_OVERRIDE_SYMBOLS = new Set(
+  String(process.env.YAHOO_LATEST_OVERRIDE_SYMBOLS || "TSM")
+    .split(/[,\s]+/)
+    .map((item) => String(item || "").trim().toUpperCase())
+    .filter(Boolean)
+);
+
+function parseSymbolFilterFromEnv(): string[] {
+  const raw = String(process.env.COMPANY_SYMBOLS || process.env.COMPANY_SYMBOL || "").trim();
+  if (!raw) return [];
+
+  return [...new Set(raw.split(/[,\s]+/).map((item) => item.trim().toUpperCase()).filter(Boolean))];
+}
+
+function normalizeTickerSymbol(symbol: string): string {
+  return String(symbol || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -133,6 +254,24 @@ function sanitizeSignedRatio(value: unknown): number | null {
   return n;
 }
 
+function sanitizeEps(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return roundTo(n, 6);
+}
+
+function sanitizeNetIncome(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return roundTo(n, 3);
+}
+
+function sanitizeShareCount(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return roundTo(n, 3);
+}
+
 function toIsoDateFromEpoch(epochLike: unknown): string | null {
   const value = Number(epochLike);
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -143,12 +282,59 @@ function toIsoDateFromEpoch(epochLike: unknown): string | null {
   return date.toISOString().slice(0, 10);
 }
 
+function toIsoDateFromText(rawDate: unknown): string | null {
+  const value = String(rawDate || "").trim();
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+  const ts = Date.parse(value);
+  if (!Number.isFinite(ts)) return null;
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+function quarterKeyFromDate(dateText: string): string {
+  const date = toIsoDateFromText(dateText);
+  if (!date) return "";
+
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return "";
+
+  const quarter = Math.floor((month - 1) / 3) + 1;
+  return `${year}-Q${quarter}`;
+}
+
+function addDays(dateText: string, days: number): string {
+  const ts = toTs(dateText);
+  if (!ts) return dateText;
+  const shifted = new Date(ts + days * 86_400_000);
+  return shifted.toISOString().slice(0, 10);
+}
+
 function median(values: readonly number[]): number | null {
   const arr = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
   if (!arr.length) return null;
   const mid = Math.floor(arr.length / 2);
   if (arr.length % 2) return arr[mid];
   return (arr[mid - 1] + arr[mid]) / 2;
+}
+
+function isLikelyCoarseSeries(points: MetricPoint[]): boolean {
+  if (points.length < 3) return true;
+
+  const ordered = [...points].sort((a, b) => a.ts - b.ts);
+  const intervals: number[] = [];
+
+  for (let i = 1; i < ordered.length; i += 1) {
+    const gapDays = (ordered[i].ts - ordered[i - 1].ts) / 86_400_000;
+    if (Number.isFinite(gapDays) && gapDays > 0) {
+      intervals.push(gapDays);
+    }
+  }
+
+  const med = median(intervals);
+  if (!med) return true;
+  return med >= 120;
 }
 
 function isRejectedPayload(text: string): boolean {
@@ -166,9 +352,11 @@ async function fetchText(
   url: string,
   retries = 1,
   timeoutMs = REQUEST_TIMEOUT_MS,
-  directFirst = false
+  directFirst = false,
+  options: FetchTextOptions = {}
 ): Promise<string> {
   let lastError: unknown;
+  const extraHeaders = (options.headers || []).flatMap((header) => ["-H", header]);
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
@@ -182,12 +370,17 @@ async function fetchText(
         USER_AGENT,
         "-H",
         "accept-language: en-US,en;q=0.9",
+        ...extraHeaders,
         url,
       ];
 
       const proxyCmd = baseArgs;
       const directCmd = ["--noproxy", "*", ...baseArgs];
-      const commandCandidates: string[][] = directFirst ? [directCmd, proxyCmd] : [proxyCmd, directCmd];
+      const commandCandidates: string[][] = ENABLE_DIRECT_FETCH_FALLBACK
+        ? directFirst
+          ? [directCmd, proxyCmd]
+          : [proxyCmd, directCmd]
+        : [proxyCmd];
 
       for (const args of commandCandidates) {
         try {
@@ -235,6 +428,24 @@ async function mapLimit<T, R>(
 function enqueueCompaniesMarketCapFetch<T>(task: () => Promise<T>): Promise<T> {
   const run = companiesMarketCapFetchChain.then(task, task);
   companiesMarketCapFetchChain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+function enqueueYahooSplitFetch<T>(task: () => Promise<T>): Promise<T> {
+  const run = yahooSplitFetchChain.then(task, task);
+  yahooSplitFetchChain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+function enqueueYchartsFetch<T>(task: () => Promise<T>): Promise<T> {
+  const run = ychartsFetchChain.then(task, task);
+  ychartsFetchChain = run.then(
     () => undefined,
     () => undefined
   );
@@ -416,6 +627,49 @@ function parseYahooChartClose(jsonText: string): ClosePoint[] {
   }
 }
 
+function parseYahooChartSplits(jsonText: string): SplitEvent[] {
+  try {
+    const payload = JSON.parse(jsonText) as {
+      chart?: {
+        result?: Array<{
+          events?: {
+            splits?: Record<
+              string,
+              {
+                date?: number;
+                numerator?: number;
+                denominator?: number;
+                splitRatio?: string;
+              }
+            >;
+          };
+        }>;
+      };
+    };
+
+    const splitRoot = payload?.chart?.result?.[0]?.events?.splits || {};
+    const rows = Object.values(splitRoot);
+    if (!rows.length) return [];
+
+    const byDate = new Map<string, SplitEvent>();
+
+    for (const row of rows) {
+      const date = toIsoDateFromEpoch(row?.date);
+      const numerator = Number(row?.numerator);
+      const denominator = Number(row?.denominator);
+      const ratio = Number.isFinite(numerator) && Number.isFinite(denominator) && denominator !== 0
+        ? numerator / denominator
+        : NaN;
+      if (!date || !Number.isFinite(ratio) || ratio <= 0) continue;
+      byDate.set(date, { date, ratio });
+    }
+
+    return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
+  }
+}
+
 function toIsoFromSlashDate(raw: string): string | null {
   const text = String(raw || "").trim();
   const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -580,6 +834,183 @@ function densifyCloseSeriesWithRecentDailyVol(closePoints: ClosePoint[]): CloseP
   return filled;
 }
 
+function getYchartsSecurityIdCandidates(symbol: string): string[] {
+  const seed = String(symbol || "").trim().toUpperCase();
+  if (!seed) return [];
+
+  return [
+    ...new Set([
+      seed,
+      seed.replace(/-/g, "."),
+      seed.replace(/\./g, "-"),
+      seed.replace(/[^A-Z0-9]/g, ""),
+    ]),
+  ].filter(Boolean);
+}
+
+function buildYchartsFundDataUrl(securityId: string, calcIds: string[]): string {
+  const params = new URLSearchParams();
+  params.set("securities", `include:true,id:${securityId},,`);
+  params.set(
+    "calcs",
+    calcIds
+      .map((calcId) => `include:true,id:${calcId},,`)
+      .join("")
+  );
+  params.set("format", "real");
+  params.set("zoom", "max");
+  params.set("dateSelection", "range");
+  params.set("legendOnChart", "true");
+  params.set("chartType", "interactive");
+  params.set("nameInLegend", "name_and_ticker");
+  params.set("dataInLegend", "value");
+  params.set("quoteLegend", "false");
+  params.set("recessions", "false");
+  params.set("displayDateRange", "false");
+  params.set("source", "false");
+  params.set("units", "false");
+  params.set("useCustomColors", "false");
+  params.set("useEstimates", "false");
+  params.set("hideValueFlags", "false");
+  params.set("performanceDisclosure", "false");
+  params.set("splitType", "single");
+  params.set("chartCreator", "true");
+
+  return `https://ycharts.com/charts/fund_data.json?${params.toString()}`;
+}
+
+function parseYchartsFundDataSeries(jsonText: string): Map<string, MetricPoint[]> {
+  const byCalc = new Map<string, Map<string, MetricPoint>>();
+  if (!jsonText || !jsonText.trim().startsWith("{")) return new Map();
+  const maxAcceptedDate = addDays(new Date().toISOString().slice(0, 10), MAX_REASONABLE_DATA_DATE_OFFSET_DAYS);
+
+  try {
+    const payload = JSON.parse(jsonText) as {
+      chart_data?: Array<
+        Array<{
+          object_calc?: string;
+          raw_data?: Array<[number | null, number | null]>;
+        }>
+      >;
+    };
+
+    const panels = Array.isArray(payload?.chart_data) ? payload.chart_data : [];
+    for (const panel of panels) {
+      if (!Array.isArray(panel)) continue;
+
+      for (const rawSeries of panel) {
+        const calcId = String(rawSeries?.object_calc || "").trim();
+        const rawData = Array.isArray(rawSeries?.raw_data) ? rawSeries.raw_data : [];
+        if (!calcId || !rawData.length) continue;
+
+        const current = byCalc.get(calcId) || new Map<string, MetricPoint>();
+        for (const [epochLike, valueLike] of rawData) {
+          const date = toIsoDateFromEpoch(epochLike);
+          const value = sanitizeSignedRatio(valueLike);
+          if (!date || value === null || date < HISTORY_START_DATE || date > maxAcceptedDate) continue;
+
+          current.set(date, {
+            date,
+            ts: toTs(date),
+            value,
+          });
+        }
+
+        if (current.size) {
+          byCalc.set(calcId, current);
+        }
+      }
+    }
+  } catch {
+    return new Map();
+  }
+
+  const out = new Map<string, MetricPoint[]>();
+  for (const [calcId, pointsByDate] of byCalc.entries()) {
+    const points = [...pointsByDate.values()].sort((a, b) => a.ts - b.ts);
+    if (points.length) {
+      out.set(calcId, points);
+    }
+  }
+
+  return out;
+}
+
+function mergeMetricSeriesWithPreference(primary: MetricPoint[], secondary: MetricPoint[]): MetricPoint[] {
+  const byDate = new Map<string, MetricPoint>();
+
+  for (const point of secondary || []) {
+    if (!point?.date || !Number.isFinite(point.ts) || !Number.isFinite(point.value)) continue;
+    byDate.set(point.date, point);
+  }
+
+  for (const point of primary || []) {
+    if (!point?.date || !Number.isFinite(point.ts) || !Number.isFinite(point.value)) continue;
+    byDate.set(point.date, point);
+  }
+
+  return [...byDate.values()].sort((a, b) => a.ts - b.ts);
+}
+
+function metricPointsToCloseSeries(points: MetricPoint[]): ClosePoint[] {
+  return (points || [])
+    .filter((point) => point?.date && Number.isFinite(point.ts) && Number.isFinite(point.value) && point.value > 0)
+    .map((point) => ({
+      date: point.date,
+      ts: point.ts,
+      close: point.value,
+    }))
+    .sort((a, b) => a.ts - b.ts);
+}
+
+async function fetchYchartsSeriesBundle(symbol: string): Promise<YchartsSeriesResult | null> {
+  const calcIds = [
+    YCHARTS_CALC_PRICE,
+    YCHARTS_CALC_PE,
+    YCHARTS_CALC_PB,
+    YCHARTS_CALC_FORWARD_PE_1Y,
+    YCHARTS_CALC_FORWARD_PE,
+  ];
+
+  const candidates = getYchartsSecurityIdCandidates(symbol);
+  for (const candidate of candidates) {
+    const url = buildYchartsFundDataUrl(candidate, calcIds);
+
+    try {
+      const raw = await enqueueYchartsFetch(async () => {
+        await sleep(110);
+        return fetchText(url, 1, 20000);
+      });
+
+      const parsed = parseYchartsFundDataSeries(raw);
+      if (!parsed.size) continue;
+
+      const price = parsed.get(YCHARTS_CALC_PRICE) || [];
+      const peTtm = parsed.get(YCHARTS_CALC_PE) || [];
+      const pb = parsed.get(YCHARTS_CALC_PB) || [];
+      const forwardPrimary = parsed.get(YCHARTS_CALC_FORWARD_PE_1Y) || [];
+      const forwardFallback = parsed.get(YCHARTS_CALC_FORWARD_PE) || [];
+      const peForward = mergeMetricSeriesWithPreference(forwardPrimary, forwardFallback);
+
+      if (price.length < 24 && peTtm.length < 24 && pb.length < 24 && peForward.length < 4) {
+        continue;
+      }
+
+      return {
+        securityId: candidate,
+        price,
+        pe_ttm: peTtm,
+        pe_forward: peForward,
+        pb,
+      };
+    } catch {
+      // try next candidate
+    }
+  }
+
+  return null;
+}
+
 async function fetchCloseHistoryFromYahoo(symbol: string): Promise<ClosePoint[]> {
   const candidates = [...new Set([symbol, symbol.replace(/\./g, "-"), symbol.replace(/-/g, ".")])]
     .map((item) => item.trim().toUpperCase())
@@ -597,6 +1028,54 @@ async function fetchCloseHistoryFromYahoo(symbol: string): Promise<ClosePoint[]>
       }
     } catch {
       // try next candidate
+    }
+  }
+
+  return [];
+}
+
+async function fetchSplitEventsFromYahoo(symbol: string): Promise<SplitEvent[]> {
+  const candidates = [...new Set([symbol, symbol.replace(/\./g, "-"), symbol.replace(/-/g, ".")])]
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    const urls = [
+      `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(candidate)}?range=max&interval=1d&events=split`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(candidate)}?range=max&interval=1d&events=split`,
+    ];
+
+    for (const url of urls) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const json = await enqueueYahooSplitFetch(async () => {
+            await sleep(140 + attempt * 120);
+            const { stdout } = await execFileAsync(
+              "curl",
+              [
+                "-4",
+                "-sSL",
+                "--compressed",
+                "--max-time",
+                "25",
+                "-A",
+                "Mozilla/5.0",
+                url,
+              ],
+              { maxBuffer: 24 * 1024 * 1024 }
+            );
+            return String(stdout || "").trim();
+          });
+
+          if (!json || isRejectedPayload(json)) {
+            continue;
+          }
+          const events = parseYahooChartSplits(json);
+          if (events.length) return events;
+        } catch {
+          // retry
+        }
+      }
     }
   }
 
@@ -790,13 +1269,31 @@ function extractArrayLiteral(text: string, key: string, nextKey: string): unknow
   }
 }
 
+function extractArrayLiteralByCandidates(
+  text: string,
+  candidates: Array<{ key: string; nextKey: string }>
+): unknown[] {
+  for (const candidate of candidates) {
+    const values = extractArrayLiteral(text, candidate.key, candidate.nextKey);
+    if (values.length) return values;
+  }
+  return [];
+}
+
 function parseRatioPayloadFromScript(rawText: string): RatioPayload | null {
   const text = String(rawText || "").replace(/\n/g, " ");
   if (!text.includes("financialData:{")) return null;
 
   const dateKeysRaw = extractArrayLiteral(text, "datekey", "fiscalYear");
-  const peRaw = extractArrayLiteral(text, "pe", "peForward");
-  const fwdRaw = extractArrayLiteral(text, "peForward", "ps");
+  const peRaw = extractArrayLiteralByCandidates(text, [
+    { key: "pe", nextKey: "peForward" },
+    { key: "pe", nextKey: "ps" },
+  ]);
+  const fwdRaw = extractArrayLiteralByCandidates(text, [
+    { key: "peForward", nextKey: "ps" },
+    { key: "forwardPE", nextKey: "ps" },
+    { key: "forwardPe", nextKey: "ps" },
+  ]);
   const pbRaw = extractArrayLiteral(text, "pb", "ptbvRatio");
 
   const dateKeys = dateKeysRaw.map((item) => String(item || ""));
@@ -842,9 +1339,1796 @@ function parseRatioPayloadFromScript(rawText: string): RatioPayload | null {
   };
 }
 
+function countForwardAnchors(payload: RatioPayload | null): number {
+  if (!payload) return 0;
+  return payload.anchors.filter((item) => sanitizeSignedRatio(item.pe_forward)).length;
+}
+
+function parseYahooKeyStatisticsRatioPayload(rawText: string): RatioPayload | null {
+  const text = String(rawText || "");
+  if (!text) return null;
+  const normalizedText = text.includes('\\"') ? text.replace(/\\"/g, '"') : text;
+  const haystacks = [text, normalizedText];
+
+  const pickRawNumberByKeys = (keys: string[]): number | null => {
+    for (const key of keys) {
+      const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`"${escaped}"\\s*:\\s*\\{[^{}]{0,320}?"raw"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`, "i");
+
+      for (const haystack of haystacks) {
+        const match = haystack.match(regex);
+        if (!match) continue;
+
+        const value = sanitizeSignedRatio(Number(match[1]));
+        if (value !== null) return value;
+      }
+    }
+    return null;
+  };
+
+  const peTtm = pickRawNumberByKeys(["trailingPE", "trailingPe"]);
+  const peForward = pickRawNumberByKeys(["forwardPE", "forwardPe"]);
+  const pb = pickRawNumberByKeys(["priceToBook", "priceToBookRatio"]);
+
+  if (!peTtm && !peForward && !pb) {
+    return null;
+  }
+
+  return {
+    anchors: [],
+    latest: {
+      pe_ttm: peTtm,
+      pe_forward: peForward,
+      pb,
+    },
+    source: "yahoo-key-statistics-latest",
+  };
+}
+
+async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<RatioPayload | null> {
+  const candidates = [...new Set([symbol, symbol.replace(/\./g, "-"), symbol.replace(/-/g, ".")])]
+    .map((item) => String(item || "").trim().toUpperCase())
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    for (const host of YAHOO_KEY_STATISTICS_HOSTS) {
+      const urls = [
+        `${host}/quote/${encodeURIComponent(candidate)}/`,
+        `${host}/quote/${encodeURIComponent(candidate)}/key-statistics/`,
+      ];
+
+      for (const url of urls) {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            const { stdout } = await execFileAsync(
+              "curl",
+              [
+                "-4",
+                "-sSL",
+                "--compressed",
+                "--max-time",
+                "25",
+                "-A",
+                "Mozilla/5.0",
+                "-H",
+                "accept-language: en-US,en;q=0.9",
+                url,
+              ],
+              { maxBuffer: 24 * 1024 * 1024 }
+            );
+            const html = String(stdout || "").trim();
+            if (!html || isRejectedPayload(html)) {
+              continue;
+            }
+
+            const payload = parseYahooKeyStatisticsRatioPayload(html);
+            if (payload) {
+              return {
+                ...payload,
+                source: `${payload.source}:${host.replace(/^https?:\/\//i, "")}`,
+              };
+            }
+          } catch {
+            // retry once, then fallback to next url/host
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function applyLatestRatioOverrideAtLastDate(
+  payload: RatioPayload | null,
+  latestOverride: RatioPayload | null,
+  lastDate: string
+): RatioPayload | null {
+  if (!payload && !latestOverride) return null;
+  if (!lastDate || !latestOverride) return payload;
+
+  const overrideLatest = {
+    pe_ttm: sanitizeSignedRatio(latestOverride.latest.pe_ttm),
+    pe_forward: sanitizeSignedRatio(latestOverride.latest.pe_forward),
+    // Yahoo PB may have mixed share-class/ADR basis on certain tickers; keep existing PB source for stability.
+    pb: null,
+  };
+
+  if (!overrideLatest.pe_ttm && !overrideLatest.pe_forward && !overrideLatest.pb) {
+    return payload;
+  }
+
+  const base: RatioPayload = payload
+    ? {
+        anchors: [...(payload.anchors || [])],
+        latest: {
+          pe_ttm: sanitizeSignedRatio(payload.latest.pe_ttm),
+          pe_forward: sanitizeSignedRatio(payload.latest.pe_forward),
+          pb: sanitizeSignedRatio(payload.latest.pb),
+        },
+        source: payload.source,
+      }
+    : {
+        anchors: [],
+        latest: {
+          pe_ttm: null,
+          pe_forward: null,
+          pb: null,
+        },
+        source: "",
+      };
+
+  const byDate = new Map<string, RatioAnchor>();
+  for (const item of base.anchors) {
+    byDate.set(item.date, {
+      date: item.date,
+      pe_ttm: sanitizeSignedRatio(item.pe_ttm),
+      pe_forward: sanitizeSignedRatio(item.pe_forward),
+      pb: sanitizeSignedRatio(item.pb),
+    });
+  }
+
+  const current = byDate.get(lastDate) || {
+    date: lastDate,
+    pe_ttm: null,
+    pe_forward: null,
+    pb: null,
+  };
+
+  if (overrideLatest.pe_ttm) {
+    current.pe_ttm = overrideLatest.pe_ttm;
+    base.latest.pe_ttm = overrideLatest.pe_ttm;
+  }
+  if (overrideLatest.pe_forward) {
+    current.pe_forward = overrideLatest.pe_forward;
+    base.latest.pe_forward = overrideLatest.pe_forward;
+  }
+  if (overrideLatest.pb) {
+    current.pb = overrideLatest.pb;
+    base.latest.pb = overrideLatest.pb;
+  }
+
+  byDate.set(lastDate, current);
+  base.anchors = [...byDate.values()]
+    .filter((item) => item.pe_ttm || item.pe_forward || item.pb)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  base.source = [base.source, latestOverride.source].filter(Boolean).join("+");
+  return base;
+}
+
+function mergeRatioPayloadList(payloads: RatioPayload[]): RatioPayload | null {
+  const normalized = payloads.filter((item) => item && (item.anchors.length || item.latest.pe_ttm || item.latest.pe_forward || item.latest.pb));
+  if (!normalized.length) return null;
+
+  const byDate = new Map<string, RatioAnchor>();
+  const latest: RatioPayload["latest"] = {
+    pe_ttm: null,
+    pe_forward: null,
+    pb: null,
+  };
+  const sourceTags: string[] = [];
+
+  for (const payload of normalized) {
+    sourceTags.push(payload.source);
+
+    for (const item of payload.anchors) {
+      const current = byDate.get(item.date) || {
+        date: item.date,
+        pe_ttm: null,
+        pe_forward: null,
+        pb: null,
+      };
+      byDate.set(item.date, {
+        date: item.date,
+        pe_ttm: current.pe_ttm ?? sanitizeSignedRatio(item.pe_ttm),
+        pe_forward: current.pe_forward ?? sanitizeSignedRatio(item.pe_forward),
+        pb: current.pb ?? sanitizeSignedRatio(item.pb),
+      });
+    }
+
+    latest.pe_ttm = latest.pe_ttm ?? sanitizeSignedRatio(payload.latest.pe_ttm);
+    latest.pe_forward = latest.pe_forward ?? sanitizeSignedRatio(payload.latest.pe_forward);
+    latest.pb = latest.pb ?? sanitizeSignedRatio(payload.latest.pb);
+  }
+
+  const anchors = [...byDate.values()]
+    .filter((item) => item.pe_ttm || item.pe_forward || item.pb)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (!anchors.length && !latest.pe_ttm && !latest.pe_forward && !latest.pb) {
+    return null;
+  }
+
+  return {
+    anchors,
+    latest,
+    source: [...new Set(sourceTags.filter(Boolean))].join("+"),
+  };
+}
+
+function resolveStockAnalysisTableRef(
+  value: unknown,
+  table: unknown[],
+  memo: Map<number, unknown>
+): unknown {
+  if (value === -1) return undefined;
+
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value < table.length) {
+    if (memo.has(value)) return memo.get(value);
+    memo.set(value, null);
+    const resolved = resolveStockAnalysisTableRef(table[value], table, memo);
+    memo.set(value, resolved);
+    return resolved;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveStockAnalysisTableRef(item, table, memo));
+  }
+
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = resolveStockAnalysisTableRef(entry, table, memo);
+    }
+    return out;
+  }
+
+  return value;
+}
+
+function parseStockAnalysisDataJsonRoot(rawText: string): Record<string, unknown> | null {
+  let parsed: {
+    nodes?: Array<{ data?: unknown }>;
+  };
+  try {
+    parsed = JSON.parse(rawText) as {
+      nodes?: Array<{ data?: unknown }>;
+    };
+  } catch {
+    return null;
+  }
+
+  const table = parsed.nodes?.[2]?.data;
+  if (!Array.isArray(table) || !table.length) return null;
+
+  const root = resolveStockAnalysisTableRef(0, table, new Map()) as Record<string, unknown>;
+  if (!root || typeof root !== "object") return null;
+  return root;
+}
+
+function parseRatioPayloadFromDataJson(rawText: string): StockAnalysisDataRatioPayloadResult | null {
+  const root = parseStockAnalysisDataJsonRoot(rawText);
+  if (!root) return null;
+
+  const rawAvailableSources = Array.isArray(root.availableSources) ? root.availableSources : [];
+  const availableSources = rawAvailableSources
+    .map((item) => String(item || "").trim().toLowerCase())
+    .filter(Boolean);
+  const selectedSource = String(root.source || root.selectedSource || root.defaultSource || "")
+    .trim()
+    .toLowerCase();
+
+  const financialData = root.financialData as Record<string, unknown> | undefined;
+  if (!financialData || typeof financialData !== "object") {
+    return {
+      payload: null,
+      selectedSource,
+      availableSources,
+    };
+  }
+
+  const pickArray = (...keys: string[]): unknown[] => {
+    for (const key of keys) {
+      const value = financialData[key];
+      if (Array.isArray(value)) return value;
+    }
+    return [];
+  };
+
+  const dateKeys = pickArray("datekey").map((item) => String(item || ""));
+  if (!dateKeys.length) {
+    return {
+      payload: null,
+      selectedSource,
+      availableSources,
+    };
+  }
+
+  const peRaw = pickArray("pe");
+  const fwdRaw = pickArray("peForward", "forwardPE", "forwardPe");
+  const pbRaw = pickArray("pb", "ptbvRatio");
+
+  const anchors: RatioAnchor[] = [];
+  const ttmIndex = Math.max(
+    0,
+    dateKeys.findIndex((item) => item.toUpperCase() === "TTM")
+  );
+  const latest: RatioPayload["latest"] = {
+    pe_ttm: sanitizeSignedRatio(peRaw[ttmIndex]),
+    pe_forward: sanitizeSignedRatio(fwdRaw[ttmIndex]),
+    pb: sanitizeSignedRatio(pbRaw[ttmIndex]),
+  };
+  const trailingDate = toIsoDateFromText(
+    (root.details as Record<string, unknown> | undefined)?.lastTrailingDate
+  );
+
+  if (trailingDate && (latest.pe_ttm || latest.pe_forward || latest.pb)) {
+    anchors.push({
+      date: trailingDate,
+      // Keep trailing-date anchor focused on forward/PB to avoid injecting
+      // potentially mismatched TTM bases (common on some ADR pages).
+      pe_ttm: null,
+      pe_forward: latest.pe_forward,
+      pb: latest.pb,
+    });
+  }
+
+  for (let i = 0; i < dateKeys.length; i += 1) {
+    if (i === ttmIndex) continue;
+
+    const key = dateKeys[i];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+
+    const pe = sanitizeSignedRatio(peRaw[i]);
+    const peForward = sanitizeSignedRatio(fwdRaw[i]);
+    const pb = sanitizeSignedRatio(pbRaw[i]);
+    if (!pe && !peForward && !pb) continue;
+
+    anchors.push({
+      date: key,
+      pe_ttm: pe,
+      pe_forward: peForward,
+      pb,
+    });
+  }
+
+  const payload: RatioPayload | null =
+    anchors.length || latest.pe_ttm || latest.pe_forward || latest.pb
+      ? {
+          anchors: anchors.sort((a, b) => a.date.localeCompare(b.date)),
+          latest,
+          source: `stockanalysis-data-json:${selectedSource || "unknown"}`,
+        }
+      : null;
+
+  return {
+    payload,
+    selectedSource,
+    availableSources,
+  };
+}
+
+function parseStockAnalysisIncomeStatementQuarterlyPayload(
+  rawText: string
+): StockAnalysisIncomeStatementQuarterlyPayload {
+  const root = parseStockAnalysisDataJsonRoot(rawText);
+  if (!root) {
+    return {
+      epsRows: [],
+      netIncomeRows: [],
+      shareRows: [],
+    };
+  }
+
+  const financialData = root.financialData as Record<string, unknown> | undefined;
+  if (!financialData || typeof financialData !== "object") {
+    return {
+      epsRows: [],
+      netIncomeRows: [],
+      shareRows: [],
+    };
+  }
+
+  const pickArray = (...keys: string[]): unknown[] => {
+    for (const key of keys) {
+      const value = financialData[key];
+      if (Array.isArray(value)) return value;
+    }
+    return [];
+  };
+
+  const dateKeys = pickArray("datekey");
+  const epsRaw = pickArray("epsdil", "epsDiluted", "epsBasic", "eps");
+  const netIncomeRaw = pickArray("netinc", "netIncome", "netIncomeLoss", "profitloss");
+  const shareRaw = pickArray("shareswadil", "sharesDiluted", "shareswa", "shares");
+
+  const epsByDate = new Map<string, QuarterlyEpsPoint>();
+  const netIncomeByDate = new Map<string, QuarterlyNetIncomePoint>();
+  const shareByDate = new Map<string, QuarterlyShareCountPoint>();
+
+  for (let i = 0; i < dateKeys.length; i += 1) {
+    const date = toIsoDateFromText(dateKeys[i]);
+    if (!date) continue;
+
+    const eps = sanitizeEps(epsRaw[i]);
+    if (eps !== null) {
+      epsByDate.set(date, {
+        date,
+        eps,
+        source: "actual",
+        availableDate: date,
+      });
+    }
+
+    const netIncome = sanitizeNetIncome(netIncomeRaw[i]);
+    if (netIncome !== null) {
+      netIncomeByDate.set(date, {
+        date,
+        netIncome,
+        source: "actual",
+      });
+    }
+
+    const shares = sanitizeShareCount(shareRaw[i]);
+    if (shares !== null) {
+      shareByDate.set(date, {
+        date,
+        shares,
+      });
+    }
+  }
+
+  return {
+    epsRows: [...epsByDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    netIncomeRows: [...netIncomeByDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    shareRows: [...shareByDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+  };
+}
+
+function parseQuarterlyEpsFromIncomeStatementDataJson(rawText: string): QuarterlyEpsPoint[] {
+  return parseStockAnalysisIncomeStatementQuarterlyPayload(rawText).epsRows;
+}
+
+function parseQuarterlyNetIncomeFromIncomeStatementDataJson(rawText: string): QuarterlyNetIncomePoint[] {
+  return parseStockAnalysisIncomeStatementQuarterlyPayload(rawText).netIncomeRows;
+}
+
+function parseQuarterlyShareCountFromIncomeStatementDataJson(rawText: string): QuarterlyShareCountPoint[] {
+  return parseStockAnalysisIncomeStatementQuarterlyPayload(rawText).shareRows;
+}
+
+function parseStockAnalysisForecastQuarterlyPayload(rawText: string): StockAnalysisForecastQuarterlyPayload {
+  const root = parseStockAnalysisDataJsonRoot(rawText);
+  if (!root) {
+    return {
+      epsRows: [],
+      netIncomeRows: [],
+    };
+  }
+
+  const quarterlyTable = (
+    (root.estimates as Record<string, unknown> | undefined)?.table as Record<string, unknown> | undefined
+  )?.quarterly as Record<string, unknown> | undefined;
+  if (!quarterlyTable || typeof quarterlyTable !== "object") {
+    return {
+      epsRows: [],
+      netIncomeRows: [],
+    };
+  }
+
+  const dateKeys = Array.isArray(quarterlyTable.dates) ? quarterlyTable.dates : [];
+  const epsRaw = Array.isArray(quarterlyTable.eps) ? quarterlyTable.eps : [];
+  const netIncomeRaw = Array.isArray(quarterlyTable.netIncome)
+    ? quarterlyTable.netIncome
+    : Array.isArray(quarterlyTable.netincome)
+      ? quarterlyTable.netincome
+      : Array.isArray(quarterlyTable.netinc)
+        ? quarterlyTable.netinc
+        : [];
+  if (!dateKeys.length) {
+    return {
+      epsRows: [],
+      netIncomeRows: [],
+    };
+  }
+
+  const epsByDate = new Map<string, QuarterlyEpsPoint>();
+  const netIncomeByDate = new Map<string, QuarterlyNetIncomePoint>();
+
+  for (let i = 0; i < dateKeys.length; i += 1) {
+    const date = toIsoDateFromText(dateKeys[i]);
+    if (!date) continue;
+
+    const eps = sanitizeEps(epsRaw[i]);
+    if (eps !== null) {
+      epsByDate.set(date, {
+        date,
+        eps,
+        source: "expected",
+        availableDate: date,
+      });
+    }
+
+    const netIncome = sanitizeNetIncome(netIncomeRaw[i]);
+    if (netIncome !== null) {
+      netIncomeByDate.set(date, {
+        date,
+        netIncome,
+        source: "expected",
+      });
+    }
+  }
+
+  return {
+    epsRows: [...epsByDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    netIncomeRows: [...netIncomeByDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+  };
+}
+
+function parseQuarterlyEpsFromForecastDataJson(rawText: string): QuarterlyEpsPoint[] {
+  return parseStockAnalysisForecastQuarterlyPayload(rawText).epsRows;
+}
+
+function parseQuarterlyNetIncomeFromForecastDataJson(rawText: string): QuarterlyNetIncomePoint[] {
+  return parseStockAnalysisForecastQuarterlyPayload(rawText).netIncomeRows;
+}
+
+function mergeQuarterlyEpsSeries(
+  actualRows: QuarterlyEpsPoint[],
+  expectedRows: QuarterlyEpsPoint[],
+  lastCloseDate: string
+): QuarterlyEpsPoint[] {
+  const actualSorted = [...actualRows].sort((a, b) => a.date.localeCompare(b.date));
+  const latestActualDate = actualSorted[actualSorted.length - 1]?.date || "";
+  const latestActualTs = toTs(latestActualDate);
+  const expectedSorted = [...expectedRows].sort((a, b) => a.date.localeCompare(b.date));
+
+  const expectedHorizonDate = lastCloseDate ? addDays(lastCloseDate, 125) : "";
+  const expectedCurrentQuarter = expectedSorted.find((row) => {
+    if (!row?.date) return false;
+    if (latestActualDate && row.date <= latestActualDate) return false;
+    if (latestActualTs) {
+      const dayGap = (toTs(row.date) - latestActualTs) / 86_400_000;
+      // Some forecast tables keep a stale estimate for the quarter that just reported.
+      // Skip near-duplicate quarter rows and only keep the next real quarter estimate.
+      if (Number.isFinite(dayGap) && dayGap > 0 && dayGap < 45) return false;
+    }
+    if (expectedHorizonDate && row.date > expectedHorizonDate) return false;
+    return true;
+  });
+
+  const byDate = new Map<string, QuarterlyEpsPoint>();
+
+  if (expectedCurrentQuarter) {
+    byDate.set(expectedCurrentQuarter.date, expectedCurrentQuarter);
+  }
+
+  for (const row of actualSorted) {
+    byDate.set(row.date, row);
+  }
+
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function mergeQuarterlyNetIncomeSeries(
+  actualRows: QuarterlyNetIncomePoint[],
+  expectedRows: QuarterlyNetIncomePoint[],
+  lastCloseDate: string
+): QuarterlyNetIncomePoint[] {
+  const actualSorted = [...actualRows].sort((a, b) => a.date.localeCompare(b.date));
+  const latestActualDate = actualSorted[actualSorted.length - 1]?.date || "";
+  const latestActualTs = toTs(latestActualDate);
+  const expectedSorted = [...expectedRows].sort((a, b) => a.date.localeCompare(b.date));
+
+  const expectedHorizonDate = lastCloseDate ? addDays(lastCloseDate, 125) : "";
+  const expectedCurrentQuarter = expectedSorted.find((row) => {
+    if (!row?.date) return false;
+    if (latestActualDate && row.date <= latestActualDate) return false;
+    if (latestActualTs) {
+      const dayGap = (toTs(row.date) - latestActualTs) / 86_400_000;
+      if (Number.isFinite(dayGap) && dayGap > 0 && dayGap < 45) return false;
+    }
+    if (expectedHorizonDate && row.date > expectedHorizonDate) return false;
+    return true;
+  });
+
+  const byDate = new Map<string, QuarterlyNetIncomePoint>();
+
+  if (expectedCurrentQuarter) {
+    byDate.set(expectedCurrentQuarter.date, expectedCurrentQuarter);
+  }
+
+  for (const row of actualSorted) {
+    byDate.set(row.date, row);
+  }
+
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function mergeExpectedQuarterlyNetIncomeCandidates(
+  forecastRows: QuarterlyNetIncomePoint[],
+  estimatedRows: QuarterlyNetIncomePoint[]
+): QuarterlyNetIncomePoint[] {
+  const byQuarter = new Map<
+    string,
+    QuarterlyNetIncomePoint & {
+      quarterKey: string;
+      rank: number;
+    }
+  >();
+
+  const upsert = (rows: QuarterlyNetIncomePoint[], rank: number) => {
+    for (const rawRow of rows || []) {
+      const date = toIsoDateFromText(rawRow?.date);
+      const netIncome = sanitizeNetIncome(rawRow?.netIncome);
+      const quarterKey = quarterKeyFromDate(date || "");
+      if (!date || netIncome === null || !quarterKey) continue;
+
+      const candidate = {
+        date,
+        netIncome,
+        source: "expected" as const,
+        quarterKey,
+        rank,
+      };
+      const current = byQuarter.get(quarterKey);
+      if (!current) {
+        byQuarter.set(quarterKey, candidate);
+        continue;
+      }
+
+      if (candidate.rank < current.rank || (candidate.rank === current.rank && candidate.date < current.date)) {
+        byQuarter.set(quarterKey, candidate);
+      }
+    }
+  };
+
+  // Prefer direct market consensus net income estimates; fall back to EPS*shares.
+  upsert(forecastRows, 0);
+  upsert(estimatedRows, 1);
+
+  return [...byQuarter.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(({ date, netIncome, source }) => ({ date, netIncome, source }));
+}
+
+function estimateExpectedQuarterlyNetIncomeFromEps(
+  expectedEpsRows: QuarterlyEpsPoint[],
+  shareRows: QuarterlyShareCountPoint[]
+): QuarterlyNetIncomePoint[] {
+  if (!Array.isArray(expectedEpsRows) || !expectedEpsRows.length) return [];
+  if (!Array.isArray(shareRows) || !shareRows.length) return [];
+
+  const orderedShares = [...shareRows]
+    .map((row) => ({
+      date: toIsoDateFromText(row?.date),
+      shares: sanitizeShareCount(row?.shares),
+      quarterKey: quarterKeyFromDate(String(row?.date || "")),
+    }))
+    .filter((row): row is { date: string; shares: number; quarterKey: string } => Boolean(row.date && row.shares && row.quarterKey))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!orderedShares.length) return [];
+
+  const sharesByQuarter = new Map<string, { date: string; shares: number }>();
+  for (const row of orderedShares) {
+    const current = sharesByQuarter.get(row.quarterKey);
+    if (!current || row.date < current.date) {
+      sharesByQuarter.set(row.quarterKey, { date: row.date, shares: row.shares });
+    }
+  }
+
+  const pickShareCount = (date: string, quarterKey: string): number | null => {
+    const exact = sharesByQuarter.get(quarterKey);
+    if (exact && Number.isFinite(exact.shares) && exact.shares > 0) {
+      return exact.shares;
+    }
+
+    let fallback: { date: string; shares: number } | null = null;
+    for (const row of orderedShares) {
+      if (row.date <= date) {
+        fallback = row;
+      } else {
+        break;
+      }
+    }
+    if (fallback && Number.isFinite(fallback.shares) && fallback.shares > 0) {
+      return fallback.shares;
+    }
+
+    const latest = orderedShares[orderedShares.length - 1];
+    return latest && Number.isFinite(latest.shares) && latest.shares > 0 ? latest.shares : null;
+  };
+
+  const byQuarter = new Map<string, QuarterlyNetIncomePoint & { quarterKey: string }>();
+  for (const expectedRow of expectedEpsRows) {
+    if (!expectedRow || expectedRow.source !== "expected") continue;
+    const date = toIsoDateFromText(expectedRow.date);
+    const eps = sanitizeEps(expectedRow.eps);
+    const quarterKey = quarterKeyFromDate(date || "");
+    if (!date || eps === null || !quarterKey) continue;
+
+    const shares = pickShareCount(date, quarterKey);
+    if (!shares || !Number.isFinite(shares) || shares <= 0) continue;
+
+    const netIncome = sanitizeNetIncome(eps * shares);
+    if (netIncome === null) continue;
+
+    const current = byQuarter.get(quarterKey);
+    const candidate = {
+      date,
+      netIncome,
+      source: "expected" as const,
+      quarterKey,
+    };
+    if (!current || date < current.date) {
+      byQuarter.set(quarterKey, candidate);
+    }
+  }
+
+  return [...byQuarter.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(({ date, netIncome, source }) => ({ date, netIncome, source }));
+}
+
+function parseRatioNumber(rawValue: unknown): number | null {
+  const text = String(rawValue ?? "")
+    .replace(/[,%xX]/g, "")
+    .trim();
+  if (!text) return null;
+  if (/^(n\/a|na|--|-|none)$/i.test(text)) return null;
+  return sanitizeSignedRatio(text);
+}
+
+function parseRatioPayloadFromStatisticsDataJson(rawText: string): StockAnalysisStatisticsRatioPayloadResult | null {
+  let parsed: {
+    type?: string;
+    location?: string;
+    nodes?: Array<{ data?: unknown }>;
+  };
+  try {
+    parsed = JSON.parse(rawText) as {
+      type?: string;
+      location?: string;
+      nodes?: Array<{ data?: unknown }>;
+    };
+  } catch {
+    return null;
+  }
+
+  if (String(parsed.type || "").toLowerCase() === "redirect") {
+    return {
+      payload: null,
+      redirectPath: String(parsed.location || "").trim(),
+    };
+  }
+
+  const table = parsed.nodes?.[2]?.data;
+  if (!Array.isArray(table) || !table.length) {
+    return {
+      payload: null,
+      redirectPath: "",
+    };
+  }
+
+  const root = resolveStockAnalysisTableRef(0, table, new Map()) as Record<string, unknown>;
+  if (!root || typeof root !== "object") {
+    return {
+      payload: null,
+      redirectPath: "",
+    };
+  }
+
+  const ratioEntries = (root.ratios as Record<string, unknown> | undefined)?.data;
+  if (!Array.isArray(ratioEntries)) {
+    return {
+      payload: null,
+      redirectPath: "",
+    };
+  }
+
+  let peTtm: number | null = null;
+  let peForward: number | null = null;
+  let pb: number | null = null;
+
+  for (const entry of ratioEntries) {
+    if (!entry || typeof entry !== "object") continue;
+    const ratioObj = entry as Record<string, unknown>;
+    const id = String(ratioObj.id || "").trim().toLowerCase();
+    if (!id) continue;
+
+    const value = parseRatioNumber(ratioObj.hover ?? ratioObj.value ?? null);
+    if (!value) continue;
+
+    if ((id === "pe" || id === "peratio") && !peTtm) {
+      peTtm = value;
+      continue;
+    }
+    if ((id === "peforward" || id === "forwardpe" || id === "forwardperatio") && !peForward) {
+      peForward = value;
+      continue;
+    }
+    if ((id === "pb" || id === "pbratio") && !pb) {
+      pb = value;
+    }
+  }
+
+  if (!peTtm && !peForward && !pb) {
+    return {
+      payload: null,
+      redirectPath: "",
+    };
+  }
+
+  return {
+    payload: {
+      anchors: [],
+      latest: {
+        pe_ttm: peTtm,
+        pe_forward: peForward,
+        pb,
+      },
+      source: "stockanalysis-statistics-data-json",
+    },
+    redirectPath: "",
+  };
+}
+
+function toStockAnalysisDataJsonUrl(pathOrUrl: string): string {
+  let pathText = String(pathOrUrl || "").trim();
+  if (!pathText) return "";
+
+  if (/^https?:\/\//i.test(pathText)) {
+    try {
+      const parsed = new URL(pathText);
+      pathText = parsed.pathname;
+    } catch {
+      return "";
+    }
+  }
+
+  if (!pathText.startsWith("/")) {
+    pathText = `/${pathText}`;
+  }
+
+  if (!pathText.includes("__data.json")) {
+    if (!pathText.endsWith("/")) {
+      pathText += "/";
+    }
+    pathText += "__data.json";
+  }
+
+  return `https://stockanalysis.com${pathText}`;
+}
+
+async function fetchStockAnalysisStatisticsRatioPayload(symbol: string): Promise<RatioPayload | null> {
+  const queue = getStockAnalysisSlugCandidates(symbol).map((slug) => `/stocks/${slug}/statistics/`);
+  const seenUrls = new Set<string>();
+
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (!candidate) continue;
+
+    const url = toStockAnalysisDataJsonUrl(candidate);
+    if (!url || seenUrls.has(url)) continue;
+    seenUrls.add(url);
+
+    try {
+      const raw = await fetchText(url, 1, 12000);
+      const parsed = parseRatioPayloadFromStatisticsDataJson(raw);
+      if (!parsed) continue;
+
+      if (parsed.redirectPath) {
+        queue.push(parsed.redirectPath);
+      }
+
+      if (parsed.payload) {
+        const routeTag = (() => {
+          try {
+            const pathname = new URL(url).pathname;
+            return pathname.replace(/\/__data\.json$/i, "");
+          } catch {
+            return "/statistics";
+          }
+        })();
+
+        return {
+          ...parsed.payload,
+          source: `${parsed.payload.source}:${routeTag}`,
+        };
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  return null;
+}
+
+function getStockAnalysisDataJsonUrl(slug: string, period: "annual" | "quarterly"): string {
+  const suffix = period === "quarterly" ? "?p=quarterly" : "";
+  return `https://stockanalysis.com/stocks/${slug}/financials/ratios/__data.json${suffix}`;
+}
+
+function getStockAnalysisIncomeStatementDataJsonUrl(slug: string): string {
+  return `https://stockanalysis.com/stocks/${slug}/financials/income-statement/__data.json?p=quarterly`;
+}
+
+function getStockAnalysisForecastDataJsonUrl(slug: string): string {
+  return `https://stockanalysis.com/stocks/${slug}/forecast/__data.json`;
+}
+
+async function fetchStockAnalysisDataRatioPayload(
+  slug: string,
+  period: "annual" | "quarterly",
+  source = ""
+): Promise<StockAnalysisDataRatioPayloadResult | null> {
+  const url = getStockAnalysisDataJsonUrl(slug, period);
+  const headers = source ? [`cookie: finsrc=${source}`] : [];
+  const raw = await fetchText(url, 1, period === "quarterly" ? 16000 : 13000, false, { headers });
+  return parseRatioPayloadFromDataJson(raw);
+}
+
+async function fetchStockAnalysisIncomeStatementQuarterlyPayload(
+  slug: string
+): Promise<StockAnalysisIncomeStatementQuarterlyPayload> {
+  const url = getStockAnalysisIncomeStatementDataJsonUrl(slug);
+  const raw = await fetchText(url, 1, 16000);
+  return parseStockAnalysisIncomeStatementQuarterlyPayload(raw);
+}
+
+async function fetchStockAnalysisForecastQuarterlyPayload(
+  slug: string
+): Promise<StockAnalysisForecastQuarterlyPayload> {
+  const url = getStockAnalysisForecastDataJsonUrl(slug);
+  const raw = await fetchText(url, 1, 12000);
+  return parseStockAnalysisForecastQuarterlyPayload(raw);
+}
+
+function parseSecQuarterlyEpsFromCompanyFacts(rawText: string): QuarterlyEpsPoint[] {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+
+  const taxonomyCandidates: Array<{ taxonomy: string; metrics: string[] }> = [
+    {
+      taxonomy: "us-gaap",
+      metrics: [
+        "EarningsPerShareDiluted",
+        "IncomeLossFromContinuingOperationsPerDilutedShare",
+        "EarningsPerShareBasicAndDiluted",
+        "EarningsPerShareBasic",
+      ],
+    },
+    {
+      taxonomy: "ifrs-full",
+      metrics: [
+        "DilutedEarningsLossPerShare",
+        "BasicEarningsLossPerShare",
+      ],
+    },
+  ];
+
+  const pickUnitRows = (factsRoot: Record<string, unknown>, metricKey: string): unknown[] => {
+    const metric = factsRoot[metricKey] as Record<string, unknown> | undefined;
+    const units = metric?.units as Record<string, unknown> | undefined;
+    if (!units || typeof units !== "object") return [];
+
+    const unitPriority = ["USD/shares", "USD / shares", "USD/share", "USD / share", "pure"];
+    for (const unitName of unitPriority) {
+      const candidate = units[unitName];
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    for (const candidate of Object.values(units)) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    return [];
+  };
+
+  const extractQuarterRows = (rawRows: unknown[]): QuarterlyEpsPoint[] => {
+    type ScoredRow = {
+      date: string;
+      eps: number;
+      filed: string;
+      availableDate: string;
+      hasQuarterDuration: boolean;
+    };
+
+    const byDate = new Map<string, ScoredRow>();
+    const quarterFrameRegex = /Q[1-4]$/i;
+
+    for (const rawEntry of rawRows) {
+      if (!rawEntry || typeof rawEntry !== "object") continue;
+      const entry = rawEntry as Record<string, unknown>;
+      const date = toIsoDateFromText(entry.end);
+      const eps = sanitizeEps(entry.val);
+      const frame = String(entry.frame || "").trim().toUpperCase();
+      const filed = toIsoDateFromText(entry.filed) || "0000-00-00";
+      if (!date || eps === null || date < HISTORY_START_DATE) continue;
+      const availableDate = filed >= date ? filed : date;
+
+      const startDate = toIsoDateFromText(entry.start);
+      const durationDays =
+        startDate && toTs(date) > toTs(startDate) ? (toTs(date) - toTs(startDate)) / 86_400_000 : NaN;
+      const hasQuarterDuration =
+        Number.isFinite(durationDays) && durationDays >= 40 && durationDays <= 140;
+
+      const fp = String(entry.fp || "").trim().toUpperCase();
+      const isQuarterFp = fp === "Q1" || fp === "Q2" || fp === "Q3" || fp === "Q4";
+      const isQuarterFrame = quarterFrameRegex.test(frame);
+
+      // Prefer explicit quarter frames. If missing, fallback to quarter fp rows.
+      if (!isQuarterFrame && !isQuarterFp) continue;
+
+      const current = byDate.get(date);
+      const candidate: ScoredRow = {
+        date,
+        eps,
+        filed,
+        availableDate,
+        hasQuarterDuration,
+      };
+
+      if (!current) {
+        byDate.set(date, candidate);
+        continue;
+      }
+
+      if (candidate.hasQuarterDuration !== current.hasQuarterDuration) {
+        if (candidate.hasQuarterDuration) {
+          byDate.set(date, candidate);
+        }
+        continue;
+      }
+
+      if (candidate.filed > current.filed) {
+        byDate.set(date, candidate);
+        continue;
+      }
+
+      if (candidate.filed === current.filed && Math.abs(candidate.eps) < Math.abs(current.eps)) {
+        // On duplicated quarter disclosures, the smaller magnitude is typically the single-quarter value.
+        byDate.set(date, candidate);
+      }
+    }
+
+    return [...byDate.values()]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((row) => ({
+        date: row.date,
+        eps: row.eps,
+        source: "actual",
+        availableDate: row.availableDate,
+      }));
+  };
+
+  let bestRows: QuarterlyEpsPoint[] = [];
+  for (const candidate of taxonomyCandidates) {
+    const factsRoot = (parsed.facts as Record<string, unknown> | undefined)?.[candidate.taxonomy] as
+      | Record<string, unknown>
+      | undefined;
+    if (!factsRoot || typeof factsRoot !== "object") continue;
+
+    for (const metricKey of candidate.metrics) {
+      const unitRows = pickUnitRows(factsRoot, metricKey);
+      if (!unitRows.length) continue;
+      const parsedRows = extractQuarterRows(unitRows);
+      if (parsedRows.length > bestRows.length) {
+        bestRows = parsedRows;
+      }
+    }
+  }
+
+  return bestRows;
+}
+
+function parseSecQuarterlyEpsAvailabilityByQuarterFromCompanyFacts(rawText: string): Map<string, string> {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return new Map();
+  }
+
+  const taxonomyCandidates: Array<{ taxonomy: string; metrics: string[] }> = [
+    {
+      taxonomy: "us-gaap",
+      metrics: [
+        "EarningsPerShareDiluted",
+        "IncomeLossFromContinuingOperationsPerDilutedShare",
+        "EarningsPerShareBasicAndDiluted",
+        "EarningsPerShareBasic",
+      ],
+    },
+    {
+      taxonomy: "ifrs-full",
+      metrics: [
+        "DilutedEarningsLossPerShare",
+        "BasicEarningsLossPerShare",
+      ],
+    },
+  ];
+
+  const pickUnitRows = (factsRoot: Record<string, unknown>, metricKey: string): unknown[] => {
+    const metric = factsRoot[metricKey] as Record<string, unknown> | undefined;
+    const units = metric?.units as Record<string, unknown> | undefined;
+    if (!units || typeof units !== "object") return [];
+
+    const unitPriority = ["USD/shares", "USD / shares", "USD/share", "USD / share", "pure"];
+    for (const unitName of unitPriority) {
+      const candidate = units[unitName];
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    for (const candidate of Object.values(units)) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    return [];
+  };
+
+  const availabilityByQuarter = new Map<string, string>();
+  const quarterFrameRegex = /Q[1-4]$/i;
+  const annualFrameRegex = /^CY\d{4}$/i;
+
+  for (const candidate of taxonomyCandidates) {
+    const factsRoot = (parsed.facts as Record<string, unknown> | undefined)?.[candidate.taxonomy] as
+      | Record<string, unknown>
+      | undefined;
+    if (!factsRoot || typeof factsRoot !== "object") continue;
+
+    for (const metricKey of candidate.metrics) {
+      const unitRows = pickUnitRows(factsRoot, metricKey);
+      if (!unitRows.length) continue;
+
+      for (const rawEntry of unitRows) {
+        if (!rawEntry || typeof rawEntry !== "object") continue;
+        const entry = rawEntry as Record<string, unknown>;
+        const date = toIsoDateFromText(entry.end);
+        const quarterKey = quarterKeyFromDate(date || "");
+        if (!date || !quarterKey || date < HISTORY_START_DATE) continue;
+
+        const frame = String(entry.frame || "").trim().toUpperCase();
+        const fp = String(entry.fp || "").trim().toUpperCase();
+        const isQuarterFp = fp === "Q1" || fp === "Q2" || fp === "Q3" || fp === "Q4";
+        const isQuarterFrame = quarterFrameRegex.test(frame);
+        const isAnnualFp = fp === "FY";
+        const isAnnualFrame = annualFrameRegex.test(frame);
+        if (!isQuarterFp && !isQuarterFrame && !isAnnualFp && !isAnnualFrame) continue;
+
+        const filed = toIsoDateFromText(entry.filed) || date;
+        const availableDate = filed >= date ? filed : date;
+
+        const current = availabilityByQuarter.get(quarterKey);
+        if (!current || availableDate < current) {
+          availabilityByQuarter.set(quarterKey, availableDate);
+        }
+      }
+    }
+  }
+
+  return availabilityByQuarter;
+}
+
+function parseSecQuarterlyNetIncomeFromCompanyFacts(rawText: string): QuarterlyNetIncomePoint[] {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+
+  const taxonomyCandidates: Array<{ taxonomy: string; metrics: string[] }> = [
+    {
+      taxonomy: "us-gaap",
+      metrics: [
+        "NetIncomeLoss",
+        "ProfitLoss",
+        "NetIncomeLossAvailableToCommonStockholdersBasic",
+      ],
+    },
+    {
+      taxonomy: "ifrs-full",
+      metrics: [
+        "ProfitLoss",
+        "ProfitLossAttributableToOwnersOfParent",
+      ],
+    },
+  ];
+
+  const pickUnitRows = (factsRoot: Record<string, unknown>, metricKey: string): unknown[] => {
+    const metric = factsRoot[metricKey] as Record<string, unknown> | undefined;
+    const units = metric?.units as Record<string, unknown> | undefined;
+    if (!units || typeof units !== "object") return [];
+
+    const unitPriority = [
+      "USD",
+      "TWD",
+      "JPY",
+      "EUR",
+      "CNY",
+      "HKD",
+      "CAD",
+      "GBP",
+      "KRW",
+      "INR",
+      "pure",
+    ];
+    for (const unitName of unitPriority) {
+      const candidate = units[unitName];
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    for (const [unitName, candidate] of Object.entries(units)) {
+      if (!Array.isArray(candidate)) continue;
+      if (String(unitName || "").toLowerCase().includes("/share")) continue;
+      return candidate;
+    }
+
+    for (const candidate of Object.values(units)) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+
+    return [];
+  };
+
+  const extractQuarterRows = (rawRows: unknown[]): QuarterlyNetIncomePoint[] => {
+    type ScoredRow = {
+      date: string;
+      netIncome: number;
+      filed: string;
+      hasQuarterDuration: boolean;
+    };
+
+    const byDate = new Map<string, ScoredRow>();
+    const quarterFrameRegex = /Q[1-4]$/i;
+
+    for (const rawEntry of rawRows) {
+      if (!rawEntry || typeof rawEntry !== "object") continue;
+      const entry = rawEntry as Record<string, unknown>;
+      const date = toIsoDateFromText(entry.end);
+      const netIncome = sanitizeNetIncome(entry.val);
+      const frame = String(entry.frame || "").trim().toUpperCase();
+      const filed = toIsoDateFromText(entry.filed) || "0000-00-00";
+      if (!date || netIncome === null || date < HISTORY_START_DATE) continue;
+
+      const startDate = toIsoDateFromText(entry.start);
+      const durationDays =
+        startDate && toTs(date) > toTs(startDate) ? (toTs(date) - toTs(startDate)) / 86_400_000 : NaN;
+      const hasQuarterDuration =
+        Number.isFinite(durationDays) && durationDays >= 40 && durationDays <= 140;
+
+      const fp = String(entry.fp || "").trim().toUpperCase();
+      const isQuarterFp = fp === "Q1" || fp === "Q2" || fp === "Q3" || fp === "Q4";
+      const isQuarterFrame = quarterFrameRegex.test(frame);
+      if (!isQuarterFrame && !isQuarterFp) continue;
+
+      const current = byDate.get(date);
+      const candidate: ScoredRow = {
+        date,
+        netIncome,
+        filed,
+        hasQuarterDuration,
+      };
+
+      if (!current) {
+        byDate.set(date, candidate);
+        continue;
+      }
+
+      if (candidate.hasQuarterDuration !== current.hasQuarterDuration) {
+        if (candidate.hasQuarterDuration) {
+          byDate.set(date, candidate);
+        }
+        continue;
+      }
+
+      if (candidate.filed > current.filed) {
+        byDate.set(date, candidate);
+        continue;
+      }
+
+      if (candidate.filed === current.filed && Math.abs(candidate.netIncome) < Math.abs(current.netIncome)) {
+        byDate.set(date, candidate);
+      }
+    }
+
+    return [...byDate.values()]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((row) => ({
+        date: row.date,
+        netIncome: row.netIncome,
+        source: "actual",
+      }));
+  };
+
+  let bestRows: QuarterlyNetIncomePoint[] = [];
+  for (const candidate of taxonomyCandidates) {
+    const factsRoot = (parsed.facts as Record<string, unknown> | undefined)?.[candidate.taxonomy] as
+      | Record<string, unknown>
+      | undefined;
+    if (!factsRoot || typeof factsRoot !== "object") continue;
+
+    for (const metricKey of candidate.metrics) {
+      const unitRows = pickUnitRows(factsRoot, metricKey);
+      if (!unitRows.length) continue;
+      const parsedRows = extractQuarterRows(unitRows);
+      if (parsedRows.length > bestRows.length) {
+        bestRows = parsedRows;
+      }
+    }
+  }
+
+  return bestRows;
+}
+
+async function fetchSecTickerToCikMap(): Promise<Map<string, string>> {
+  if (secTickerToCikMapPromise) return secTickerToCikMapPromise;
+
+  secTickerToCikMapPromise = (async () => {
+    const raw = await fetchText("https://www.sec.gov/files/company_tickers.json", 1, 18000, false, {
+      headers: [`User-Agent: ${SEC_USER_AGENT}`],
+    });
+    const parsed = JSON.parse(raw) as Record<string, { cik_str?: number; ticker?: string }>;
+
+    const byTicker = new Map<string, string>();
+    for (const item of Object.values(parsed || {})) {
+      const ticker = String(item?.ticker || "").trim().toUpperCase();
+      const cikRaw = Number(item?.cik_str);
+      if (!ticker || !Number.isFinite(cikRaw) || cikRaw <= 0) continue;
+      const cik = String(Math.trunc(cikRaw)).padStart(10, "0");
+      byTicker.set(ticker, cik);
+      byTicker.set(normalizeTickerSymbol(ticker), cik);
+    }
+    return byTicker;
+  })().catch((error) => {
+    secTickerToCikMapPromise = null;
+    throw error;
+  });
+
+  return secTickerToCikMapPromise;
+}
+
+async function fetchSecQuarterlyEpsSeries(symbol: string): Promise<SecQuarterlyEpsSeriesResult> {
+  try {
+    const tickerMap = await fetchSecTickerToCikMap();
+    const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+    const cik =
+      tickerMap.get(normalizedSymbol) || tickerMap.get(normalizeTickerSymbol(normalizedSymbol)) || "";
+    if (!cik) {
+      return {
+        rows: [],
+        availabilityByQuarter: new Map(),
+      };
+    }
+
+    const url = `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`;
+    const raw = await fetchText(url, 1, 18000, false, {
+      headers: [`User-Agent: ${SEC_USER_AGENT}`],
+    });
+    return {
+      rows: parseSecQuarterlyEpsFromCompanyFacts(raw),
+      availabilityByQuarter: parseSecQuarterlyEpsAvailabilityByQuarterFromCompanyFacts(raw),
+    };
+  } catch {
+    return {
+      rows: [],
+      availabilityByQuarter: new Map(),
+    };
+  }
+}
+
+async function fetchSecQuarterlyNetIncomeSeries(symbol: string): Promise<QuarterlyNetIncomePoint[]> {
+  try {
+    const tickerMap = await fetchSecTickerToCikMap();
+    const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+    const cik =
+      tickerMap.get(normalizedSymbol) || tickerMap.get(normalizeTickerSymbol(normalizedSymbol)) || "";
+    if (!cik) return [];
+
+    const url = `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`;
+    const raw = await fetchText(url, 1, 18000, false, {
+      headers: [`User-Agent: ${SEC_USER_AGENT}`],
+    });
+    return parseSecQuarterlyNetIncomeFromCompanyFacts(raw);
+  } catch {
+    return [];
+  }
+}
+
+function mergeActualQuarterlyEpsSources(
+  secRows: QuarterlyEpsPoint[],
+  stockAnalysisRows: QuarterlyEpsPoint[],
+  secAvailabilityByQuarter: Map<string, string> = new Map()
+): QuarterlyEpsPoint[] {
+  type QuarterRow = {
+    quarterKey: string;
+    date: string;
+    eps: number;
+    availableDate: string;
+  };
+
+  const secByQuarter = new Map<string, QuarterRow>();
+  const stockByQuarter = new Map<string, QuarterRow>();
+  const maxIsoDate = (...candidates: string[]): string =>
+    candidates.filter(Boolean).sort((a, b) => a.localeCompare(b)).pop() || "";
+
+  const upsertByQuarter = (target: Map<string, QuarterRow>, row: QuarterRow) => {
+    const current = target.get(row.quarterKey);
+    if (!current) {
+      target.set(row.quarterKey, row);
+      return;
+    }
+
+    // Prefer earlier quarter-end timestamps to keep cadence stable.
+    if (row.date < current.date) {
+      target.set(row.quarterKey, row);
+    }
+  };
+
+  for (const row of secRows || []) {
+    if (!row || row.source !== "actual") continue;
+    const date = toIsoDateFromText(row.date);
+    const availableDate = toIsoDateFromText(row.availableDate) || date;
+    const eps = sanitizeEps(row.eps);
+    const quarterKey = quarterKeyFromDate(date || "");
+    if (!date || !availableDate || eps === null || !quarterKey) continue;
+    upsertByQuarter(secByQuarter, { quarterKey, date, eps, availableDate });
+  }
+
+  for (const row of stockAnalysisRows || []) {
+    if (!row || row.source !== "actual") continue;
+    const date = toIsoDateFromText(row.date);
+    const availableDate = toIsoDateFromText(row.availableDate) || date;
+    const eps = sanitizeEps(row.eps);
+    const quarterKey = quarterKeyFromDate(date || "");
+    if (!date || !availableDate || eps === null || !quarterKey) continue;
+    upsertByQuarter(stockByQuarter, { quarterKey, date, eps, availableDate });
+  }
+
+  const overlapRatios: number[] = [];
+  const overlapRatioRows: Array<{ date: string; ratio: number }> = [];
+  for (const [quarterKey, secRow] of secByQuarter.entries()) {
+    const stockRow = stockByQuarter.get(quarterKey);
+    if (!stockRow) continue;
+    const secEps = secRow.eps;
+    const stockEps = stockRow.eps;
+    const absSec = Math.abs(secEps);
+    const absStock = Math.abs(stockEps);
+    if (absSec <= 1e-8 || absStock <= 1e-8) continue;
+    const ratio = absSec / absStock;
+    overlapRatios.push(ratio);
+    overlapRatioRows.push({
+      date: stockRow.date > secRow.date ? stockRow.date : secRow.date,
+      ratio,
+    });
+  }
+
+  const normalizeDivisor = (rawValue: number | null): number => {
+    if (!Number.isFinite(rawValue as number) || !rawValue || rawValue <= 0) return 1;
+    const anchors = [1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20];
+    let best = rawValue;
+    let bestErr = Number.POSITIVE_INFINITY;
+    for (const candidate of anchors) {
+      const err = Math.abs(rawValue - candidate) / candidate;
+      if (err < bestErr) {
+        bestErr = err;
+        best = candidate;
+      }
+    }
+    return bestErr <= 0.22 ? best : rawValue;
+  };
+
+  const overlapMedian = median(overlapRatios);
+  const secScaleDivisor =
+    overlapMedian && overlapMedian > 0 && (overlapMedian >= 1.8 || overlapMedian <= 0.55)
+      ? normalizeDivisor(overlapMedian)
+      : 1;
+
+  const earliestStockDate = [...stockByQuarter.values()]
+    .map((row) => row.date)
+    .sort((a, b) => a.localeCompare(b))[0] || "";
+
+  const transitionRatios = [...overlapRatioRows]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 8)
+    .map((row) => row.ratio);
+  const transitionMedian = median(transitionRatios);
+  const secLegacyScaleDivisor =
+    transitionMedian && transitionMedian > 0 && (transitionMedian >= 1.8 || transitionMedian <= 0.55)
+      ? normalizeDivisor(transitionMedian)
+      : 1;
+
+  const quarterKeys = [...new Set([...secByQuarter.keys(), ...stockByQuarter.keys()])].sort((a, b) =>
+    a.localeCompare(b)
+  );
+  const merged: QuarterlyEpsPoint[] = [];
+
+  for (const quarterKey of quarterKeys) {
+    const stock = stockByQuarter.get(quarterKey);
+    if (stock) {
+      const eps = sanitizeEps(stock.eps);
+      if (eps !== null) {
+        const sec = secByQuarter.get(quarterKey);
+        const secAvailableDate = toIsoDateFromText(sec?.availableDate) || "";
+        const secAvailabilityDate = toIsoDateFromText(secAvailabilityByQuarter.get(quarterKey)) || "";
+        const availableDate = maxIsoDate(stock.availableDate, secAvailableDate, secAvailabilityDate, stock.date);
+        merged.push({
+          date: stock.date,
+          eps,
+          source: "actual",
+          availableDate,
+        });
+      }
+      continue;
+    }
+
+    const sec = secByQuarter.get(quarterKey);
+    if (!sec) continue;
+    let divisor = secScaleDivisor > 0 ? secScaleDivisor : 1;
+    if (earliestStockDate && sec.date < earliestStockDate && secLegacyScaleDivisor > 0) {
+      divisor = secLegacyScaleDivisor;
+    }
+    const adjustedSec = divisor > 0 ? sec.eps / divisor : sec.eps;
+    const eps = sanitizeEps(adjustedSec);
+    if (eps === null) continue;
+    const secAvailabilityDate = toIsoDateFromText(secAvailabilityByQuarter.get(quarterKey)) || "";
+    const availableDate = maxIsoDate(sec.availableDate, secAvailabilityDate, sec.date);
+    merged.push({
+      date: sec.date,
+      eps,
+      source: "actual",
+      availableDate,
+    });
+  }
+
+  return merged;
+}
+
+function mergeActualQuarterlyNetIncomeSources(
+  secRows: QuarterlyNetIncomePoint[],
+  stockAnalysisRows: QuarterlyNetIncomePoint[]
+): QuarterlyNetIncomePoint[] {
+  type QuarterRow = {
+    quarterKey: string;
+    date: string;
+    netIncome: number;
+  };
+
+  const secByQuarter = new Map<string, QuarterRow>();
+  const stockByQuarter = new Map<string, QuarterRow>();
+
+  const upsertByQuarter = (target: Map<string, QuarterRow>, row: QuarterRow) => {
+    const current = target.get(row.quarterKey);
+    if (!current) {
+      target.set(row.quarterKey, row);
+      return;
+    }
+    if (row.date < current.date) {
+      target.set(row.quarterKey, row);
+    }
+  };
+
+  for (const row of secRows || []) {
+    if (!row || row.source !== "actual") continue;
+    const date = toIsoDateFromText(row.date);
+    const netIncome = sanitizeNetIncome(row.netIncome);
+    const quarterKey = quarterKeyFromDate(date || "");
+    if (!date || netIncome === null || !quarterKey) continue;
+    upsertByQuarter(secByQuarter, { quarterKey, date, netIncome });
+  }
+
+  for (const row of stockAnalysisRows || []) {
+    if (!row || row.source !== "actual") continue;
+    const date = toIsoDateFromText(row.date);
+    const netIncome = sanitizeNetIncome(row.netIncome);
+    const quarterKey = quarterKeyFromDate(date || "");
+    if (!date || netIncome === null || !quarterKey) continue;
+    upsertByQuarter(stockByQuarter, { quarterKey, date, netIncome });
+  }
+
+  const overlapRatios: number[] = [];
+  for (const [quarterKey, secRow] of secByQuarter.entries()) {
+    const stockRow = stockByQuarter.get(quarterKey);
+    if (!stockRow) continue;
+    const absSec = Math.abs(secRow.netIncome);
+    const absStock = Math.abs(stockRow.netIncome);
+    if (absSec <= 1e-8 || absStock <= 1e-8) continue;
+    overlapRatios.push(absSec / absStock);
+  }
+
+  const normalizeDivisor = (rawValue: number | null): number => {
+    if (!Number.isFinite(rawValue as number) || !rawValue || rawValue <= 0) return 1;
+    const anchors = [
+      0.001,
+      0.01,
+      0.1,
+      0.25,
+      0.5,
+      1,
+      2,
+      4,
+      10,
+      100,
+      1000,
+      10000,
+      1000000,
+    ];
+    let best = rawValue;
+    let bestErr = Number.POSITIVE_INFINITY;
+    for (const candidate of anchors) {
+      const err = Math.abs(rawValue - candidate) / candidate;
+      if (err < bestErr) {
+        bestErr = err;
+        best = candidate;
+      }
+    }
+    return bestErr <= 0.22 ? best : rawValue;
+  };
+
+  const overlapMedian = median(overlapRatios);
+  const secScaleDivisor =
+    overlapMedian && overlapMedian > 0 && (overlapMedian >= 1.8 || overlapMedian <= 0.55)
+      ? normalizeDivisor(overlapMedian)
+      : 1;
+
+  const quarterKeys = [...new Set([...secByQuarter.keys(), ...stockByQuarter.keys()])].sort((a, b) =>
+    a.localeCompare(b)
+  );
+  const merged: QuarterlyNetIncomePoint[] = [];
+
+  for (const quarterKey of quarterKeys) {
+    const stock = stockByQuarter.get(quarterKey);
+    if (stock) {
+      const netIncome = sanitizeNetIncome(stock.netIncome);
+      if (netIncome !== null) {
+        merged.push({
+          date: stock.date,
+          netIncome,
+          source: "actual",
+        });
+      }
+      continue;
+    }
+
+    const sec = secByQuarter.get(quarterKey);
+    if (!sec) continue;
+    const adjustedSec = secScaleDivisor > 0 ? sec.netIncome / secScaleDivisor : sec.netIncome;
+    const netIncome = sanitizeNetIncome(adjustedSec);
+    if (netIncome === null) continue;
+    merged.push({
+      date: sec.date,
+      netIncome,
+      source: "actual",
+    });
+  }
+
+  return merged;
+}
+
 function getStockAnalysisSlugCandidates(symbol: string): string[] {
   const seed = symbol.toLowerCase();
   return [...new Set([seed, seed.replace(/-/g, "."), seed.replace(/\./g, "-"), seed.replace(/[.\-]/g, "")])].filter(Boolean);
+}
+
+async function fetchQuarterlyFinancialSeries(
+  symbol: string,
+  lastCloseDate: string
+): Promise<QuarterlyFinancialSeriesResult> {
+  const [secEpsPayload, secActualNetIncomeRows] = await Promise.all([
+    fetchSecQuarterlyEpsSeries(symbol),
+    fetchSecQuarterlyNetIncomeSeries(symbol),
+  ]);
+  const candidates = getStockAnalysisSlugCandidates(symbol);
+  let bestResult: QuarterlyFinancialSeriesResult = {
+    quarterlyEps: [],
+    quarterlyNetIncome: [],
+  };
+  let bestScore = 0;
+
+  for (const slug of candidates) {
+    try {
+      const [incomePayload, forecastPayload] = await Promise.all([
+        fetchStockAnalysisIncomeStatementQuarterlyPayload(slug),
+        fetchStockAnalysisForecastQuarterlyPayload(slug),
+      ]);
+
+      const mergedActualEpsRows = mergeActualQuarterlyEpsSources(
+        secEpsPayload.rows,
+        incomePayload.epsRows,
+        secEpsPayload.availabilityByQuarter
+      );
+      const mergedEpsRows = mergeQuarterlyEpsSeries(
+        mergedActualEpsRows,
+        forecastPayload.epsRows,
+        lastCloseDate
+      );
+
+      const estimatedExpectedNetIncomeRows = estimateExpectedQuarterlyNetIncomeFromEps(
+        forecastPayload.epsRows,
+        incomePayload.shareRows
+      );
+      const mergedExpectedNetIncomeRows = mergeExpectedQuarterlyNetIncomeCandidates(
+        forecastPayload.netIncomeRows,
+        estimatedExpectedNetIncomeRows
+      );
+      const mergedActualNetIncomeRows = mergeActualQuarterlyNetIncomeSources(
+        secActualNetIncomeRows,
+        incomePayload.netIncomeRows
+      );
+      const mergedNetIncomeRows = mergeQuarterlyNetIncomeSeries(
+        mergedActualNetIncomeRows,
+        mergedExpectedNetIncomeRows,
+        lastCloseDate
+      );
+
+      if (mergedEpsRows.length >= 4 && mergedNetIncomeRows.length >= 4) {
+        return {
+          quarterlyEps: mergedEpsRows,
+          quarterlyNetIncome: mergedNetIncomeRows,
+        };
+      }
+
+      const score = mergedEpsRows.length + mergedNetIncomeRows.length;
+      if (score > bestScore) {
+        bestScore = score;
+        bestResult = {
+          quarterlyEps: mergedEpsRows,
+          quarterlyNetIncome: mergedNetIncomeRows,
+        };
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  const secOnlyEps = mergeQuarterlyEpsSeries(secActualEpsRows, [], lastCloseDate);
+  const secOnlyNetIncome = mergeQuarterlyNetIncomeSeries(secActualNetIncomeRows, [], lastCloseDate);
+  const secScore = secOnlyEps.length + secOnlyNetIncome.length;
+  if (secScore > bestScore) {
+    bestResult = {
+      quarterlyEps: secOnlyEps,
+      quarterlyNetIncome: secOnlyNetIncome,
+    };
+  }
+
+  return bestResult;
+}
+
+async function fetchQuarterlyRatioPayloadFromLegacyHtml(slug: string): Promise<RatioPayload | null> {
+  try {
+    const quarterlyUrl = `https://stockanalysis.com/stocks/${slug}/financials/ratios/?p=quarterly`;
+    const quarterlyHtml = await fetchText(quarterlyUrl, 1, 14000);
+    const quarterly = parseRatioPayloadFromScript(quarterlyHtml);
+
+    const annualUrl = `https://stockanalysis.com/stocks/${slug}/financials/ratios/`;
+    const annualHtml = await fetchText(annualUrl, 1, 12000);
+    const annual = parseRatioPayloadFromScript(annualHtml);
+
+    const merged = mergeRatioPayloadList([quarterly, annual].filter(Boolean) as RatioPayload[]);
+    if (!merged) return null;
+
+    return {
+      ...merged,
+      source: `${merged.source}:${slug}:legacy-html`,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchQuarterlyRatioPayload(symbol: string): Promise<RatioPayload | null> {
@@ -852,44 +3136,72 @@ async function fetchQuarterlyRatioPayload(symbol: string): Promise<RatioPayload 
 
   for (const slug of candidates) {
     try {
-      const quarterlyUrl = `https://stockanalysis.com/stocks/${slug}/financials/ratios/?p=quarterly`;
-      const quarterlyHtml = await fetchText(quarterlyUrl, 1, 14000);
-      const quarterly = parseRatioPayloadFromScript(quarterlyHtml);
+      const payloads: RatioPayload[] = [];
+      const seenSourceTags = new Set<string>();
+      const discoveredSources = new Set<string>();
+      let primarySource = "";
 
-      const annualUrl = `https://stockanalysis.com/stocks/${slug}/financials/ratios/`;
-      const annualHtml = await fetchText(annualUrl, 1, 12000);
-      const annual = parseRatioPayloadFromScript(annualHtml);
+      const collect = async (period: "annual" | "quarterly", source = ""): Promise<void> => {
+        const parsed = await fetchStockAnalysisDataRatioPayload(slug, period, source);
+        if (!parsed) return;
 
-      const mergedByDate = new Map<string, RatioAnchor>();
-      for (const item of [...(quarterly?.anchors || []), ...(annual?.anchors || [])]) {
-        const current = mergedByDate.get(item.date);
-        if (!current) {
-          mergedByDate.set(item.date, { ...item });
-          continue;
+        if (parsed.selectedSource) {
+          discoveredSources.add(parsed.selectedSource);
+          primarySource = primarySource || parsed.selectedSource;
         }
-        mergedByDate.set(item.date, {
-          date: item.date,
-          pe_ttm: current.pe_ttm ?? item.pe_ttm,
-          pe_forward: current.pe_forward ?? item.pe_forward,
-          pb: current.pb ?? item.pb,
-        });
-      }
+        for (const sourceName of parsed.availableSources) {
+          discoveredSources.add(sourceName);
+        }
 
-      const merged: RatioPayload = {
-        anchors: [...mergedByDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
-        latest: {
-          pe_ttm: quarterly?.latest.pe_ttm ?? annual?.latest.pe_ttm ?? null,
-          pe_forward: quarterly?.latest.pe_forward ?? annual?.latest.pe_forward ?? null,
-          pb: quarterly?.latest.pb ?? annual?.latest.pb ?? null,
-        },
-        source: `stockanalysis-financial-ratios:${slug}`,
+        if (!parsed.payload) return;
+
+        const sourceTag = `${parsed.payload.source}:${slug}:${period}`;
+        if (seenSourceTags.has(sourceTag)) return;
+        seenSourceTags.add(sourceTag);
+        payloads.push({
+          ...parsed.payload,
+          source: sourceTag,
+        });
       };
 
-      if (merged.anchors.length || merged.latest.pe_ttm || merged.latest.pe_forward || merged.latest.pb) {
+      await collect("quarterly");
+      await collect("annual");
+
+      const mergedPrimary = mergeRatioPayloadList(payloads);
+      const shouldBackfillForward =
+        !sanitizeSignedRatio(mergedPrimary?.latest.pe_forward) ||
+        countForwardAnchors(mergedPrimary) < MIN_FORWARD_ANCHORS_FOR_HISTORY;
+
+      if (shouldBackfillForward) {
+        const alternatives = [...discoveredSources]
+          .map((item) => item.trim().toLowerCase())
+          .filter(Boolean)
+          .filter((item) => item !== primarySource)
+          .sort((left, right) => {
+            const leftPriority = STOCK_ANALYSIS_SOURCE_PRIORITY.indexOf(left);
+            const rightPriority = STOCK_ANALYSIS_SOURCE_PRIORITY.indexOf(right);
+            const leftRank = leftPriority >= 0 ? leftPriority : 99;
+            const rightRank = rightPriority >= 0 ? rightPriority : 99;
+            if (leftRank !== rightRank) return leftRank - rightRank;
+            return left.localeCompare(right);
+          });
+
+        for (const sourceName of alternatives) {
+          await collect("quarterly", sourceName);
+        }
+      }
+
+      const merged = mergeRatioPayloadList(payloads);
+      if (merged) {
         return merged;
       }
     } catch {
-      // try next slug
+      // fallback to legacy parser below
+    }
+
+    const legacy = await fetchQuarterlyRatioPayloadFromLegacyHtml(slug);
+    if (legacy) {
+      return legacy;
     }
   }
 
@@ -899,11 +3211,75 @@ async function fetchQuarterlyRatioPayload(symbol: string): Promise<RatioPayload 
 function mergeRatioPayloads(
   stockPayload: RatioPayload | null,
   longPeSeries: MetricPoint[],
-  longPbSeries: MetricPoint[]
+  longPbSeries: MetricPoint[],
+  longForwardSeries: MetricPoint[],
+  sourceHints: { pe?: string; pb?: string; forward?: string } = {},
+  symbol = ""
 ): RatioPayload | null {
-  const mergedByDate = new Map<string, RatioAnchor>();
+  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
 
-  const upsert = (date: string, patch: Partial<RatioAnchor>): void => {
+  const normalizeByAdrRatio = (metricKey: "pe_ttm" | "pe_forward" | "pb", rawValue: unknown): number | null => {
+    const base = sanitizeSignedRatio(rawValue);
+    if (!base) return null;
+
+    if (metricKey !== "pe_ttm") return base;
+
+    const divisor = ADR_LATEST_PE_DIVISOR_BY_SYMBOL[normalizedSymbol]?.pe_ttm;
+    if (!Number.isFinite(divisor) || divisor <= 1) return base;
+
+    const adjusted = sanitizeSignedRatio(base / divisor);
+    return adjusted ?? base;
+  };
+
+  const resolveLatestMetricValue = (
+    metricKey: "pe_ttm" | "pe_forward" | "pb",
+    longSeries: MetricPoint[],
+    stockLatestRaw: unknown
+  ): number | null => {
+    const stockLatest = normalizeByAdrRatio(metricKey, stockLatestRaw);
+    const longLatestPoint = longSeries[longSeries.length - 1];
+    const longLatest = sanitizeSignedRatio(longLatestPoint?.value ?? null);
+
+    if (longLatest && longLatestPoint?.date) {
+      const ageDays = (toTs(new Date().toISOString().slice(0, 10)) - toTs(longLatestPoint.date)) / 86_400_000;
+      if (Number.isFinite(ageDays) && ageDays >= 0 && ageDays <= LONG_SERIES_FRESH_DAYS) {
+        return longLatest;
+      }
+    }
+
+    if (stockLatest && longLatest) {
+      const ratio = stockLatest / longLatest;
+      const mismatch =
+        !Number.isFinite(ratio) ||
+        ratio >= STOCK_LATEST_OUTLIER_FACTOR ||
+        ratio <= 1 / STOCK_LATEST_OUTLIER_FACTOR;
+
+      if (mismatch) {
+        return null;
+      }
+    }
+
+    return stockLatest;
+  };
+
+  const mergedByDate = new Map<string, RatioAnchor>();
+  const coarsePeSeries = isLikelyCoarseSeries(longPeSeries);
+  const coarsePbSeries = isLikelyCoarseSeries(longPbSeries);
+  const coarseForwardSeries = isLikelyCoarseSeries(longForwardSeries);
+  const recentStockAnchorPeValues = (stockPayload?.anchors || [])
+    .map((item) => sanitizeSignedRatio(item.pe_ttm))
+    .filter((value): value is number => !!value)
+    .slice(-8);
+  const recentStockAnchorPeMedian = median(recentStockAnchorPeValues);
+  const stockLatestPeRaw = sanitizeSignedRatio(stockPayload?.latest.pe_ttm ?? null);
+  const stockRawMismatchFactor =
+    stockLatestPeRaw && recentStockAnchorPeMedian
+      ? Math.max(stockLatestPeRaw / recentStockAnchorPeMedian, recentStockAnchorPeMedian / stockLatestPeRaw)
+      : 1;
+  const dropStockPeAnchorsDueBasisMismatch =
+    longPeSeries.length >= 16 && stockRawMismatchFactor >= STOCK_TTM_BASIS_MISMATCH_FACTOR;
+
+  const upsert = (date: string, patch: Partial<RatioAnchor>, preferPatch = true): void => {
     const current = mergedByDate.get(date) || {
       date,
       pe_ttm: null,
@@ -912,37 +3288,41 @@ function mergeRatioPayloads(
     };
     mergedByDate.set(date, {
       date,
-      pe_ttm: patch.pe_ttm ?? current.pe_ttm,
-      pe_forward: patch.pe_forward ?? current.pe_forward,
-      pb: patch.pb ?? current.pb,
+      pe_ttm: preferPatch ? patch.pe_ttm ?? current.pe_ttm : current.pe_ttm ?? patch.pe_ttm,
+      pe_forward: preferPatch ? patch.pe_forward ?? current.pe_forward : current.pe_forward ?? patch.pe_forward,
+      pb: preferPatch ? patch.pb ?? current.pb : current.pb ?? patch.pb,
     });
   };
 
   for (const item of stockPayload?.anchors || []) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date)) continue;
     upsert(item.date, {
-      pe_ttm: sanitizeSignedRatio(item.pe_ttm),
+      pe_ttm: dropStockPeAnchorsDueBasisMismatch ? null : sanitizeSignedRatio(item.pe_ttm),
       pe_forward: sanitizeSignedRatio(item.pe_forward),
       pb: sanitizeSignedRatio(item.pb),
     });
   }
 
   for (const point of longPeSeries) {
-    upsert(point.date, { pe_ttm: point.value });
+    upsert(point.date, { pe_ttm: point.value }, !coarsePeSeries);
   }
 
   for (const point of longPbSeries) {
-    upsert(point.date, { pb: point.value });
+    upsert(point.date, { pb: point.value }, !coarsePbSeries);
+  }
+
+  for (const point of longForwardSeries) {
+    upsert(point.date, { pe_forward: point.value }, !coarseForwardSeries);
   }
 
   const latest = {
-    pe_ttm:
-      longPeSeries[longPeSeries.length - 1]?.value ??
-      sanitizeSignedRatio(stockPayload?.latest.pe_ttm ?? null),
-    pe_forward: sanitizeSignedRatio(stockPayload?.latest.pe_forward ?? null),
-    pb:
-      longPbSeries[longPbSeries.length - 1]?.value ??
-      sanitizeSignedRatio(stockPayload?.latest.pb ?? null),
+    pe_ttm: resolveLatestMetricValue("pe_ttm", longPeSeries, stockPayload?.latest.pe_ttm ?? null),
+    pe_forward: resolveLatestMetricValue(
+      "pe_forward",
+      longForwardSeries,
+      stockPayload?.latest.pe_forward ?? null
+    ),
+    pb: resolveLatestMetricValue("pb", longPbSeries, stockPayload?.latest.pb ?? null),
   };
 
   const anchors = [...mergedByDate.values()]
@@ -955,8 +3335,9 @@ function mergeRatioPayloads(
 
   const sourceTags = [
     stockPayload?.source || "",
-    longPeSeries.length ? "companiesmarketcap-pe-ratio" : "",
-    longPbSeries.length ? "companiesmarketcap-pb-ratio" : "",
+    longPeSeries.length ? sourceHints.pe || "companiesmarketcap-pe-ratio" : "",
+    longPbSeries.length ? sourceHints.pb || "companiesmarketcap-pb-ratio" : "",
+    longForwardSeries.length ? sourceHints.forward || "forward-series" : "",
   ].filter(Boolean);
 
   return {
@@ -964,33 +3345,6 @@ function mergeRatioPayloads(
     latest,
     source: sourceTags.join("+"),
   };
-}
-
-function deriveForwardScale(anchors: RatioAnchor[], latest: RatioPayload["latest"] | null): number {
-  const overlapRatios = anchors
-    .map((item) => {
-      const pe = sanitizeSignedRatio(item.pe_ttm);
-      const fwd = sanitizeSignedRatio(item.pe_forward);
-      if (!pe || !fwd) return null;
-      const ratio = fwd / pe;
-      if (!Number.isFinite(ratio) || ratio <= 0.2 || ratio >= 2.8) return null;
-      return ratio;
-    })
-    .filter((value): value is number => Number.isFinite(value));
-
-  const fromAnchor = median(overlapRatios);
-  if (fromAnchor) return fromAnchor;
-
-  const latestPe = sanitizeSignedRatio(latest?.pe_ttm ?? null);
-  const latestFwd = sanitizeSignedRatio(latest?.pe_forward ?? null);
-  if (latestPe && latestFwd) {
-    const ratio = latestFwd / latestPe;
-    if (Number.isFinite(ratio) && ratio > 0.2 && ratio < 2.8) {
-      return ratio;
-    }
-  }
-
-  return 0.88;
 }
 
 function getCloseAtOrBefore(closePoints: ClosePoint[], targetDate: string): ClosePoint {
@@ -1014,6 +3368,26 @@ function getCloseAtOrBefore(closePoints: ClosePoint[], targetDate: string): Clos
 
   if (answer >= 0) return closePoints[answer];
   return closePoints[0];
+}
+
+function getCloseIndexAtOrBeforeTs(closePoints: ClosePoint[], targetTs: number): number {
+  if (!closePoints.length) return -1;
+
+  let left = 0;
+  let right = closePoints.length - 1;
+  let answer = -1;
+
+  while (left <= right) {
+    const mid = (left + right) >> 1;
+    if (closePoints[mid].ts <= targetTs) {
+      answer = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return answer;
 }
 
 function buildUnifiedAnchors(closePoints: ClosePoint[], ratioPayload: RatioPayload | null): RatioAnchor[] {
@@ -1062,7 +3436,8 @@ function buildMetricAnchorDenominators(
   closePoints: ClosePoint[],
   anchors: RatioAnchor[],
   key: "pe_ttm" | "pe_forward" | "pb",
-  fallbackMetric: number
+  fallbackMetric: number,
+  options: { allowFallback?: boolean } = {}
 ): { anchors: MetricAnchorDenominator[]; usedFallback: boolean } {
   const firstPoint = closePoints[0] || {
     date: HISTORY_START_DATE,
@@ -1083,6 +3458,7 @@ function buildMetricAnchorDenominators(
     byDate.set(item.date, {
       date: item.date,
       ts: toTs(item.date),
+      ratio,
       denominator,
     });
   }
@@ -1092,11 +3468,16 @@ function buildMetricAnchorDenominators(
     return { anchors: ordered, usedFallback: false };
   }
 
+  if (options.allowFallback === false) {
+    return { anchors: [], usedFallback: false };
+  }
+
   return {
     anchors: [
       {
         date: firstPoint.date,
         ts: firstPoint.ts,
+        ratio: fallbackMetric,
         denominator: firstPoint.close / fallbackMetric,
       },
     ],
@@ -1115,69 +3496,121 @@ function projectMetricByAnchorWindow(
   }
 
   const ordered = [...anchors].sort((a, b) => a.ts - b.ts);
-  let anchorIndex = 0;
-  const out: Array<number | null> = [];
+  const out: Array<number | null> = Array.from({ length: closePoints.length }, () => null);
 
-  for (const point of closePoints) {
-    if (point.ts < ordered[0].ts) {
-      out.push(null);
-      continue;
+  const clampRatio = (value: number): number => roundTo(clamp(value, min, max), 4);
+
+  const projectInterval = (leftAnchor: MetricAnchorDenominator, rightAnchor: MetricAnchorDenominator): void => {
+    const leftIndex = getCloseIndexAtOrBeforeTs(closePoints, leftAnchor.ts);
+    const rightIndex = getCloseIndexAtOrBeforeTs(closePoints, rightAnchor.ts);
+    if (leftIndex < 0 || rightIndex < 0) return;
+
+    const leftRatio = Number(leftAnchor.ratio);
+    const rightRatio = Number(rightAnchor.ratio);
+    if (!Number.isFinite(leftRatio) || !Number.isFinite(rightRatio)) return;
+
+    if (rightIndex <= leftIndex) {
+      out[rightIndex] = clampRatio(rightRatio);
+      return;
     }
 
-    while (anchorIndex < ordered.length - 1 && point.ts >= ordered[anchorIndex + 1].ts) {
-      anchorIndex += 1;
+    const steps = rightIndex - leftIndex;
+    const sameSign =
+      leftRatio * rightRatio > 0 &&
+      Math.abs(leftRatio) > 1e-9 &&
+      Math.abs(rightRatio) > 1e-9;
+
+    if (sameSign) {
+      const startAbs = Math.abs(leftRatio);
+      const endAbs = Math.abs(rightRatio);
+      const baseLog = Math.log(startAbs);
+      const targetLog = Math.log(endAbs / startAbs);
+
+      let closeLogSum = 0;
+      for (let i = leftIndex + 1; i <= rightIndex; i += 1) {
+        const closeRatio = closePoints[i].close / closePoints[i - 1].close;
+        const stepLog = Number.isFinite(closeRatio) && closeRatio > 0 ? Math.log(closeRatio) : 0;
+        closeLogSum += stepLog;
+      }
+
+      const drift = (targetLog - closeLogSum) / steps;
+      let cumulativeCloseLog = 0;
+      const ratioSign = leftRatio > 0 ? 1 : -1;
+      out[leftIndex] = clampRatio(leftRatio);
+
+      for (let i = leftIndex + 1; i <= rightIndex; i += 1) {
+        const closeRatio = closePoints[i].close / closePoints[i - 1].close;
+        const stepLog = Number.isFinite(closeRatio) && closeRatio > 0 ? Math.log(closeRatio) : 0;
+        cumulativeCloseLog += stepLog;
+
+        const value = ratioSign * Math.exp(baseLog + cumulativeCloseLog + drift * (i - leftIndex));
+        out[i] = clampRatio(value);
+      }
+      return;
     }
 
-    const rawDenominator = ordered[anchorIndex].denominator;
+    for (let i = leftIndex; i <= rightIndex; i += 1) {
+      const progress = (i - leftIndex) / steps;
+      const value = leftRatio + (rightRatio - leftRatio) * progress;
+      out[i] = clampRatio(value);
+    }
+  };
+
+  for (let i = 0; i < ordered.length - 1; i += 1) {
+    projectInterval(ordered[i], ordered[i + 1]);
+  }
+
+  const tailAnchor = ordered[ordered.length - 1];
+  const tailIndex = getCloseIndexAtOrBeforeTs(closePoints, tailAnchor.ts);
+  if (tailIndex >= 0) {
+    const rawDenominator = tailAnchor.denominator;
     const denominator =
       Math.abs(rawDenominator) < 1e-6 ? (rawDenominator < 0 ? -1e-6 : 1e-6) : rawDenominator;
-    out.push(roundTo(clamp(point.close / denominator, min, max), 4));
+
+    for (let i = tailIndex; i < closePoints.length; i += 1) {
+      out[i] = clampRatio(closePoints[i].close / denominator);
+    }
   }
 
   return out;
 }
 
-function buildValuationSeries(closePoints: ClosePoint[], ratioPayload: RatioPayload | null): { points: SnapshotPoint[]; usedFallback: boolean } {
+function buildValuationSeries(
+  closePoints: ClosePoint[],
+  ratioPayload: RatioPayload | null
+): { points: SnapshotPoint[]; usedFallback: boolean; forwardStartDate: string } {
   if (!closePoints.length) {
-    return { points: [], usedFallback: true };
+    return { points: [], usedFallback: true, forwardStartDate: "" };
   }
 
   const unifiedAnchors = buildUnifiedAnchors(closePoints, ratioPayload);
-  const forwardScale = deriveForwardScale(unifiedAnchors, ratioPayload?.latest || null);
-  const firstForwardTs = Math.min(
-    ...unifiedAnchors
-      .map((item) => (sanitizeSignedRatio(item.pe_forward) ? toTs(item.date) : Number.POSITIVE_INFINITY))
-      .filter((ts) => Number.isFinite(ts))
-  );
 
-  const enrichedAnchors = unifiedAnchors.map((item) => {
-    if (sanitizeSignedRatio(item.pe_forward)) return item;
-    const peTtm = sanitizeSignedRatio(item.pe_ttm);
-    if (!peTtm) return item;
+  const lastDate = closePoints[closePoints.length - 1]?.date || HISTORY_START_DATE;
+  const forwardAnchorDates = unifiedAnchors
+    .filter((item) => sanitizeSignedRatio(item.pe_forward))
+    .map((item) => item.date)
+    .sort((a, b) => a.localeCompare(b));
 
-    if (!Number.isFinite(firstForwardTs) || toTs(item.date) < firstForwardTs) {
-      return {
-        ...item,
-        pe_forward: sanitizeSignedRatio(peTtm * forwardScale),
-      };
-    }
-
-    return item;
-  });
+  let forwardStartDate = "9999-12-31";
+  if (forwardAnchorDates.length) {
+    // If we found at least one real forward anchor, expose forward series from the earliest anchor date.
+    forwardStartDate = forwardAnchorDates[0] || lastDate;
+  }
 
   const peAnchors = buildMetricAnchorDenominators(
     closePoints,
-    enrichedAnchors,
+    unifiedAnchors,
     "pe_ttm",
     DEFAULT_METRICS.pe_ttm
   );
   const forwardAnchors = buildMetricAnchorDenominators(
     closePoints,
-    enrichedAnchors,
+    unifiedAnchors,
     "pe_forward",
-    DEFAULT_METRICS.pe_forward
+    DEFAULT_METRICS.pe_forward,
+    { allowFallback: false }
   );
-  const pbAnchors = buildMetricAnchorDenominators(closePoints, enrichedAnchors, "pb", DEFAULT_METRICS.pb);
+  const pbAnchors = buildMetricAnchorDenominators(closePoints, unifiedAnchors, "pb", DEFAULT_METRICS.pb);
 
   const peSeries = projectMetricByAnchorWindow(
     closePoints,
@@ -1203,23 +3636,17 @@ function buildValuationSeries(closePoints: ClosePoint[], ratioPayload: RatioPayl
   for (let i = 0; i < closePoints.length; i += 1) {
     const peTtm = peSeries[i];
     const pb = pbSeries[i];
-    let peForward = forwardSeries[i];
+    const peForward = Number.isFinite(forwardSeries[i] as number) ? (forwardSeries[i] as number) : null;
 
-    if (!Number.isFinite(peForward) && Number.isFinite(peTtm)) {
-      peForward = roundTo(
-        clamp((peTtm as number) * forwardScale, -METRIC_MAX.pe_forward, METRIC_MAX.pe_forward),
-        4
-      );
-    }
-
-    if (!Number.isFinite(peTtm) || !Number.isFinite(pb) || !Number.isFinite(peForward)) {
+    if (!Number.isFinite(peTtm) || !Number.isFinite(pb)) {
       continue;
     }
 
     points.push({
       date: closePoints[i].date,
+      close: closePoints[i].close,
       pe_ttm: peTtm as number,
-      pe_forward: peForward as number,
+      pe_forward: peForward,
       pb: pb as number,
       us10y_yield: 0,
     });
@@ -1227,8 +3654,317 @@ function buildValuationSeries(closePoints: ClosePoint[], ratioPayload: RatioPayl
 
   return {
     points,
-    usedFallback: peAnchors.usedFallback || forwardAnchors.usedFallback || pbAnchors.usedFallback,
+    usedFallback: peAnchors.usedFallback || pbAnchors.usedFallback,
+    forwardStartDate,
   };
+}
+
+function normalizeQuarterlyEpsRows(rawRows: unknown): QuarterlyEpsPoint[] {
+  if (!Array.isArray(rawRows)) return [];
+
+  const byQuarter = new Map<string, QuarterlyEpsPoint & { quarterKey: string }>();
+
+  for (const rawItem of rawRows) {
+    if (!rawItem || typeof rawItem !== "object") continue;
+    const item = rawItem as Record<string, unknown>;
+    const date = toIsoDateFromText(item.date);
+    const availableDate = toIsoDateFromText(item.availableDate) || date;
+    const eps = sanitizeEps(item.eps);
+    if (!date || !availableDate || eps === null) continue;
+
+    const quarterKey = quarterKeyFromDate(date);
+    if (!quarterKey) continue;
+
+    const source = item.source === "expected" ? "expected" : "actual";
+    const current = byQuarter.get(quarterKey);
+    if (!current || (current.source === "expected" && source === "actual")) {
+      byQuarter.set(quarterKey, { quarterKey, date, eps, source, availableDate });
+      continue;
+    }
+
+    if (current.source === source && date < current.date) {
+      byQuarter.set(quarterKey, { quarterKey, date, eps, source, availableDate });
+    }
+  }
+
+  return [...byQuarter.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(({ date, eps, source, availableDate }) => ({ date, eps, source, availableDate }));
+}
+
+function normalizeQuarterlyNetIncomeRows(rawRows: unknown): QuarterlyNetIncomePoint[] {
+  if (!Array.isArray(rawRows)) return [];
+
+  const byQuarter = new Map<string, QuarterlyNetIncomePoint & { quarterKey: string }>();
+
+  for (const rawItem of rawRows) {
+    if (!rawItem || typeof rawItem !== "object") continue;
+    const item = rawItem as Record<string, unknown>;
+    const date = toIsoDateFromText(item.date);
+    const netIncome = sanitizeNetIncome(item.netIncome);
+    if (!date || netIncome === null) continue;
+
+    const quarterKey = quarterKeyFromDate(date);
+    if (!quarterKey) continue;
+
+    const source = item.source === "expected" ? "expected" : "actual";
+    const current = byQuarter.get(quarterKey);
+    if (!current || (current.source === "expected" && source === "actual")) {
+      byQuarter.set(quarterKey, { quarterKey, date, netIncome, source });
+      continue;
+    }
+
+    if (current.source === source && date < current.date) {
+      byQuarter.set(quarterKey, { quarterKey, date, netIncome, source });
+    }
+  }
+
+  return [...byQuarter.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(({ date, netIncome, source }) => ({ date, netIncome, source }));
+}
+
+function buildTtmAnchorsFromQuarterlyEps(rows: QuarterlyEpsPoint[]): QuarterlyEpsPoint[] {
+  if (!Array.isArray(rows) || rows.length < 4) return [];
+
+  const ordered = normalizeQuarterlyEpsRows(rows);
+  if (ordered.length < 4) return [];
+
+  const anchors: QuarterlyEpsPoint[] = [];
+
+  for (let i = 3; i < ordered.length; i += 1) {
+    const window = ordered.slice(i - 3, i + 1);
+    if (window.some((row) => !Number.isFinite(row.eps))) continue;
+
+    let isContiguous = true;
+    for (let j = 1; j < window.length; j += 1) {
+      const prevTs = toTs(window[j - 1].date);
+      const currTs = toTs(window[j].date);
+      if (!prevTs || !currTs) {
+        isContiguous = false;
+        break;
+      }
+      const gapDays = (currTs - prevTs) / 86_400_000;
+      if (!Number.isFinite(gapDays) || gapDays < 40 || gapDays > 140) {
+        isContiguous = false;
+        break;
+      }
+    }
+
+    if (!isContiguous) continue;
+
+    const anchorAvailableDate = toIsoDateFromText(window[3].availableDate) || window[3].date;
+    const anchorDate = anchorAvailableDate < window[3].date ? window[3].date : anchorAvailableDate;
+    anchors.push({
+      date: anchorDate,
+      eps: roundTo(window.reduce((sum, item) => sum + item.eps, 0), 6),
+      source: window[3].source,
+      availableDate: anchorDate,
+    });
+  }
+
+  return anchors;
+}
+
+function findNearestPointByDate(points: SnapshotPoint[], targetDate: string, maxGapDays = 7): SnapshotPoint | null {
+  if (!Array.isArray(points) || !points.length) return null;
+
+  const targetTs = toTs(targetDate);
+  if (!targetTs) return null;
+
+  let best: SnapshotPoint | null = null;
+  let bestGap = Number.POSITIVE_INFINITY;
+
+  for (const point of points) {
+    const ts = toTs(point.date);
+    const close = Number(point.close);
+    const pe = Number(point.pe_ttm);
+    if (!ts) continue;
+    if (!Number.isFinite(close) || close <= 0) continue;
+    if (!Number.isFinite(pe) || Math.abs(pe) <= 1e-8) continue;
+
+    const gapDays = Math.abs(ts - targetTs) / 86_400_000;
+    if (gapDays > maxGapDays) continue;
+
+    if (gapDays < bestGap) {
+      best = point;
+      bestGap = gapDays;
+    }
+  }
+
+  return best;
+}
+
+function snapQuarterlyEpsScaleFactor(rawFactor: number): number | null {
+  if (!Number.isFinite(rawFactor) || rawFactor <= 0) return null;
+
+  const hints = [
+    0.1,
+    0.125,
+    1 / 6,
+    0.2,
+    0.25,
+    1 / 3,
+    0.4,
+    0.5,
+    2 / 3,
+    0.8,
+    1,
+    1.25,
+    1.5,
+    2,
+    2.5,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+  ];
+
+  let best: number | null = null;
+  let bestErr = Number.POSITIVE_INFINITY;
+
+  for (const candidate of hints) {
+    const err = Math.abs(rawFactor - candidate) / candidate;
+    if (err < bestErr) {
+      bestErr = err;
+      best = candidate;
+    }
+  }
+
+  return best !== null && bestErr <= 0.12 ? best : null;
+}
+
+function alignQuarterlyEpsToValuationBasis(
+  quarterlyRows: QuarterlyEpsPoint[],
+  valuationPoints: SnapshotPoint[]
+): QuarterlyEpsPoint[] {
+  if (!Array.isArray(quarterlyRows) || quarterlyRows.length < 4) return quarterlyRows;
+  if (!Array.isArray(valuationPoints) || valuationPoints.length < 24) return quarterlyRows;
+
+  const anchors = buildTtmAnchorsFromQuarterlyEps(quarterlyRows).filter((row) => row.source === "actual");
+  if (anchors.length < 8) return quarterlyRows;
+
+  const ratioSamples: Array<{ date: string; ratio: number }> = [];
+
+  for (const anchor of anchors) {
+    if (!Number.isFinite(anchor.eps) || Math.abs(anchor.eps) <= 1e-8) continue;
+
+    const point = findNearestPointByDate(valuationPoints, anchor.date, 7);
+    if (!point) continue;
+
+    const close = Number(point.close);
+    const pe = Number(point.pe_ttm);
+    if (!Number.isFinite(close) || close <= 0) continue;
+    if (!Number.isFinite(pe) || Math.abs(pe) <= 1e-8) continue;
+
+    const impliedTtm = close / pe;
+    const ratio = impliedTtm / anchor.eps;
+    if (!Number.isFinite(ratio) || ratio <= 0) continue;
+    ratioSamples.push({
+      date: anchor.date,
+      ratio,
+    });
+  }
+
+  if (ratioSamples.length < 8) return quarterlyRows;
+
+  const ordered = [...ratioSamples].sort((a, b) => a.date.localeCompare(b.date));
+  const recent = ordered.slice(-16);
+  const selected = recent.length >= 8 ? recent : ordered;
+  const selectedRatios = selected.map((item) => item.ratio);
+
+  const ratioMedian = median(selectedRatios);
+  if (!ratioMedian || ratioMedian <= 0) return quarterlyRows;
+
+  const logMedian = Math.log(ratioMedian);
+  const madLog = median(selectedRatios.map((item) => Math.abs(Math.log(item) - logMedian)));
+  if (!Number.isFinite(madLog as number) || (madLog as number) > 0.45) {
+    return quarterlyRows;
+  }
+
+  const isMeaningfulDeviation = ratioMedian < 0.7 || ratioMedian > 1.43;
+  if (!isMeaningfulDeviation) return quarterlyRows;
+
+  const snapped = snapQuarterlyEpsScaleFactor(ratioMedian);
+  const scaleFactor = snapped ?? ratioMedian;
+  if (!Number.isFinite(scaleFactor) || scaleFactor < 0.1 || scaleFactor > 10) {
+    return quarterlyRows;
+  }
+
+  let cutoffDate = "";
+  const older = ordered.slice(0, Math.max(0, ordered.length - selected.length));
+  if (older.length >= 8) {
+    const olderMedian = median(older.map((item) => item.ratio));
+    if (olderMedian && olderMedian > 0) {
+      const olderIsNearOne = olderMedian >= 0.8 && olderMedian <= 1.25;
+      const regimeDelta = ratioMedian / olderMedian;
+      if (olderIsNearOne && (regimeDelta >= 1.8 || regimeDelta <= 0.55)) {
+        cutoffDate = selected[0]?.date || "";
+      }
+    }
+  }
+
+  return quarterlyRows.map((row) => ({
+    ...row,
+    eps:
+      cutoffDate && row.date < cutoffDate
+        ? row.eps
+        : roundTo(row.eps * scaleFactor, 6),
+  }));
+}
+
+function overrideRecentPeTtmWithLatestActualTtmEps(
+  valuationPoints: SnapshotPoint[],
+  quarterlyRows: QuarterlyEpsPoint[]
+): SnapshotPoint[] {
+  if (!Array.isArray(valuationPoints) || !valuationPoints.length) return valuationPoints;
+  if (!Array.isArray(quarterlyRows) || quarterlyRows.length < 4) return valuationPoints;
+
+  const latestValuationDate = valuationPoints[valuationPoints.length - 1]?.date || "";
+  const latestValuationTs = toTs(latestValuationDate);
+  if (!latestValuationTs) return valuationPoints;
+
+  const actualRows = normalizeQuarterlyEpsRows(quarterlyRows).filter((row) => row.source === "actual");
+  if (actualRows.length < 4) return valuationPoints;
+
+  const actualAnchors = buildTtmAnchorsFromQuarterlyEps(actualRows).filter((row) => row.source === "actual");
+  const latestAnchor = actualAnchors[actualAnchors.length - 1];
+  const latestActualQuarter = actualRows[actualRows.length - 1];
+  if (!latestAnchor || !latestActualQuarter) return valuationPoints;
+
+  const effectiveStartDate = (() => {
+    const availableDate = toIsoDateFromText(latestActualQuarter.availableDate) || latestActualQuarter.date;
+    return availableDate > latestActualQuarter.date ? availableDate : latestActualQuarter.date;
+  })();
+  const latestAnchorTs = toTs(effectiveStartDate);
+  const latestTtmEps = sanitizeEps(latestAnchor.eps);
+  if (!latestAnchorTs || latestTtmEps === null || Math.abs(latestTtmEps) <= 1e-8) {
+    return valuationPoints;
+  }
+
+  const stalenessDays = (latestValuationTs - latestAnchorTs) / 86_400_000;
+  if (!Number.isFinite(stalenessDays) || stalenessDays < 0 || stalenessDays > 190) {
+    // Avoid forcing stale-denominator PE when latest actual quarter is too old.
+    return valuationPoints;
+  }
+
+  return valuationPoints.map((point) => {
+    if (point.date < effectiveStartDate) return point;
+    const close = Number(point.close);
+    if (!Number.isFinite(close) || close <= 0) return point;
+
+    const peTtm = close / latestTtmEps;
+    if (!Number.isFinite(peTtm) || Math.abs(peTtm) > METRIC_MAX.pe_ttm) {
+      return point;
+    }
+
+    return {
+      ...point,
+      pe_ttm: roundTo(peTtm, 6),
+    };
+  });
 }
 
 async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>> {
@@ -1241,6 +3977,8 @@ async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>
         symbol?: string;
         forwardStartDate?: string;
         points?: SnapshotPoint[];
+        quarterlyEps?: QuarterlyEpsPoint[];
+        quarterlyNetIncome?: QuarterlyNetIncomePoint[];
       }>;
     };
 
@@ -1252,6 +3990,8 @@ async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>
       bySymbol.set(symbol, {
         forwardStartDate: String(item?.forwardStartDate || points[0]?.date || ""),
         points,
+        quarterlyEps: normalizeQuarterlyEpsRows(item?.quarterlyEps),
+        quarterlyNetIncome: normalizeQuarterlyNetIncomeRows(item?.quarterlyNetIncome),
       });
     }
   } catch {
@@ -1267,11 +4007,24 @@ function toCompanyId(symbol: string): string {
 
 async function main(): Promise<void> {
   const previousSeriesBySymbol = await loadPreviousSeriesBySymbol();
+  const symbolFilter = parseSymbolFilterFromEnv();
+  const symbolFilterSet = symbolFilter.length ? new Set(symbolFilter) : null;
 
   console.log("[company] loading top 100 companies...");
   const companies = await fetchTopCompanies();
   if (companies.length < 90) {
     throw new Error(`Top company list is too short: ${companies.length}`);
+  }
+
+  if (symbolFilterSet) {
+    const availableSymbols = new Set(companies.map((item) => item.symbol));
+    const missing = symbolFilter.filter((symbol) => !availableSymbols.has(symbol));
+    if (missing.length) {
+      console.warn(`[company] symbol filter missing from top list: ${missing.join(", ")}`);
+    }
+    console.log(
+      `[company] symbol filter active: ${symbolFilter.join(", ")} (refresh selected symbols, reuse previous for others)`
+    );
   }
 
   console.log(`[company] parsed ${companies.length} companies, building series...`);
@@ -1284,12 +4037,70 @@ async function main(): Promise<void> {
     console.log(`[company] ${String(index + 1).padStart(3, "0")}/${companies.length} ${company.symbol}`);
     const previousSeries = previousSeriesBySymbol.get(company.symbol);
 
-    const [closePoints, stockPayload, longPeSeries, longPbSeries] = await Promise.all([
+    if (symbolFilterSet && !symbolFilterSet.has(company.symbol)) {
+      if (previousSeries) {
+        reusedPreviousCount += 1;
+        return {
+          id: toCompanyId(company.symbol),
+          symbol: company.symbol,
+          displayName: company.displayName,
+          description: `${company.displayName} (${company.symbol})`,
+          rank: company.rank,
+          marketCap: company.marketCap,
+          forwardStartDate: previousSeries.forwardStartDate || previousSeries.points[0]?.date || "",
+          points: previousSeries.points,
+          quarterlyEps: previousSeries.quarterlyEps || [],
+          quarterlyNetIncome: previousSeries.quarterlyNetIncome || [],
+        };
+      }
+
+      skippedCount += 1;
+      console.warn(`[company] skip ${company.symbol}: filtered out and no previous series`);
+      return null;
+    }
+
+    const shouldUseYahooLatestOverride = YAHOO_LATEST_OVERRIDE_SYMBOLS.has(company.symbol);
+    const [
+      closePointsRaw,
+      stockQuarterlyPayload,
+      stockStatisticsPayload,
+      yahooLatestPayload,
+      longPeSeries,
+      longPbSeries,
+      ychartsSeries,
+    ] = await Promise.all([
       fetchCloseHistory(company.symbol, company.slug),
       fetchQuarterlyRatioPayload(company.symbol),
+      fetchStockAnalysisStatisticsRatioPayload(company.symbol),
+      shouldUseYahooLatestOverride ? fetchYahooKeyStatisticsRatioPayload(company.symbol) : Promise.resolve(null),
       fetchCompaniesMarketCapMetricSeries(company.slug, "pe-ratio"),
       fetchCompaniesMarketCapMetricSeries(company.slug, "pb-ratio"),
+      fetchYchartsSeriesBundle(company.symbol),
     ]);
+
+    const stockPayload = mergeRatioPayloadList(
+      [stockQuarterlyPayload, stockStatisticsPayload].filter(Boolean) as RatioPayload[]
+    );
+
+    const ychartsClosePoints = metricPointsToCloseSeries(ychartsSeries?.price || []);
+    let closePoints = closePointsRaw;
+    if (ychartsClosePoints.length >= 200) {
+      closePoints =
+        closePointsRaw.length >= 200
+          ? mergeCloseSeries(closePointsRaw, ychartsClosePoints)
+          : ychartsClosePoints;
+      closePoints = densifyCloseSeriesWithRecentDailyVol(closePoints);
+    }
+
+    const mergedLongPeSeries = mergeMetricSeriesWithPreference(ychartsSeries?.pe_ttm || [], longPeSeries);
+    const mergedLongPbSeries = mergeMetricSeriesWithPreference(ychartsSeries?.pb || [], longPbSeries);
+    const mergedLongForwardSeries = ychartsSeries?.pe_forward || [];
+
+    const sourceHints = {
+      pe: (ychartsSeries?.pe_ttm || []).length ? "ycharts-pe-ratio" : "companiesmarketcap-pe-ratio",
+      pb: (ychartsSeries?.pb || []).length ? "ycharts-price-to-book-value" : "companiesmarketcap-pb-ratio",
+      forward: (ychartsSeries?.pe_forward || []).length ? "ycharts-forward-pe-ratio" : "",
+    };
 
     if (!closePoints.length) {
       if (previousSeries) {
@@ -1304,6 +4115,8 @@ async function main(): Promise<void> {
           marketCap: company.marketCap,
           forwardStartDate: previousSeries.forwardStartDate || previousSeries.points[0]?.date || "",
           points: previousSeries.points,
+          quarterlyEps: previousSeries.quarterlyEps || [],
+          quarterlyNetIncome: previousSeries.quarterlyNetIncome || [],
         };
       }
 
@@ -1312,16 +4125,33 @@ async function main(): Promise<void> {
       return null;
     }
 
-    const ratioPayload = mergeRatioPayloads(stockPayload, longPeSeries, longPbSeries);
-    const { points, usedFallback } = buildValuationSeries(closePoints, ratioPayload);
+    const lastCloseDate = closePoints[closePoints.length - 1]?.date || "";
+    const quarterlyFinancialSeries = await fetchQuarterlyFinancialSeries(company.symbol, lastCloseDate);
+    const quarterlyEpsRaw = normalizeQuarterlyEpsRows(quarterlyFinancialSeries.quarterlyEps);
+    const quarterlyNetIncome = normalizeQuarterlyNetIncomeRows(
+      quarterlyFinancialSeries.quarterlyNetIncome
+    );
+
+    let ratioPayload = mergeRatioPayloads(
+      stockPayload,
+      mergedLongPeSeries,
+      mergedLongPbSeries,
+      mergedLongForwardSeries,
+      sourceHints,
+      company.symbol
+    );
+    ratioPayload = applyLatestRatioOverrideAtLastDate(ratioPayload, yahooLatestPayload, lastCloseDate);
+    const { points, usedFallback, forwardStartDate } = buildValuationSeries(closePoints, ratioPayload);
+    const quarterlyEps = alignQuarterlyEpsToValuationBasis(quarterlyEpsRaw, points);
+    const pointsWithLatestActualTtm = overrideRecentPeTtmWithLatestActualTtmEps(points, quarterlyEps);
     if (usedFallback) {
       fallbackAnchorCount += 1;
     }
 
-    if (points.length < 24) {
+    if (pointsWithLatestActualTtm.length < 24) {
       if (previousSeries) {
         reusedPreviousCount += 1;
-        console.warn(`[company] reuse ${company.symbol}: insufficient points (${points.length})`);
+        console.warn(`[company] reuse ${company.symbol}: insufficient points (${pointsWithLatestActualTtm.length})`);
         return {
           id: toCompanyId(company.symbol),
           symbol: company.symbol,
@@ -1331,11 +4161,13 @@ async function main(): Promise<void> {
           marketCap: company.marketCap,
           forwardStartDate: previousSeries.forwardStartDate || previousSeries.points[0]?.date || "",
           points: previousSeries.points,
+          quarterlyEps: previousSeries.quarterlyEps || [],
+          quarterlyNetIncome: previousSeries.quarterlyNetIncome || [],
         };
       }
 
       skippedCount += 1;
-      console.warn(`[company] skip ${company.symbol}: insufficient points (${points.length})`);
+      console.warn(`[company] skip ${company.symbol}: insufficient points (${pointsWithLatestActualTtm.length})`);
       return null;
     }
 
@@ -1346,30 +4178,50 @@ async function main(): Promise<void> {
       description: `${company.displayName} (${company.symbol})`,
       rank: company.rank,
       marketCap: company.marketCap,
-      forwardStartDate: points[0]?.date || "",
-      points,
+      forwardStartDate: forwardStartDate || pointsWithLatestActualTtm[pointsWithLatestActualTtm.length - 1]?.date || "",
+      points: pointsWithLatestActualTtm,
+      quarterlyEps,
+      quarterlyNetIncome,
     };
   });
 
   const indices = built.filter(Boolean).sort((a, b) => a.rank - b.rank);
 
-  if (indices.length < 80) {
-    throw new Error(`Too few company series generated: ${indices.length}`);
+  const minRequiredSeries = symbolFilterSet ? Math.max(1, symbolFilterSet.size) : 80;
+  if (indices.length < minRequiredSeries) {
+    throw new Error(`Too few company series generated: ${indices.length} (required: ${minRequiredSeries})`);
   }
+
+  const symbolFilterSourceTag = symbolFilter.length
+    ? `symbol-filter-target-${symbolFilter.join("_").toLowerCase()}`
+    : "symbol-filter-target-all";
 
   const dataset = {
     generatedAt: new Date().toISOString(),
     source: [
       "companiesmarketcap-global-toplist",
       "us-listed-symbol-filter",
+      symbolFilterSourceTag,
       "stooq-daily-close",
       "yahoo-chart-close-fallback",
       "nasdaq-historical-close-fallback",
       "companiesmarketcap-close-fallback",
+      "ycharts-fund-data-price",
+      "ycharts-fund-data-pe-ratio",
+      "ycharts-fund-data-forward-pe-ratio",
+      "ycharts-fund-data-price-to-book-value",
       "companiesmarketcap-pe-ratio",
       "companiesmarketcap-pb-ratio",
       "stockanalysis-quarterly-ratios",
-      "step-hold-daily-return-in-anchor-window",
+      "stockanalysis-statistics-ratios-latest-fallback",
+      "stockanalysis-quarterly-income-eps",
+      "stockanalysis-quarterly-income-net-income",
+      "stockanalysis-forecast-quarterly-eps",
+      "stockanalysis-forecast-quarterly-net-income",
+      "expected-net-income-from-forecast-eps-x-diluted-shares",
+      "sec-companyfacts-quarterly-eps",
+      "sec-companyfacts-quarterly-net-income",
+      "anchor-interval-daily-return-projection",
       `fallback-anchor-${fallbackAnchorCount}`,
       `reused-previous-series-${reusedPreviousCount}`,
       `skipped-${skippedCount}`,
