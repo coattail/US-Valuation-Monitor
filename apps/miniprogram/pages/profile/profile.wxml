@@ -1,5 +1,15 @@
 <view class="container">
   <view class="panel">
+    <view class="panel-title">连接设置</view>
+    <view class="hint">API 地址（默认 {{apiBaseDefault}}）</view>
+    <input value="{{apiBaseInput}}" bindinput="onApiBaseInput" class="input" />
+    <view class="action-row">
+      <button class="btn btn-ghost action-btn" bindtap="resetApiBase">恢复默认地址</button>
+      <button class="btn action-btn" bindtap="testApiConnection">测试连接</button>
+    </view>
+  </view>
+
+  <view class="panel">
     <view class="panel-title">提醒阈值</view>
     <view class="hint">高估阈值 {{upper}}%</view>
     <slider min="70" max="98" step="1" value="{{upper}}" bindchange="onUpperChange" show-value />
@@ -12,13 +22,40 @@
   </view>
 
   <view class="panel">
-    <view class="panel-title">自选指数</view>
-    <checkbox-group bindchange="onWatchlistChange">
-      <label class="watch-item" wx:for="{{allIndices}}" wx:key="id">
-        <checkbox value="{{item.id}}" checked="{{item.checked}}" />
-        <text>{{item.displayName}}</text>
-      </label>
-    </checkbox-group>
-    <button class="btn" bindtap="saveConfig">保存</button>
+    <view class="panel-title">自选配置</view>
+
+    <view class="selector-head">
+      <view class="selector-title">自选指数</view>
+      <view class="selector-count">{{selectedIds.length}} / {{allIndices.length}}</view>
+    </view>
+    <scroll-view class="watch-scroll watch-scroll-index" scroll-y="true" enable-flex="true" enhanced="true">
+      <checkbox-group bindchange="onWatchlistChange">
+        <label class="watch-item" wx:for="{{allIndices}}" wx:key="id">
+          <checkbox value="{{item.id}}" checked="{{item.checked}}" />
+          <view class="watch-copy">
+            <text class="watch-title">{{item.displayName}}</text>
+          </view>
+        </label>
+      </checkbox-group>
+    </scroll-view>
+
+    <view class="selector-head selector-head-company">
+      <view class="selector-title">自选公司</view>
+      <view class="selector-count">{{selectedCompanyIds.length}} / {{allCompanies.length}}</view>
+    </view>
+    <scroll-view class="watch-scroll watch-scroll-company" scroll-y="true" enable-flex="true" enhanced="true">
+      <checkbox-group bindchange="onCompanyWatchlistChange">
+        <label class="watch-item" wx:for="{{allCompanies}}" wx:key="id">
+          <checkbox value="{{item.id}}" checked="{{item.checked}}" />
+          <view class="watch-copy">
+            <text class="watch-title">{{item.displayName}}</text>
+            <text class="watch-meta">{{item.symbol}} · 排名 {{item.rank}}</text>
+          </view>
+        </label>
+      </checkbox-group>
+      <view wx:if="{{!allCompanies.length}}" class="watch-empty">暂无公司数据，请先检查 API 地址或刷新后重试</view>
+    </scroll-view>
+
+    <button class="btn save-btn" bindtap="saveConfig">保存全部配置</button>
   </view>
 </view>

@@ -1,0 +1,99 @@
+<view class="page-wrap">
+  <custom-nav title="企业估值"></custom-nav>
+  <view class="container">
+    <view class="panel">
+      <view class="panel-title">企业估值卡片（Top 100）</view>
+      <view class="hint">{{generatedAt ? '更新于 ' + generatedAt : '加载中...'}}</view>
+
+      <view class="toolbar">
+        <view class="toolbar-row">
+          <picker mode="selector" range="{{groupOptions}}" range-key="label" value="{{groupIndex}}" bindchange="onGroupChange">
+            <view class="picker-label">范围：{{groupOptions[groupIndex].label}}</view>
+          </picker>
+          <picker mode="selector" range="{{sortOptions}}" range-key="label" value="{{sortIndex}}" bindchange="onSortChange">
+            <view class="picker-label">排序：{{sortOptions[sortIndex].label}}</view>
+          </picker>
+        </view>
+        <view class="search-row">
+          <input class="search-input" value="{{keyword}}" placeholder="公司名称 / 股票代码" bindinput="onKeywordInput" />
+          <button class="btn btn-clear" size="mini" bindtap="clearKeyword">清空</button>
+        </view>
+      </view>
+
+      <view class="count-hint">已显示 {{shownCount}} / {{totalCount}} 家，关注 {{watchCount}} 家</view>
+
+      <view class="company-grid">
+        <block wx:for="{{rows}}" wx:key="indexId">
+          <view
+            class="snapshot-card company-card {{item.cardToneClass}}"
+            data-index-id="{{item.indexId}}"
+            data-display-name="{{item.displayName}}"
+            data-symbol="{{item.symbol}}"
+            bindtap="openDetail"
+          >
+            <view class="card-watermark company-logo-watermark">
+              <image
+                wx:if="{{item.logoUrl && !item.logoFailed}}"
+                class="company-logo-watermark-image"
+                src="{{item.logoUrl}}"
+                mode="aspectFit"
+                lazy-load="true"
+                data-index-id="{{item.indexId}}"
+                binderror="onLogoError"
+              ></image>
+              <text wx:else class="company-logo-watermark-fallback">{{item.watermarkText}}</text>
+            </view>
+
+            <view class="name-row">
+              <view class="card-name-wrap">
+                <view class="card-name">{{item.displayName}}</view>
+                <view class="card-symbol">{{item.symbol}} · 排名 {{item.rank}}</view>
+              </view>
+              <view class="right-box">
+                <view class="badge {{item.regimeClass === 'danger' ? 'high' : item.regimeClass === 'safe' ? 'low' : ''}}">
+                  {{item.regimeText}}
+                </view>
+                <button class="watch-btn {{item.watched ? 'active' : ''}}" size="mini" data-index-id="{{item.indexId}}" catchtap="toggleWatch">
+                  {{item.watched ? '已关注' : '关注'}}
+                </button>
+              </view>
+            </view>
+
+            <view class="card-line">
+              <text>市值</text>
+              <text>{{item.marketCapText}}</text>
+            </view>
+            <view class="card-line">
+              <text>PE(TTM)</text>
+              <text>{{item.peTtmText}}</text>
+            </view>
+            <view class="card-line">
+              <text>PE(FWD)</text>
+              <text>{{item.peForwardText}}</text>
+            </view>
+            <view class="card-line">
+              <text>PB</text>
+              <text>{{item.pbText}}</text>
+            </view>
+            <view class="card-line">
+              <text>1Y PE变化</text>
+              <text class="{{item.peChangeClass}}">{{item.peChangeText}}</text>
+            </view>
+            <view class="card-line">
+              <text>10Y分位</text>
+              <text style="{{item.percentileStyle}}">{{item.percentile10yText}}</text>
+            </view>
+
+            <view class="percent-track-mini">
+              <view class="pin" style="{{item.percentilePinStyle}}"></view>
+            </view>
+            <view class="track-caption">十年PE分位轴</view>
+          </view>
+        </block>
+      </view>
+
+      <view wx:if="{{!rows.length && !loading}}" class="hint empty-hint">暂无符合条件的公司</view>
+      <button wx:if="{{canLoadMore}}" class="btn btn-more" bindtap="loadMore">加载更多</button>
+    </view>
+  </view>
+</view>

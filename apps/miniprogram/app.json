@@ -2,24 +2,31 @@
   "pages": [
     "pages/index/index",
     "pages/detail/detail",
+    "pages/company/index/index",
+    "pages/company/detail/detail",
     "pages/alerts/alerts",
     "pages/profile/profile"
   ],
   "window": {
     "navigationBarTitleText": "US估值监测",
-    "navigationBarBackgroundColor": "#f4fbff",
-    "navigationBarTextStyle": "black",
-    "backgroundColor": "#f4fbff"
+    "navigationBarBackgroundColor": "#08152f",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#060d1f",
+    "backgroundTextStyle": "light"
   },
   "tabBar": {
-    "color": "#496174",
-    "selectedColor": "#16897f",
-    "backgroundColor": "#ffffff",
+    "color": "#8fa7c7",
+    "selectedColor": "#63d4c7",
+    "backgroundColor": "#08152f",
     "borderStyle": "black",
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "总览"
+        "text": "指数"
+      },
+      {
+        "pagePath": "pages/company/index/index",
+        "text": "公司"
       },
       {
         "pagePath": "pages/alerts/alerts",
@@ -29,7 +36,8 @@
         "pagePath": "pages/profile/profile",
         "text": "我的"
       }
-    ]
+    ],
+    "custom": true
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json"

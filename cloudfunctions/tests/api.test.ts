@@ -6,7 +6,11 @@ import { fileURLToPath } from "node:url";
 import {
   applyDailyUpdate,
   buildMeta,
+  buildCompanyMeta,
+  buildCompanySeriesPayload,
+  buildCompanySnapshotPayload,
   buildSeriesPayload,
+  loadCompanyDataset,
   loadDataset,
   normalizeWatchlist,
   type RuntimeStores,
@@ -29,6 +33,26 @@ test("series payload defaults to index full history", async () => {
 
   assert.equal(payload.rows.length, payload.availableRange.pointCount);
   assert.equal(payload.rows[0].date, payload.availableRange.startDate);
+  assert.equal(payload.rows[payload.rows.length - 1].date, payload.availableRange.endDate);
+});
+
+test("company dataset exposes top100 meta and snapshot", async () => {
+  const dataset = await loadCompanyDataset(ROOT_DIR);
+  const meta = buildCompanyMeta(dataset);
+  const snapshot = buildCompanySnapshotPayload(dataset);
+
+  assert.equal(meta.indices.length, 100);
+  assert.equal(snapshot.rows.length, 100);
+  assert.ok(snapshot.rows.every((item) => item.indexId && item.symbol));
+});
+
+test("company series payload supports default full history", async () => {
+  const dataset = await loadCompanyDataset(ROOT_DIR);
+  const first = dataset.indices[0];
+  assert.ok(first?.id);
+
+  const payload = buildCompanySeriesPayload(dataset, first.id, "pe_ttm");
+  assert.ok(payload.rows.length > 100);
   assert.equal(payload.rows[payload.rows.length - 1].date, payload.availableRange.endDate);
 });
 

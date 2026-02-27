@@ -1,7 +1,8 @@
 {
   "description": "US valuation monitor mini program",
   "packOptions": {
-    "ignore": []
+    "ignore": [],
+    "include": []
   },
   "setting": {
     "es6": true,
@@ -9,10 +10,30 @@
     "postcss": true,
     "minified": true,
     "urlCheck": false,
-    "coverView": true
+    "coverView": true,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "swc": false,
+    "disableSWC": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
   },
   "compileType": "miniprogram",
-  "appid": "touristappid",
+  "appid": "wxfbf6bf9f3b493123",
   "projectname": "us-valuation-monitor-mini",
-  "libVersion": "3.3.1"
+  "libVersion": "3.3.1",
+  "simulatorPluginLibVersion": {},
+  "editorSetting": {}
 }

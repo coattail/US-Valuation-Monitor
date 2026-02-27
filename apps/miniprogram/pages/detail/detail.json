@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "指数详情"
+  "navigationBarTitleText": "指数详情",
+  "enablePullDownRefresh": true
 }

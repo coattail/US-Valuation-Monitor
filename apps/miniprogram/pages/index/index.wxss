@@ -1,39 +1,61 @@
-.card {
-  border: 1rpx solid rgba(37, 82, 112, 0.18);
-  border-radius: 16rpx;
-  padding: 14rpx;
+.page-wrap {
+  min-height: 100%;
+}
+
+.container {
+  padding-top: 16rpx;
+}
+
+.toolbar {
+  margin-top: 10rpx;
+}
+
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.picker-label {
+  border: 1rpx solid rgba(188, 212, 255, 0.3);
+  border-radius: 14rpx;
+  padding: 10rpx 14rpx;
+  font-size: 24rpx;
+  color: #dbe9ff;
+  background: linear-gradient(145deg, rgba(40, 54, 98, 0.74), rgba(34, 49, 92, 0.82));
+}
+
+.search-row {
   margin-top: 12rpx;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.84);
+  gap: 12rpx;
 }
 
-.name {
-  font-size: 28rpx;
-  font-weight: 700;
+.search-input {
+  flex: 1;
+  border: 1rpx solid rgba(188, 212, 255, 0.3);
+  border-radius: 14rpx;
+  padding: 10rpx 14rpx;
+  background: linear-gradient(145deg, rgba(40, 54, 98, 0.74), rgba(34, 49, 92, 0.82));
+  color: #f0f6ff;
+  font-size: 25rpx;
 }
 
-.numbers {
-  text-align: right;
+.count-hint {
+  margin-top: 14rpx;
   font-size: 24rpx;
-  color: #27495e;
+  color: #a9c3e2;
 }
 
-.heat-row {
-  margin-top: 10rpx;
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1rpx dashed rgba(35, 75, 101, 0.2);
-  padding-bottom: 8rpx;
+.btn-clear {
+  min-width: 120rpx;
 }
 
-.heat-name {
-  font-size: 25rpx;
+.btn-more {
+  margin-top: 18rpx;
 }
 
-.heat-value {
-  font-size: 25rpx;
-  font-weight: 700;
-  color: #197f76;
+.empty-hint {
+  margin-top: 18rpx;
+  text-align: center;
 }

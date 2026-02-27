@@ -1,0 +1,7 @@
+<view class="custom-nav" style="padding-top: {{statusBarHeight}}px; height: {{navHeight}}px;">
+  <view class="custom-nav__inner" style="height: {{titleBarHeight}}px;">
+    <view class="custom-nav__side" style="width: {{sideWidth}}px;"></view>
+    <view class="custom-nav__title">{{title}}</view>
+    <view class="custom-nav__side" style="width: {{sideWidth}}px;"></view>
+  </view>
+</view>

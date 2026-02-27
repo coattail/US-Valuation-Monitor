@@ -1,0 +1,204 @@
+.page-wrap {
+  min-height: 100%;
+}
+
+.container {
+  padding-top: 16rpx;
+}
+
+.toolbar {
+  margin-top: 10rpx;
+}
+
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.picker-label {
+  border: 1rpx solid rgba(188, 212, 255, 0.3);
+  border-radius: 14rpx;
+  padding: 10rpx 14rpx;
+  font-size: 24rpx;
+  color: #dbe9ff;
+  background: linear-gradient(145deg, rgba(40, 54, 98, 0.74), rgba(34, 49, 92, 0.82));
+}
+
+.search-row {
+  margin-top: 12rpx;
+  display: flex;
+  gap: 12rpx;
+}
+
+.search-input {
+  flex: 1;
+  border: 1rpx solid rgba(188, 212, 255, 0.3);
+  border-radius: 14rpx;
+  padding: 10rpx 14rpx;
+  background: linear-gradient(145deg, rgba(40, 54, 98, 0.74), rgba(34, 49, 92, 0.82));
+  color: #f0f6ff;
+  font-size: 25rpx;
+}
+
+.count-hint {
+  margin-top: 14rpx;
+  font-size: 24rpx;
+  color: #a9c3e2;
+}
+
+.company-grid {
+  margin-top: 14rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.company-grid .snapshot-card {
+  margin-top: 0;
+}
+
+.company-card {
+  min-height: 0;
+  border-radius: 18rpx;
+  padding: 12rpx;
+}
+
+.company-logo-watermark {
+  z-index: 0;
+}
+
+.company-logo-watermark-image {
+  width: 132rpx;
+  height: 132rpx;
+  opacity: 0.15;
+  filter: saturate(0.9) brightness(1.02);
+}
+
+.company-logo-watermark-fallback {
+  font-size: 54rpx;
+  letter-spacing: 4rpx;
+  color: rgba(205, 223, 255, 0.16);
+}
+
+.company-card .name-row {
+  gap: 6rpx;
+}
+
+.company-card .card-name-wrap {
+  min-width: 0;
+  flex: 1;
+}
+
+.company-card .card-name {
+  font-size: 28rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.company-card .card-symbol {
+  margin-top: 2rpx;
+  font-size: 18rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.right-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8rpx;
+}
+
+.company-card .right-box {
+  gap: 6rpx;
+  flex-shrink: 0;
+}
+
+.watch-btn {
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(188, 212, 255, 0.35);
+  color: #dceaff;
+  background: linear-gradient(145deg, rgba(40, 54, 98, 0.72), rgba(34, 49, 92, 0.8));
+}
+
+.company-card .watch-btn {
+  font-size: 18rpx;
+  padding: 0 8rpx;
+}
+
+.company-card .badge {
+  font-size: 18rpx;
+  padding: 2rpx 8rpx;
+}
+
+.company-card .card-line {
+  margin-top: 6rpx;
+  font-size: 20rpx;
+}
+
+.company-card .card-line text:first-child {
+  max-width: 58%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.company-card .card-line text:last-child {
+  max-width: 42%;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.watch-btn.active {
+  border-color: rgba(226, 237, 255, 0.62);
+  background: linear-gradient(148deg, rgba(72, 138, 255, 0.88), rgba(57, 178, 219, 0.82) 58%, rgba(53, 202, 188, 0.86));
+}
+
+.card-line .up {
+  color: #ff8198;
+}
+
+.card-line .down {
+  color: #59d39f;
+}
+
+.track-caption {
+  margin-top: 8rpx;
+  font-size: 21rpx;
+  text-align: right;
+  color: #e2ecff;
+}
+
+.company-card .percent-track-mini {
+  margin-top: 10rpx;
+  width: 94%;
+  height: 8rpx;
+}
+
+.company-card .percent-track-mini .pin {
+  width: 14rpx;
+  height: 14rpx;
+}
+
+.company-card .track-caption {
+  margin-top: 6rpx;
+  font-size: 18rpx;
+}
+
+.btn-clear {
+  min-width: 120rpx;
+}
+
+.btn-more {
+  margin-top: 18rpx;
+}
+
+.empty-hint {
+  margin-top: 18rpx;
+  text-align: center;
+}

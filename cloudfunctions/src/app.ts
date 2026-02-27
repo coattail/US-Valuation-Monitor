@@ -44,6 +44,29 @@ const METRIC_SET = new Set<MetricId>([
   "earnings_yield",
 ]);
 
+interface CompanyValuationPoint extends RawValuationPoint {
+  close?: number;
+}
+
+interface CompanyDatasetIndex {
+  id: string;
+  symbol: string;
+  displayName: string;
+  description: string;
+  forwardStartDate?: string;
+  rank?: number;
+  marketCap?: number;
+  points: CompanyValuationPoint[];
+  quarterlyNetIncome?: Array<{ date: string; netIncome: number; source?: string }>;
+  quarterlyEps?: Array<{ date: string; eps: number; source?: string }>;
+}
+
+interface CompanyValuationDataset {
+  generatedAt: string;
+  source?: string;
+  indices: CompanyDatasetIndex[];
+}
+
 type UserMap<T> = Record<string, T>;
 
 export interface WatchlistStore {
@@ -67,6 +90,19 @@ export interface RuntimeStores {
 export interface ApiServerOptions {
   rootDir?: string;
 }
+
+const DATASET_CACHE_TTL_MS = 30_000;
+
+interface DatasetCacheEntry<T> {
+  rootDir: string;
+  expiresAt: number;
+  payload: T;
+}
+
+let indexDatasetCache: DatasetCacheEntry<ValuationDataset> | null = null;
+let companyDatasetCache: DatasetCacheEntry<CompanyValuationDataset> | null = null;
+let companySnapshotPayloadCache: { cacheKey: string; payload: ReturnType<typeof buildCompanySnapshotPayload> } | null =
+  null;
 
 function resolvePath(rootDir: string, segments: string[]): string {
   return path.join(rootDir, ...segments);
@@ -197,6 +233,68 @@ export async function loadDataset(rootDir: string): Promise<ValuationDataset> {
   return fallback;
 }
 
+export async function loadCompanyDataset(rootDir: string): Promise<CompanyValuationDataset> {
+  const dataPath = resolvePath(rootDir, COMPANY_DATA_FILE);
+  const payload = await readJsonFile<CompanyValuationDataset | null>(dataPath, null);
+  if (!payload || !Array.isArray(payload.indices)) {
+    return {
+      generatedAt: "",
+      source: "company-snapshot",
+      indices: [],
+    };
+  }
+
+  const normalizedIndices = payload.indices
+    .filter((item) => item && typeof item === "object")
+    .map((item) => ({
+      ...item,
+      points: Array.isArray(item.points) ? item.points : [],
+    }))
+    .filter((item) => item.id && item.symbol && item.displayName);
+
+  return {
+    generatedAt: String(payload.generatedAt || ""),
+    source: payload.source ? String(payload.source) : "company-snapshot",
+    indices: normalizedIndices,
+  };
+}
+
+function cacheStillValid<T>(cache: DatasetCacheEntry<T> | null, rootDir: string): cache is DatasetCacheEntry<T> {
+  return Boolean(cache && cache.rootDir === rootDir && cache.expiresAt > Date.now());
+}
+
+function invalidateDatasetCaches(): void {
+  indexDatasetCache = null;
+  companyDatasetCache = null;
+  companySnapshotPayloadCache = null;
+}
+
+async function loadDatasetCached(rootDir: string): Promise<ValuationDataset> {
+  if (cacheStillValid(indexDatasetCache, rootDir)) {
+    return indexDatasetCache.payload;
+  }
+  const payload = await loadDataset(rootDir);
+  indexDatasetCache = {
+    rootDir,
+    expiresAt: Date.now() + DATASET_CACHE_TTL_MS,
+    payload,
+  };
+  return payload;
+}
+
+async function loadCompanyDatasetCached(rootDir: string): Promise<CompanyValuationDataset> {
+  if (cacheStillValid(companyDatasetCache, rootDir)) {
+    return companyDatasetCache.payload;
+  }
+  const payload = await loadCompanyDataset(rootDir);
+  companyDatasetCache = {
+    rootDir,
+    expiresAt: Date.now() + DATASET_CACHE_TTL_MS,
+    payload,
+  };
+  return payload;
+}
+
 export async function loadStores(rootDir: string): Promise<RuntimeStores> {
   const watchlistPath = resolvePath(rootDir, WATCHLIST_FILE);
   const alertsPath = resolvePath(rootDir, ALERTS_FILE);
@@ -283,6 +381,235 @@ export function buildSeriesPayload(
 
   const rows = buildMetricSeries(points, metric, effectiveFrom, toDate);
   const range = resolveDateRange(points);
+  return {
+    generatedAt: dataset.generatedAt,
+    indexId,
+    metric,
+    forwardStartDate,
+    availableRange: range,
+    rows,
+  };
+}
+
+function subtractYears(dateText: string, years: number): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return dateText;
+  const date = new Date(`${dateText}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return dateText;
+  date.setUTCFullYear(date.getUTCFullYear() - years);
+  return date.toISOString().slice(0, 10);
+}
+
+function toFiniteNumber(value: unknown, fallback = 0): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function findCompanyIndex(dataset: CompanyValuationDataset, indexId: string): CompanyDatasetIndex | null {
+  return dataset.indices.find((item) => item.id === indexId) || null;
+}
+
+function findPeReferenceRow(rows: Array<{ date: string; value: number }>, targetDate: string) {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    if (rows[i].date <= targetDate) return rows[i];
+  }
+  for (let i = 0; i < rows.length; i += 1) {
+    if (rows[i].date >= targetDate) return rows[i];
+  }
+  return rows[0] || null;
+}
+
+function regimeFromPercentile(percentile: number): "high" | "low" | "neutral" {
+  if (percentile >= 0.85) return "high";
+  if (percentile <= 0.15) return "low";
+  return "neutral";
+}
+
+function computeLatestCompanyPeStats(points: CompanyValuationPoint[]) {
+  const validRows = (Array.isArray(points) ? points : [])
+    .map((point) => ({
+      date: String(point?.date || ""),
+      value: Number(point?.pe_ttm),
+    }))
+    .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && Number.isFinite(row.value));
+
+  if (!validRows.length) {
+    return {
+      latestDate: "",
+      percentile_5y: 0.5,
+      percentile_10y: 0.5,
+      percentile_full: 0.5,
+      z_score_3y: 0,
+      regime: "neutral" as const,
+      pe_ttm_change_1y: 0,
+    };
+  }
+
+  const latest = validRows[validRows.length - 1];
+  const latestDate = latest.date;
+  const latestValue = latest.value;
+  const cutoff5 = subtractYears(latestDate, 5);
+  const cutoff10 = subtractYears(latestDate, 10);
+  const cutoff3 = subtractYears(latestDate, 3);
+  const lookbackDate = subtractYears(latestDate, 1);
+
+  const rowsFromCutoff = (cutoffDate: string) =>
+    validRows.filter((row) => row.date >= cutoffDate && row.date <= latestDate);
+  const rows5 = rowsFromCutoff(cutoff5);
+  const rows10 = rowsFromCutoff(cutoff10);
+  const rows3 = rowsFromCutoff(cutoff3);
+
+  const percentileFromRows = (rows: Array<{ date: string; value: number }>) => {
+    if (!rows.length) return 0.5;
+    const count = rows.filter((row) => row.value <= latestValue).length;
+    return Math.max(0, Math.min(1, count / rows.length));
+  };
+
+  const percentileFull = percentileFromRows(validRows);
+  const percentile5 = percentileFromRows(rows5);
+  const percentile10 = percentileFromRows(rows10);
+
+  let zScore3y = 0;
+  if (rows3.length > 1) {
+    const values = rows3.map((row) => row.value);
+    const sum = values.reduce((acc, value) => acc + value, 0);
+    const avg = sum / values.length;
+    const variance =
+      values.reduce((acc, value) => acc + (value - avg) * (value - avg), 0) / (values.length - 1);
+    const sigma = Math.sqrt(variance);
+    if (sigma > 1e-12) {
+      zScore3y = (latestValue - avg) / sigma;
+    }
+  }
+
+  const peReference = findPeReferenceRow(validRows, lookbackDate);
+  const referenceValue = Number(peReference?.value);
+  const peChange1y =
+    Number.isFinite(referenceValue) && Math.abs(referenceValue) > 1e-12
+      ? (latestValue - referenceValue) / Math.abs(referenceValue)
+      : 0;
+
+  return {
+    latestDate,
+    percentile_5y: percentile5,
+    percentile_10y: percentile10,
+    percentile_full: percentileFull,
+    z_score_3y: zScore3y,
+    regime: regimeFromPercentile(percentileFull),
+    pe_ttm_change_1y: peChange1y,
+  };
+}
+
+export function buildCompanyMeta(dataset: CompanyValuationDataset) {
+  return {
+    generatedAt: dataset.generatedAt,
+    source: dataset.source || "company-snapshot",
+    indices: dataset.indices.map((item) => ({
+      id: item.id,
+      symbol: item.symbol,
+      group: "company",
+      displayName: item.displayName,
+      description: item.description,
+      rank: toFiniteNumber(item.rank, 9999),
+      marketCap: toFiniteNumber(item.marketCap, 0),
+      forwardStartDate: item.forwardStartDate,
+      ...resolveDateRange(item.points),
+    })),
+  };
+}
+
+function buildCompanySnapshotRow(item: CompanyDatasetIndex) {
+  const points = Array.isArray(item.points) ? item.points : [];
+  const latestRaw = points[points.length - 1] || null;
+  const latestPe = toFiniteNumber(latestRaw?.pe_ttm, NaN);
+  const peStats = computeLatestCompanyPeStats(points);
+
+  return {
+    indexId: item.id,
+    symbol: item.symbol,
+    displayName: item.displayName,
+    group: "company",
+    rank: toFiniteNumber(item.rank, 9999),
+    marketCap: toFiniteNumber(item.marketCap, 0),
+    date: peStats.latestDate || String(latestRaw?.date || ""),
+    pe_ttm: toFiniteNumber(latestRaw?.pe_ttm, 0),
+    pe_forward: toFiniteNumber(latestRaw?.pe_forward, 0),
+    pb: toFiniteNumber(latestRaw?.pb, 0),
+    earnings_yield:
+      Number.isFinite(latestPe) && Math.abs(latestPe) > 1e-12 ? Number((1 / latestPe).toFixed(8)) : 0,
+    percentile_5y: peStats.percentile_5y,
+    percentile_10y: peStats.percentile_10y,
+    percentile_full: peStats.percentile_full,
+    z_score_3y: peStats.z_score_3y,
+    regime: peStats.regime,
+    pe_ttm_change_1y: peStats.pe_ttm_change_1y,
+    startDate: points[0]?.date || "",
+    endDate: points[points.length - 1]?.date || "",
+    pointCount: points.length,
+  };
+}
+
+export function buildCompanySnapshotPayload(dataset: CompanyValuationDataset) {
+  const rows = dataset.indices
+    .map((item) => buildCompanySnapshotRow(item))
+    .sort((a, b) => {
+      const capDiff = Number(b.marketCap || 0) - Number(a.marketCap || 0);
+      if (capDiff !== 0) return capDiff;
+      const rankDiff = Number(a.rank || 9999) - Number(b.rank || 9999);
+      if (rankDiff !== 0) return rankDiff;
+      return String(a.displayName || "").localeCompare(String(b.displayName || ""));
+    });
+
+  return {
+    generatedAt: dataset.generatedAt,
+    rows,
+  };
+}
+
+function companySnapshotCacheKey(dataset: CompanyValuationDataset): string {
+  const count = Array.isArray(dataset.indices) ? dataset.indices.length : 0;
+  const first = count ? dataset.indices[0].id : "";
+  const last = count ? dataset.indices[count - 1].id : "";
+  return `${dataset.generatedAt || "na"}|${count}|${first}|${last}`;
+}
+
+function buildCompanySnapshotPayloadCached(dataset: CompanyValuationDataset) {
+  const cacheKey = companySnapshotCacheKey(dataset);
+  if (companySnapshotPayloadCache && companySnapshotPayloadCache.cacheKey === cacheKey) {
+    return companySnapshotPayloadCache.payload;
+  }
+  const payload = buildCompanySnapshotPayload(dataset);
+  companySnapshotPayloadCache = { cacheKey, payload };
+  return payload;
+}
+
+export function buildCompanySeriesPayload(
+  dataset: CompanyValuationDataset,
+  indexId: string,
+  metric: MetricId,
+  fromDate?: string,
+  toDate?: string
+) {
+  if (!METRIC_SET.has(metric)) {
+    throw new Error(`Invalid metric: ${metric}`);
+  }
+
+  const index = findCompanyIndex(dataset, indexId);
+  if (!index) {
+    throw new Error(`Invalid indexId`);
+  }
+
+  const forwardStartDate = metric === "pe_forward" ? index.forwardStartDate : undefined;
+  const effectiveFrom =
+    metric === "pe_forward"
+      ? fromDate && forwardStartDate
+        ? fromDate > forwardStartDate
+          ? fromDate
+          : forwardStartDate
+        : fromDate || forwardStartDate
+      : fromDate;
+
+  const rows = buildMetricSeries(index.points, metric, effectiveFrom, toDate);
+  const range = resolveDateRange(index.points);
   return {
     generatedAt: dataset.generatedAt,
     indexId,
@@ -440,9 +767,31 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
     const url = new URL(req.url, "http://127.0.0.1");
 
     try {
-      const dataset = await loadDataset(rootDir);
-      const stores = await loadStores(rootDir);
       const userId = getUserId(req);
+      let datasetPromise: Promise<ValuationDataset> | null = null;
+      let companyDatasetPromise: Promise<CompanyValuationDataset> | null = null;
+      let storesPromise: Promise<RuntimeStores> | null = null;
+
+      const getDataset = async () => {
+        if (!datasetPromise) {
+          datasetPromise = loadDatasetCached(rootDir);
+        }
+        return datasetPromise;
+      };
+
+      const getCompanyDataset = async () => {
+        if (!companyDatasetPromise) {
+          companyDatasetPromise = loadCompanyDatasetCached(rootDir);
+        }
+        return companyDatasetPromise;
+      };
+
+      const getStores = async () => {
+        if (!storesPromise) {
+          storesPromise = loadStores(rootDir);
+        }
+        return storesPromise;
+      };
 
       if (url.pathname === "/healthz" && req.method === "GET") {
         json(res, 200, { ok: true, now: new Date().toISOString() });
@@ -450,12 +799,14 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
       }
 
       if (url.pathname === "/api/meta" && req.method === "GET") {
+        const dataset = await getDataset();
         json(res, 200, buildMeta(dataset));
         return;
       }
 
       if (url.pathname === "/api/snapshot" && req.method === "GET") {
         const group = url.searchParams.get("group") || undefined;
+        const dataset = await getDataset();
         json(res, 200, buildSnapshotPayload(dataset, group || undefined));
         return;
       }
@@ -465,6 +816,7 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
         const metric = String(url.searchParams.get("metric") || "pe_ttm");
         const fromDate = url.searchParams.get("from") || undefined;
         const toDate = url.searchParams.get("to") || undefined;
+        const dataset = await getDataset();
 
         if (!INDEX_MAP[indexId]) {
           json(res, 400, { error: "Invalid indexId" });
@@ -481,11 +833,50 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
 
       if (url.pathname === "/api/heatmap" && req.method === "GET") {
         const group = url.searchParams.get("group") || undefined;
+        const dataset = await getDataset();
         json(res, 200, buildHeatmapPayload(dataset, group || undefined));
         return;
       }
 
+      if (url.pathname === "/api/company/meta" && req.method === "GET") {
+        const companyDataset = await getCompanyDataset();
+        json(res, 200, buildCompanyMeta(companyDataset));
+        return;
+      }
+
+      if (url.pathname === "/api/company/snapshot" && req.method === "GET") {
+        const companyDataset = await getCompanyDataset();
+        json(res, 200, buildCompanySnapshotPayloadCached(companyDataset));
+        return;
+      }
+
+      if (url.pathname === "/api/company/series" && req.method === "GET") {
+        const indexId = String(url.searchParams.get("indexId") || "");
+        const metric = String(url.searchParams.get("metric") || "pe_ttm");
+        const fromDate = url.searchParams.get("from") || undefined;
+        const toDate = url.searchParams.get("to") || undefined;
+        const companyDataset = await getCompanyDataset();
+
+        const companyExists = companyDataset.indices.some((item) => item.id === indexId);
+        if (!companyExists) {
+          json(res, 400, { error: "Invalid indexId" });
+          return;
+        }
+        if (!METRIC_SET.has(metric as MetricId)) {
+          json(res, 400, { error: "Invalid metric" });
+          return;
+        }
+
+        json(
+          res,
+          200,
+          buildCompanySeriesPayload(companyDataset, indexId, metric as MetricId, fromDate, toDate)
+        );
+        return;
+      }
+
       if (url.pathname === "/api/watchlist" && req.method === "GET") {
+        const stores = await getStores();
         const config = normalizeWatchlist(stores.watchlists.users[userId], userId);
         stores.watchlists.users[userId] = config;
         await saveStores(rootDir, stores);
@@ -494,6 +885,7 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
       }
 
       if (url.pathname === "/api/watchlist" && req.method === "POST") {
+        const stores = await getStores();
         const body = (await readBody(req)) as Partial<UserWatchlist>;
         const merged = normalizeWatchlist(
           {
@@ -513,6 +905,7 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
       }
 
       if (url.pathname === "/api/alerts" && req.method === "GET") {
+        const stores = await getStores();
         const alerts = stores.alerts.users[userId] || [];
         json(res, 200, {
           userId,
@@ -524,6 +917,7 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
       }
 
       if (url.pathname === "/api/alerts/ack" && req.method === "POST") {
+        const stores = await getStores();
         const body = (await readBody(req)) as { ids?: string[] };
         const rows = stores.alerts.users[userId] || [];
         const ids = new Set(body.ids || []);
@@ -545,9 +939,12 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
       }
 
       if (url.pathname === "/api/jobs/daily-update" && req.method === "POST") {
+        const dataset = await getDataset();
+        const stores = await getStores();
         const result = await applyDailyUpdate(dataset, stores);
         await writeJsonFile(resolvePath(rootDir, DATA_FILE), result.dataset);
         await saveStores(rootDir, stores);
+        invalidateDatasetCaches();
         json(res, 200, {
           ok: true,
           generatedAt: result.dataset.generatedAt,
@@ -560,6 +957,7 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
         const body = (await readBody(req)) as { symbols?: unknown[] };
         const symbols = normalizeCompanySymbols(body?.symbols);
         const result = await runCompanyDataRefresh(rootDir, symbols);
+        invalidateDatasetCaches();
         json(res, 200, {
           ok: true,
           generatedAt: result.generatedAt,
@@ -571,6 +969,7 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
       }
 
       if (url.pathname === "/api/auth/dev-login" && req.method === "POST") {
+        const stores = await getStores();
         const body = (await readBody(req)) as { userId?: string; userName?: string };
         const pickedUserId =
           body.userId?.trim() ||

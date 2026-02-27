@@ -1,28 +1,75 @@
-<view class="container">
-  <view class="panel">
-    <view class="panel-title">估值快照</view>
-    <view class="hint">{{generatedAt ? '更新于 ' + generatedAt : '加载中...'}}</view>
-    <block wx:for="{{snapshotRows}}" wx:key="indexId">
-      <view class="card" data-index-id="{{item.indexId}}" bindtap="openDetail">
-        <view>
-          <view class="name">{{item.displayName}}</view>
-          <view class="hint">{{item.symbol}}</view>
-        </view>
-        <view class="numbers">
-          <view>PE {{item.pe_ttm.toFixed(2)}}</view>
-          <view>分位 {{item.percentileText}}</view>
-        </view>
-      </view>
-    </block>
-  </view>
+<view class="page-wrap">
+  <custom-nav title="指数估值"></custom-nav>
+  <view class="container">
+    <view class="panel">
+      <view class="panel-title">指数估值卡片</view>
+      <view class="hint">{{generatedAt ? '更新于 ' + generatedAt : '加载中...'}}</view>
 
-  <view class="panel">
-    <view class="panel-title">热力矩阵（Full分位）</view>
-    <block wx:for="{{heatmapRows}}" wx:key="indexId">
-      <view class="heat-row">
-        <view class="heat-name">{{item.displayName}}</view>
-        <view class="heat-value">{{item.percentileText}}</view>
+      <view class="toolbar">
+        <view class="toolbar-row">
+          <picker mode="selector" range="{{groupOptions}}" range-key="label" value="{{groupIndex}}" bindchange="onGroupChange">
+            <view class="picker-label">组别：{{groupOptions[groupIndex].label}}</view>
+          </picker>
+          <picker mode="selector" range="{{sortOptions}}" range-key="label" value="{{sortIndex}}" bindchange="onSortChange">
+            <view class="picker-label">排序：{{sortOptions[sortIndex].label}}</view>
+          </picker>
+        </view>
+        <view class="search-row">
+          <input class="search-input" value="{{keyword}}" placeholder="输入指数名称 / 代码" bindinput="onKeywordInput" />
+          <button class="btn btn-clear" size="mini" bindtap="clearKeyword">清空</button>
+        </view>
       </view>
-    </block>
+
+      <view class="count-hint">已显示 {{shownCount}} / {{totalCount}} 个指数</view>
+
+      <block wx:for="{{rows}}" wx:key="indexId">
+        <view
+          class="snapshot-card {{item.cardToneClass}}"
+          data-index-id="{{item.indexId}}"
+          data-display-name="{{item.displayName}}"
+          bindtap="openDetail"
+        >
+          <view class="card-watermark"><text>{{item.watermarkText}}</text></view>
+
+          <view class="name-row">
+            <view class="card-name-wrap">
+              <view class="card-name">{{item.displayName}}</view>
+              <view class="card-symbol">{{item.symbol}} · {{item.groupText}}</view>
+            </view>
+            <view class="badge {{item.regimeClass === 'danger' ? 'high' : item.regimeClass === 'safe' ? 'low' : ''}}">
+              {{item.regimeText}}
+            </view>
+          </view>
+
+          <view class="card-line">
+            <text>PE(TTM)</text>
+            <text>{{item.peTtmText}}</text>
+          </view>
+          <view class="card-line">
+            <text>PE(FWD)</text>
+            <text>{{item.peForwardText}}</text>
+          </view>
+          <view class="card-line">
+            <text>PB</text>
+            <text>{{item.pbText}}</text>
+          </view>
+          <view class="card-line">
+            <text>PE百分位（Full）</text>
+            <text style="{{item.percentileStyle}}">{{item.percentileText}}</text>
+          </view>
+          <view class="card-line muted">
+            <text>数据日期</text>
+            <text>{{item.date}}</text>
+          </view>
+
+          <view class="percent-track-mini">
+            <view class="pin" style="{{item.percentilePinStyle}}"></view>
+          </view>
+        </view>
+      </block>
+
+      <view wx:if="{{!rows.length && !loading}}" class="hint empty-hint">暂无符合条件的数据</view>
+      <button wx:if="{{canLoadMore}}" class="btn btn-more" bindtap="loadMore">加载更多</button>
+    </view>
   </view>
 </view>

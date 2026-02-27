@@ -1,19 +1,121 @@
 <view class="container">
   <view class="panel">
-    <view class="panel-title">{{indexId}} 估值曲线</view>
-    <picker mode="selector" range="{{metricOptions}}" range-key="label" bindchange="onMetricChange">
-      <view class="picker">指标：{{metricOptions[metricIndex].label}}</view>
-    </picker>
-    <view class="hint">可用区间：{{availableRangeText}}</view>
-    <canvas canvas-id="lineCanvas" style="width: 700rpx; height: 320rpx; margin-top: 14rpx"></canvas>
+    <view class="panel-title">{{displayName || indexId}} 估值曲线</view>
+
+    <view class="control-shell">
+      <view class="metric-head">
+        <view class="metric-title">指标选择</view>
+        <view class="current-tag">当前：{{metricOptions[metricIndex].label}}</view>
+      </view>
+      <scroll-view class="chip-scroll" scroll-x="true" enable-flex="true" show-scrollbar="false">
+        <view class="chip-row">
+          <view
+            wx:for="{{metricOptions}}"
+            wx:key="value"
+            class="metric-chip {{index === metricIndex ? 'active' : ''}}"
+            data-index="{{index}}"
+            bindtap="onMetricTap"
+          >
+            {{item.label}}
+          </view>
+        </view>
+      </scroll-view>
+
+      <view class="range-title">区间选择</view>
+      <scroll-view class="chip-scroll" scroll-x="true" enable-flex="true" show-scrollbar="false">
+        <view class="chip-row">
+          <view
+            wx:for="{{rangeOptions}}"
+            wx:key="value"
+            class="range-chip {{index === rangeIndex ? 'active' : ''}}"
+            data-index="{{index}}"
+            bindtap="onRangeTap"
+          >
+            {{item.label}}
+          </view>
+        </view>
+      </scroll-view>
+
+      <view class="range-meta">
+        <view class="range-meta-row">
+          <text class="range-meta-label">全量区间</text>
+          <text class="range-meta-value">{{availableRangeText}}</text>
+        </view>
+        <view class="range-meta-row">
+          <text class="range-meta-label">当前区间</text>
+          <text class="range-meta-value">{{rangeSummaryText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <canvas
+      id="lineCanvas"
+      canvas-id="lineCanvas"
+      style="width: 700rpx; height: 320rpx; margin-top: 14rpx"
+      bindtouchstart="onMainChartTouchStart"
+      bindtouchmove="onMainChartTouchMove"
+    ></canvas>
+    <view class="time-axis">
+      <text>{{mainAxisLabels[0]}}</text>
+      <text>{{mainAxisLabels[1]}}</text>
+      <text>{{mainAxisLabels[2]}}</text>
+    </view>
+
+    <view class="focus-panel" wx:if="{{focusCard}}">
+      <view class="focus-head">
+        <view class="focus-tag {{focusActive ? 'active' : ''}}">{{focusActive ? '选中点' : '最新点'}}</view>
+        <view class="focus-date">{{focusCard.date}}</view>
+        <button wx:if="{{focusActive}}" class="btn btn-ghost reset-btn" size="mini" bindtap="resetFocusToLatest">
+          回到最新
+        </button>
+      </view>
+      <view class="focus-grid">
+        <view class="focus-item">
+          <text class="k">指标值</text>
+          <text class="v">{{focusCard.valueText}}</text>
+        </view>
+        <view class="focus-item">
+          <text class="k">分位值（当前区间）</text>
+          <text class="v">{{focusCard.percentileText}}</text>
+        </view>
+        <view class="focus-item">
+          <text class="k">Z-Score(3Y)</text>
+          <text class="v">{{focusCard.zScoreText}}</text>
+        </view>
+        <view class="focus-item">
+          <text class="k">状态</text>
+          <text class="v">{{focusCard.regimeText}}</text>
+        </view>
+      </view>
+      <view class="hint touch-hint">拖动主图可查看任意日期数值与分位</view>
+    </view>
+
+    <view class="subchart-head">
+      <view class="subchart-title">分位子图</view>
+      <view class="hint">当前区间滚动分位值</view>
+    </view>
+    <canvas
+      id="percentileCanvas"
+      canvas-id="percentileCanvas"
+      style="width: 700rpx; height: 220rpx; margin-top: 10rpx"
+    ></canvas>
+    <view class="time-axis">
+      <text>{{mainAxisLabels[0]}}</text>
+      <text>{{mainAxisLabels[1]}}</text>
+      <text>{{mainAxisLabels[2]}}</text>
+    </view>
   </view>
 
   <view class="panel" wx:if="{{latest}}">
     <view class="panel-title">当前状态</view>
-    <view class="row"><text>当前值</text><text>{{latest.value.toFixed(4)}}</text></view>
+    <view class="row"><text>当前值</text><text>{{latest.valueText}}</text></view>
+    <view class="row"><text>分位(当前区间)</text><text>{{latest.percentileRangeText}}</text></view>
     <view class="row"><text>分位(5Y)</text><text>{{latest.percentile5yText}}</text></view>
     <view class="row"><text>分位(10Y)</text><text>{{latest.percentile10yText}}</text></view>
     <view class="row"><text>分位(Full)</text><text>{{latest.percentileFullText}}</text></view>
+    <view class="row"><text>Z-Score(3Y)</text><text>{{latest.zScoreText}}</text></view>
     <view class="row"><text>状态</text><text>{{latest.regime}}</text></view>
   </view>
+
+  <view wx:if="{{loading}}" class="hint loading-hint">加载中...</view>
 </view>

@@ -1,0 +1,14 @@
+<view class="tabbar-shell">
+  <view class="tabbar-row">
+    <view
+      wx:for="{{list}}"
+      wx:key="pagePath"
+      class="tab-item"
+      data-index="{{index}}"
+      bindtap="switchTab"
+      style="color: {{selected === index ? selectedColor : color}}"
+    >
+      <text class="tab-text {{selected === index ? 'is-active' : ''}}">{{item.text}}</text>
+    </view>
+  </view>
+</view>

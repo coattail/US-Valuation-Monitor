@@ -1,4 +1,6 @@
-const { request } = require("../../utils/api");
+const { request } = require("../../../utils/api");
+
+const WATCHLIST_STORAGE_KEY = "usvm-company-watchlist";
 
 const METRIC_OPTIONS = [
   { label: "PE(TTM)", value: "pe_ttm" },
@@ -33,18 +35,13 @@ function toMetricText(value, metric) {
   return n.toFixed(2);
 }
 
-function regimeLabel(regime) {
-  if (regime === "high") return "高估";
-  if (regime === "low") return "低估";
-  return "中性";
-}
-
-function regimeByPercentile(percentile) {
-  const p = Number(percentile);
-  if (!Number.isFinite(p)) return "中性";
-  if (p >= 0.85) return "高估";
-  if (p <= 0.15) return "低估";
-  return "中性";
+function toMarketCapText(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "--";
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  return `$${n.toFixed(0)}`;
 }
 
 function subtractYears(dateText, years) {
@@ -98,58 +95,6 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function attachRangePercentiles(rows) {
-  const values = rows.map((row) => Number(row.value)).filter((value) => Number.isFinite(value));
-  if (!values.length) {
-    return rows.map((row) => ({
-      ...row,
-      percentile_range: 0.5,
-    }));
-  }
-
-  const sorted = Array.from(new Set(values)).sort((a, b) => a - b);
-  const rankMap = new Map();
-  sorted.forEach((value, index) => rankMap.set(value, index + 1));
-
-  const bit = new Array(sorted.length + 2).fill(0);
-  const update = (index, delta) => {
-    let i = index;
-    while (i < bit.length) {
-      bit[i] += delta;
-      i += i & -i;
-    }
-  };
-  const query = (index) => {
-    let i = index;
-    let sum = 0;
-    while (i > 0) {
-      sum += bit[i];
-      i -= i & -i;
-    }
-    return sum;
-  };
-
-  let seen = 0;
-  return rows.map((row) => {
-    const value = Number(row.value);
-    if (!Number.isFinite(value)) {
-      return {
-        ...row,
-        percentile_range: 0.5,
-      };
-    }
-    const rank = rankMap.get(value) || 1;
-    const lessOrEqualBefore = query(rank);
-    const percentile = clamp((lessOrEqualBefore + 1) / (seen + 1), 0, 1);
-    update(rank, 1);
-    seen += 1;
-    return {
-      ...row,
-      percentile_range: percentile,
-    };
-  });
-}
-
 function formatAxisDate(dateText) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateText || ""))) return "--";
   return `${dateText.slice(0, 4)}-${dateText.slice(5, 7)}`;
@@ -163,31 +108,45 @@ function buildAxisLabels(rows) {
   return [formatAxisDate(start), formatAxisDate(mid), formatAxisDate(end)];
 }
 
+function normalizeWatchlist(raw) {
+  if (Array.isArray(raw)) {
+    return raw.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim());
+  }
+
+  if (typeof raw === "string" && raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim());
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  return [];
+}
+
 Page({
   data: {
-    indexId: "sp500",
+    indexId: "",
     displayName: "",
-    metricIndex: 0,
+    symbol: "",
+    marketCapText: "--",
+    rankText: "--",
+    isWatched: false,
     metricOptions: METRIC_OPTIONS,
-    rangeIndex: DEFAULT_RANGE_INDEX >= 0 ? DEFAULT_RANGE_INDEX : 0,
+    metricIndex: 0,
     rangeOptions: RANGE_OPTIONS,
+    rangeIndex: DEFAULT_RANGE_INDEX >= 0 ? DEFAULT_RANGE_INDEX : 0,
     availableRangeText: "",
     rangeSummaryText: "",
     mainAxisLabels: ["--", "--", "--"],
-    rows: [],
     latest: null,
-    focusCard: null,
-    focusActive: false,
     loading: true,
   },
 
   cache: {
     canvasRects: {},
-    rows: [],
-    mainDrawRows: [],
-    mainChartGeom: null,
-    focusDate: "",
-    touchBusy: false,
     isAlive: false,
     loadToken: 0,
   },
@@ -197,22 +156,22 @@ Page({
     const patch = {};
     if (query.indexId) patch.indexId = query.indexId;
     if (query.displayName) patch.displayName = decodeURIComponent(query.displayName);
+    if (query.symbol) patch.symbol = decodeURIComponent(query.symbol);
     if (Object.keys(patch).length) this.setData(patch);
+    this.syncWatchState();
   },
 
   onShow() {
     this.cache.isAlive = true;
-    this.loadSeries();
+    this.loadPage();
   },
 
   onHide() {
     this.cache.isAlive = false;
-    this.cache.touchBusy = false;
   },
 
   onUnload() {
     this.cache.isAlive = false;
-    this.cache.touchBusy = false;
   },
 
   nextLoadToken() {
@@ -229,65 +188,98 @@ Page({
     this.setData(patch, callback);
   },
 
-  buildFocusCard(row, metric) {
-    if (!row) return null;
-    return {
-      date: row.date || "--",
-      valueText: toMetricText(row.value, metric),
-      percentileText: toPercent(row.percentile_range),
-      zScoreText: toNumberText(row.z_score_3y, 2),
-      regimeText: regimeByPercentile(row.percentile_range),
-    };
+  onPullDownRefresh() {
+    this.loadPage(true);
   },
 
-  async loadSeries() {
+  getWatchlist() {
+    return normalizeWatchlist(wx.getStorageSync(WATCHLIST_STORAGE_KEY));
+  },
+
+  saveWatchlist(ids) {
+    wx.setStorageSync(WATCHLIST_STORAGE_KEY, ids);
+  },
+
+  syncWatchState() {
+    const watchlist = this.getWatchlist();
+    this.safeSetData({ isWatched: watchlist.indexOf(this.data.indexId) >= 0 });
+  },
+
+  async loadPage(fromPullDown = false) {
     const loadToken = this.nextLoadToken();
     this.safeSetData({ loading: true });
+    try {
+      await Promise.all([this.loadMeta(loadToken), this.loadSeries(loadToken)]);
+    } catch (error) {
+      if (this.isLoadActive(loadToken)) wx.showToast({ title: "加载失败", icon: "none" });
+      console.error(error);
+    } finally {
+      if (this.isLoadActive(loadToken)) this.safeSetData({ loading: false });
+      if (fromPullDown && this.cache.isAlive) wx.stopPullDownRefresh();
+    }
+  },
+
+  async loadMeta(loadToken) {
+    const token = Number.isInteger(loadToken) ? loadToken : this.cache.loadToken;
+    const payload = await request("/api/company/meta");
+    if (!this.isLoadActive(token)) return;
+    const target = (payload.indices || []).find((item) => item.id === this.data.indexId);
+    if (!target) return;
+
+    this.safeSetData({
+      displayName: target.displayName || this.data.displayName,
+      symbol: target.symbol || this.data.symbol,
+      rankText: toNumberText(target.rank, 0),
+      marketCapText: toMarketCapText(target.marketCap),
+    });
+  },
+
+  async loadSeries(loadToken) {
+    const hasToken = Number.isInteger(loadToken);
+    const token = hasToken ? loadToken : this.nextLoadToken();
+    if (!hasToken) this.safeSetData({ loading: true });
+
     const metric = this.data.metricOptions[this.data.metricIndex].value;
     const rangeCode = this.data.rangeOptions[this.data.rangeIndex].value;
-
     try {
-      const payload = await request("/api/series", "GET", null, {
+      const payload = await request("/api/company/series", "GET", null, {
         indexId: this.data.indexId,
         metric,
       });
-      if (!this.isLoadActive(loadToken)) return;
+      if (!this.isLoadActive(token)) return;
 
-      const rangedRows = attachRangePercentiles(filterRowsByRange(payload.rows || [], rangeCode));
+      const rangedRows = filterRowsByRange(payload.rows || [], rangeCode);
       const latestRaw = rangedRows[rangedRows.length - 1] || null;
       const latest = latestRaw
         ? {
             ...latestRaw,
             valueText: toMetricText(latestRaw.value, metric),
             zScoreText: toNumberText(latestRaw.z_score_3y, 2),
-            percentileRangeText: toPercent(latestRaw.percentile_range),
             percentile5yText: toPercent(latestRaw.percentile_5y),
             percentile10yText: toPercent(latestRaw.percentile_10y),
             percentileFullText: toPercent(latestRaw.percentile_full),
           }
         : null;
 
-      this.cache.rows = rangedRows;
-      this.cache.focusDate = latestRaw ? latestRaw.date : "";
       this.safeSetData({
-        rows: rangedRows,
         latest,
-        focusCard: this.buildFocusCard(latestRaw, metric),
-        focusActive: false,
         availableRangeText: `${payload.availableRange.startDate} ~ ${payload.availableRange.endDate} (${payload.availableRange.pointCount})`,
         rangeSummaryText: `${rangedRows[0] ? rangedRows[0].date : "--"} ~ ${
           rangedRows[rangedRows.length - 1] ? rangedRows[rangedRows.length - 1].date : "--"
         } (${rangedRows.length})`,
         mainAxisLabels: buildAxisLabels(rangedRows),
       });
-
-      await Promise.all([this.drawMainChart(rangedRows, loadToken), this.drawPercentileChart(rangedRows, loadToken)]);
+      await Promise.all([this.drawMainChart(rangedRows, token), this.drawPercentileChart(rangedRows, token)]);
     } catch (error) {
-      if (this.isLoadActive(loadToken)) wx.showToast({ title: "加载失败", icon: "none" });
+      if (this.isLoadActive(token)) wx.showToast({ title: "加载失败", icon: "none" });
       console.error(error);
     } finally {
-      if (this.isLoadActive(loadToken)) this.safeSetData({ loading: false });
+      if (!hasToken && this.isLoadActive(token)) this.safeSetData({ loading: false });
     }
+  },
+
+  onMetricChange(event) {
+    this.safeSetData({ metricIndex: Number(event.detail.value) }, () => this.loadSeries());
   },
 
   onMetricTap(event) {
@@ -302,67 +294,21 @@ Page({
     this.safeSetData({ rangeIndex: nextIndex }, () => this.loadSeries());
   },
 
-  resetFocusToLatest() {
-    const rows = this.cache.rows || [];
-    if (!rows.length) return;
-    const metric = this.data.metricOptions[this.data.metricIndex].value;
-    const latest = rows[rows.length - 1];
-    this.cache.focusDate = latest.date;
-    this.safeSetData(
-      {
-        focusCard: this.buildFocusCard(latest, metric),
-        focusActive: false,
-      },
-      () => {
-        this.drawMainChart(rows, this.cache.loadToken);
-        this.drawPercentileChart(rows, this.cache.loadToken);
-      }
-    );
-  },
+  toggleWatch() {
+    if (!this.data.indexId) return;
 
-  onMainChartTouchStart(event) {
-    this.updateFocusFromTouch(event);
-  },
+    const next = new Set(this.getWatchlist());
+    const existed = next.has(this.data.indexId);
+    if (existed) next.delete(this.data.indexId);
+    else next.add(this.data.indexId);
 
-  onMainChartTouchMove(event) {
-    this.updateFocusFromTouch(event);
-  },
-
-  async updateFocusFromTouch(event) {
-    if (this.cache.touchBusy) return;
-    const touch = (event.touches && event.touches[0]) || (event.changedTouches && event.changedTouches[0]);
-    if (!touch) return;
-
-    const rows = this.cache.mainDrawRows;
-    const geom = this.cache.mainChartGeom;
-    if (!rows || !rows.length || !geom) return;
-
-    this.cache.touchBusy = true;
-    try {
-      const rect = await this.resolveCanvasRect("#lineCanvas", 320 / 700);
-      if (!this.cache.isAlive) return;
-      const localX = Number(touch.x || 0) - Number(rect.left || 0);
-      const ratio = clamp((localX - geom.padding) / Math.max(1, geom.width - geom.padding * 2), 0, 1);
-      const idx = Math.round(ratio * (rows.length - 1));
-      const picked = rows[idx] || rows[rows.length - 1];
-      if (!picked) return;
-      if (this.cache.focusDate === picked.date && this.data.focusActive) return;
-
-      this.cache.focusDate = picked.date;
-      const metric = this.data.metricOptions[this.data.metricIndex].value;
-      this.safeSetData(
-        {
-          focusCard: this.buildFocusCard(picked, metric),
-          focusActive: true,
-        },
-        () => {
-          this.drawMainChart(this.cache.rows, this.cache.loadToken);
-          this.drawPercentileChart(this.cache.rows, this.cache.loadToken);
-        }
-      );
-    } finally {
-      this.cache.touchBusy = false;
-    }
+    const nowWatched = !existed;
+    this.saveWatchlist(Array.from(next));
+    this.syncWatchState();
+    wx.showToast({
+      title: nowWatched ? "已关注" : "已取消关注",
+      icon: "none",
+    });
   },
 
   resolveCanvasRect(selector, fallbackHeightRatio) {
@@ -370,8 +316,6 @@ Page({
       const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
       const width = (Number(info.windowWidth || 375) * 700) / 750;
       return Promise.resolve({
-        left: 0,
-        top: 0,
         width,
         height: width * Number(fallbackHeightRatio || 320 / 700),
       });
@@ -392,8 +336,6 @@ Page({
           const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
           const width = (Number(info.windowWidth || 375) * 700) / 750;
           resolve({
-            left: 0,
-            top: 0,
             width,
             height: width * Number(fallbackHeightRatio || 320 / 700),
           });
@@ -407,24 +349,14 @@ Page({
         const info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
         const width = (Number(info.windowWidth || 375) * 700) / 750;
         const fallback = {
-          left: 0,
-          top: 0,
           width,
-          height: width * Number(fallbackHeightRatio || 320 / 700),
+          height: (width * Number(fallbackHeightRatio || 320 / 700)),
         };
         this.cache.canvasRects[selector] = fallback;
         resolve(fallback);
       });
       query.exec();
     });
-  },
-
-  resolveFocusedRowOnDraw(drawRows) {
-    if (!Array.isArray(drawRows) || !drawRows.length) return null;
-    const focusDate = this.cache.focusDate;
-    if (!focusDate) return drawRows[drawRows.length - 1];
-    const byDate = drawRows.find((item) => item.date === focusDate);
-    return byDate || drawRows[drawRows.length - 1];
   },
 
   async drawMainChart(rows, loadToken) {
@@ -435,9 +367,10 @@ Page({
     if (!this.isLoadActive(token)) return;
     const width = Math.max(240, Number(rect.width || 0));
     const height = Math.max(120, Number(rect.height || 0));
-    const padding = Math.max(12, (width * 32) / 700);
+    const padding = Math.max(10, (width * 30) / 700);
 
     ctx.clearRect(0, 0, width, height);
+
     if (!Array.isArray(rows) || !rows.length) {
       ctx.draw();
       return;
@@ -448,64 +381,29 @@ Page({
       ctx.draw();
       return;
     }
-
-    this.cache.mainDrawRows = drawRows;
-    this.cache.mainChartGeom = { width, height, padding };
-
     const values = drawRows.map((item) => item.value);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const span = Math.max(max - min, 1e-6);
 
-    const xOf = (index) => padding + (index / Math.max(drawRows.length - 1, 1)) * (width - padding * 2);
-    const yOfValue = (value) => height - padding - ((value - min) / span) * (height - padding * 2);
-
     ctx.setStrokeStyle("#1ca294");
     ctx.setLineWidth(2);
     ctx.beginPath();
+
     drawRows.forEach((row, i) => {
-      const x = xOf(i);
-      const y = yOfValue(row.value);
+      const x = padding + (i / Math.max(drawRows.length - 1, 1)) * (width - padding * 2);
+      const y = height - padding - ((row.value - min) / span) * (height - padding * 2);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
 
-    ctx.setStrokeStyle("rgba(70, 120, 150, 0.22)");
+    ctx.setStrokeStyle("rgba(70, 120, 150, 0.2)");
     ctx.setLineWidth(1);
     ctx.beginPath();
     ctx.moveTo(padding, height - padding);
     ctx.lineTo(width - padding, height - padding);
     ctx.stroke();
-
-    const tickIndices = [0, Math.floor((drawRows.length - 1) / 2), drawRows.length - 1];
-    ctx.setStrokeStyle("rgba(120, 156, 196, 0.4)");
-    tickIndices.forEach((idx) => {
-      const x = xOf(idx);
-      ctx.beginPath();
-      ctx.moveTo(x, height - padding);
-      ctx.lineTo(x, height - padding + 4);
-      ctx.stroke();
-    });
-
-    const focused = this.resolveFocusedRowOnDraw(drawRows);
-    if (focused) {
-      const focusIndex = drawRows.findIndex((item) => item.date === focused.date);
-      const focusX = xOf(focusIndex >= 0 ? focusIndex : drawRows.length - 1);
-      const focusY = yOfValue(focused.value);
-
-      ctx.setStrokeStyle("rgba(169, 206, 255, 0.45)");
-      ctx.setLineWidth(1);
-      ctx.beginPath();
-      ctx.moveTo(focusX, padding * 0.55);
-      ctx.lineTo(focusX, height - padding);
-      ctx.stroke();
-
-      ctx.setFillStyle("#b2d8ff");
-      ctx.beginPath();
-      ctx.arc(focusX, focusY, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
 
     const labelFont = Math.max(10, Math.round((width / 700) * 20));
     ctx.setFontSize(labelFont);
@@ -527,17 +425,18 @@ Page({
     if (!this.isLoadActive(token)) return;
     const width = Math.max(240, Number(rect.width || 0));
     const height = Math.max(120, Number(rect.height || 0));
-    const paddingX = Math.max(12, (width * 32) / 700);
+    const paddingX = Math.max(10, (width * 30) / 700);
     const paddingY = Math.max(12, (height * 18) / 220);
 
     ctx.clearRect(0, 0, width, height);
+
     if (!Array.isArray(rows) || !rows.length) {
       ctx.draw();
       return;
     }
 
     const drawRows = buildRenderableRows(rows, Math.max(220, Math.floor(width * 1.6))).filter((item) =>
-      Number.isFinite(Number(item.percentile_range))
+      Number.isFinite(Number(item.percentile_full))
     );
     if (!drawRows.length) {
       ctx.draw();
@@ -547,7 +446,6 @@ Page({
     const chartWidth = width - paddingX * 2;
     const chartHeight = height - paddingY * 2;
     const yByPercentile = (p) => paddingY + (1 - clamp(Number(p || 0), 0, 1)) * chartHeight;
-    const xOf = (index) => paddingX + (index / Math.max(drawRows.length - 1, 1)) * chartWidth;
 
     const yHigh = yByPercentile(0.85);
     const yLow = yByPercentile(0.15);
@@ -561,7 +459,7 @@ Page({
     ctx.setFillStyle("rgba(89, 211, 159, 0.09)");
     ctx.fillRect(paddingX, yLow, chartWidth, Math.max(0, yBottom - yLow));
 
-    ctx.setStrokeStyle("rgba(179, 204, 242, 0.28)");
+    ctx.setStrokeStyle("rgba(179, 204, 242, 0.26)");
     ctx.setLineWidth(1);
     ctx.beginPath();
     ctx.moveTo(paddingX, yHigh);
@@ -574,31 +472,19 @@ Page({
     ctx.setLineWidth(2);
     ctx.beginPath();
     drawRows.forEach((row, i) => {
-      const x = xOf(i);
-      const y = yByPercentile(row.percentile_range);
+      const x = paddingX + (i / Math.max(drawRows.length - 1, 1)) * chartWidth;
+      const y = yByPercentile(row.percentile_full);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
 
-    const focused = this.resolveFocusedRowOnDraw(drawRows);
-    if (focused) {
-      const focusIndex = drawRows.findIndex((item) => item.date === focused.date);
-      const focusX = xOf(focusIndex >= 0 ? focusIndex : drawRows.length - 1);
-      const focusY = yByPercentile(focused.percentile_range);
-
-      ctx.setStrokeStyle("rgba(169, 206, 255, 0.45)");
-      ctx.setLineWidth(1);
-      ctx.beginPath();
-      ctx.moveTo(focusX, paddingY);
-      ctx.lineTo(focusX, yBottom);
-      ctx.stroke();
-
-      ctx.setFillStyle("#cbe0ff");
-      ctx.beginPath();
-      ctx.arc(focusX, focusY, 3.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    const last = drawRows[drawRows.length - 1];
+    const lastY = yByPercentile(last.percentile_full);
+    ctx.setFillStyle("#cbe0ff");
+    ctx.beginPath();
+    ctx.arc(width - paddingX, lastY, 3, 0, Math.PI * 2);
+    ctx.fill();
 
     const labelFont = Math.max(9, Math.round((width / 700) * 18));
     ctx.setFontSize(labelFont);
@@ -608,7 +494,6 @@ Page({
     ctx.fillText("0%", paddingX, yBottom - 2);
     ctx.fillText("85%", width - paddingX - labelFont * 2.3, yHigh - 2);
     ctx.fillText("15%", width - paddingX - labelFont * 2.3, yLow - 2);
-
     if (!this.isLoadActive(token)) return;
     ctx.draw();
   },

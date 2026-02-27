@@ -110,6 +110,11 @@ npm run start:api
 - `GET /api/series?indexId=<id>&metric=pe_ttm|pe_forward|pb|earnings_yield&from=YYYY-MM-DD&to=YYYY-MM-DD`
 - `GET /api/heatmap?group=core|sector|all`
 
+### 企业估值（Top100）
+- `GET /api/company/meta`
+- `GET /api/company/snapshot`
+- `GET /api/company/series?indexId=<id>&metric=pe_ttm|pe_forward|pb|earnings_yield&from=YYYY-MM-DD&to=YYYY-MM-DD`
+
 ### 自选与提醒
 - `GET /api/watchlist`
 - `POST /api/watchlist`

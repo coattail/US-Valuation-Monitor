@@ -110,6 +110,11 @@ Base URL: `http://127.0.0.1:9040`
 - `GET /api/series?indexId=<id>&metric=pe_ttm|pe_forward|pb|earnings_yield&from=YYYY-MM-DD&to=YYYY-MM-DD`
 - `GET /api/heatmap?group=core|sector|all`
 
+### Company valuation (Top 100)
+- `GET /api/company/meta`
+- `GET /api/company/snapshot`
+- `GET /api/company/series?indexId=<id>&metric=pe_ttm|pe_forward|pb|earnings_yield&from=YYYY-MM-DD&to=YYYY-MM-DD`
+
 ### Watchlist and alerts
 - `GET /api/watchlist`
 - `POST /api/watchlist`
