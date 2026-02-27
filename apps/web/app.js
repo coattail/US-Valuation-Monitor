@@ -298,24 +298,24 @@ function getDefaultCompareSelection() {
 
 function snapshotToneVars(percentile) {
   const p = clamp(Number(percentile), 0, 1);
-  const hue = 232 + p * 8;
-  const hue2 = hue + 8;
-  const sat = 46 + p * 5;
-  const edgeLight = 60 - Math.abs(p - 0.5) * 6;
-  const topLight = 40 + p * 2.5;
-  const bottomLight = 25 + p * 2.5;
-  const sweepLight = 72 - Math.abs(p - 0.5) * 5;
-  const sweepDelay = (-p * 5.4).toFixed(2);
+  const centerDist = Math.abs(p - 0.5);
+  const hue = 236 + (p - 0.5) * 4;
+  const deepHue = 225 + (p - 0.5) * 3;
+  const edgeAlpha = 0.39 + centerDist * 0.05;
+  const glowAlpha = 0.095 + (0.5 - centerDist) * 0.025;
+  const topLight = 39.5 + (0.5 - centerDist) * 1.8;
+  const bottomLight = 22.5 + (0.5 - centerDist) * 1.3;
+  const sweepDelay = (-p * 4.2).toFixed(2);
 
-  const edge = `hsla(${hue.toFixed(1)}, ${sat.toFixed(1)}%, ${edgeLight.toFixed(1)}%, 0.36)`;
-  const glow = `hsla(${hue.toFixed(1)}, 70%, 60%, 0.11)`;
-  const top = `hsla(${hue.toFixed(1)}, 52%, ${topLight.toFixed(1)}%, 0.84)`;
-  const bottom = `hsla(${hue2.toFixed(1)}, 48%, ${bottomLight.toFixed(1)}%, 0.92)`;
-  const flare = `hsla(${hue.toFixed(1)}, 78%, 84%, 0.1)`;
-  const glass = `hsla(${hue.toFixed(1)}, 56%, 72%, 0.08)`;
-  const pin = `hsl(${(220 + p * 10).toFixed(1)}, 80%, 62%)`;
-  const textGlow = `hsla(${hue.toFixed(1)}, 84%, 80%, 0.14)`;
-  const sweep = `hsla(${hue.toFixed(1)}, 86%, ${sweepLight.toFixed(1)}%, 0.12)`;
+  const edge = `hsla(${hue.toFixed(1)}, 56%, 73%, ${edgeAlpha.toFixed(3)})`;
+  const glow = `hsla(${(205 + p * 7).toFixed(1)}, 72%, 68%, ${glowAlpha.toFixed(3)})`;
+  const top = `hsla(${hue.toFixed(1)}, 47%, ${topLight.toFixed(2)}%, 0.885)`;
+  const bottom = `hsla(${deepHue.toFixed(1)}, 45%, ${bottomLight.toFixed(2)}%, 0.965)`;
+  const flare = `hsla(${(212 + p * 6).toFixed(1)}, 82%, 88%, 0.11)`;
+  const glass = `hsla(${(228 + p * 4).toFixed(1)}, 52%, 79%, 0.072)`;
+  const pin = `hsl(${(194 + p * 8).toFixed(1)}, 84%, 66%)`;
+  const textGlow = `hsla(${(210 + p * 6).toFixed(1)}, 92%, 86%, 0.145)`;
+  const sweep = `hsla(${(198 + p * 8).toFixed(1)}, 95%, 87%, 0.11)`;
 
   return `--card-edge:${edge};--card-glow:${glow};--card-top:${top};--card-bottom:${bottom};--card-flare:${flare};--card-glass:${glass};--card-pin:${pin};--card-text-glow:${textGlow};--card-sweep:${sweep};--card-sweep-delay:${sweepDelay}s;`;
 }
@@ -621,8 +621,14 @@ function renderSnapshotGrid(rows) {
       const flipOrderStyle = `--flip-order:${index};`;
       const nameLength = String(row.displayName || "").length;
       const nameClass = nameLength >= 28 ? "name name--tight" : nameLength >= 20 ? "name name--compact" : "name";
+      const tickerWatermark = String(row.symbol || "")
+        .toUpperCase()
+        .replace(/[<>&"]/g, "");
       return `
       <article class="snapshot-card" data-index-id="${row.indexId}" style="${toneVars}${searchCardLayoutStyle}${flipOrderStyle}">
+        <div class="card-logo-watermark card-logo-watermark--ticker" aria-hidden="true">
+          <span>${tickerWatermark}</span>
+        </div>
         <div class="name-row">
           <div>
             <div class="${nameClass}" title="${row.displayName}">${row.displayName}</div>

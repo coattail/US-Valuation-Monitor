@@ -3096,7 +3096,7 @@ async function fetchQuarterlyFinancialSeries(
     }
   }
 
-  const secOnlyEps = mergeQuarterlyEpsSeries(secActualEpsRows, [], lastCloseDate);
+  const secOnlyEps = mergeQuarterlyEpsSeries(secEpsPayload.rows, [], lastCloseDate);
   const secOnlyNetIncome = mergeQuarterlyNetIncomeSeries(secActualNetIncomeRows, [], lastCloseDate);
   const secScore = secOnlyEps.length + secOnlyNetIncome.length;
   if (secScore > bestScore) {
@@ -3231,6 +3231,8 @@ function mergeRatioPayloads(
     return adjusted ?? base;
   };
 
+  const alignedLongForwardSeries = longForwardSeries;
+
   const resolveLatestMetricValue = (
     metricKey: "pe_ttm" | "pe_forward" | "pb",
     longSeries: MetricPoint[],
@@ -3239,6 +3241,10 @@ function mergeRatioPayloads(
     const stockLatest = normalizeByAdrRatio(metricKey, stockLatestRaw);
     const longLatestPoint = longSeries[longSeries.length - 1];
     const longLatest = sanitizeSignedRatio(longLatestPoint?.value ?? null);
+    const latestDiffRatio =
+      stockLatest && longLatest
+        ? Math.max(stockLatest / longLatest, longLatest / stockLatest)
+        : 1;
 
     if (longLatest && longLatestPoint?.date) {
       const ageDays = (toTs(new Date().toISOString().slice(0, 10)) - toTs(longLatestPoint.date)) / 86_400_000;
@@ -3248,11 +3254,9 @@ function mergeRatioPayloads(
     }
 
     if (stockLatest && longLatest) {
-      const ratio = stockLatest / longLatest;
       const mismatch =
-        !Number.isFinite(ratio) ||
-        ratio >= STOCK_LATEST_OUTLIER_FACTOR ||
-        ratio <= 1 / STOCK_LATEST_OUTLIER_FACTOR;
+        !Number.isFinite(latestDiffRatio) ||
+        latestDiffRatio >= STOCK_LATEST_OUTLIER_FACTOR;
 
       if (mismatch) {
         return null;
@@ -3265,7 +3269,7 @@ function mergeRatioPayloads(
   const mergedByDate = new Map<string, RatioAnchor>();
   const coarsePeSeries = isLikelyCoarseSeries(longPeSeries);
   const coarsePbSeries = isLikelyCoarseSeries(longPbSeries);
-  const coarseForwardSeries = isLikelyCoarseSeries(longForwardSeries);
+  const coarseForwardSeries = isLikelyCoarseSeries(alignedLongForwardSeries);
   const recentStockAnchorPeValues = (stockPayload?.anchors || [])
     .map((item) => sanitizeSignedRatio(item.pe_ttm))
     .filter((value): value is number => !!value)
@@ -3311,7 +3315,7 @@ function mergeRatioPayloads(
     upsert(point.date, { pb: point.value }, !coarsePbSeries);
   }
 
-  for (const point of longForwardSeries) {
+  for (const point of alignedLongForwardSeries) {
     upsert(point.date, { pe_forward: point.value }, !coarseForwardSeries);
   }
 
@@ -3319,15 +3323,22 @@ function mergeRatioPayloads(
     pe_ttm: resolveLatestMetricValue("pe_ttm", longPeSeries, stockPayload?.latest.pe_ttm ?? null),
     pe_forward: resolveLatestMetricValue(
       "pe_forward",
-      longForwardSeries,
+      alignedLongForwardSeries,
       stockPayload?.latest.pe_forward ?? null
     ),
     pb: resolveLatestMetricValue("pb", longPbSeries, stockPayload?.latest.pb ?? null),
   };
 
-  const anchors = [...mergedByDate.values()]
+  let anchors = [...mergedByDate.values()]
     .filter((item) => item.pe_ttm || item.pe_forward || item.pb)
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  anchors = dropIsolatedMetricSpikeAnchors(anchors, "pe_forward", {
+    spikeFactor: 1.8,
+    neighborSimilarityFactor: 1.32,
+    maxNeighborGapDays: 32,
+    minAbsValue: 4,
+  }).filter((item) => item.pe_ttm || item.pe_forward || item.pb);
 
   if (!anchors.length && !latest.pe_ttm && !latest.pe_forward && !latest.pb) {
     return null;
@@ -3337,7 +3348,7 @@ function mergeRatioPayloads(
     stockPayload?.source || "",
     longPeSeries.length ? sourceHints.pe || "companiesmarketcap-pe-ratio" : "",
     longPbSeries.length ? sourceHints.pb || "companiesmarketcap-pb-ratio" : "",
-    longForwardSeries.length ? sourceHints.forward || "forward-series" : "",
+    alignedLongForwardSeries.length ? sourceHints.forward || "forward-series" : "",
   ].filter(Boolean);
 
   return {
@@ -3345,6 +3356,164 @@ function mergeRatioPayloads(
     latest,
     source: sourceTags.join("+"),
   };
+}
+
+function dropIsolatedMetricSpikeAnchors(
+  anchors: RatioAnchor[],
+  key: "pe_ttm" | "pe_forward" | "pb",
+  options: {
+    spikeFactor?: number;
+    shortPulseSpikeFactor?: number;
+    neighborSimilarityFactor?: number;
+    maxNeighborGapDays?: number;
+    shortPulseMaxGapDays?: number;
+    minAbsValue?: number;
+  } = {}
+): RatioAnchor[] {
+  if (!Array.isArray(anchors) || anchors.length < 3) return anchors;
+
+  const spikeFactor = Number.isFinite(options.spikeFactor as number) ? (options.spikeFactor as number) : 1.9;
+  const shortPulseSpikeFactor = Number.isFinite(options.shortPulseSpikeFactor as number)
+    ? (options.shortPulseSpikeFactor as number)
+    : 1.34;
+  const neighborSimilarityFactor = Number.isFinite(options.neighborSimilarityFactor as number)
+    ? (options.neighborSimilarityFactor as number)
+    : 1.35;
+  const maxNeighborGapDays = Number.isFinite(options.maxNeighborGapDays as number)
+    ? (options.maxNeighborGapDays as number)
+    : 40;
+  const shortPulseMaxGapDays = Number.isFinite(options.shortPulseMaxGapDays as number)
+    ? (options.shortPulseMaxGapDays as number)
+    : 5;
+  const minAbsValue = Number.isFinite(options.minAbsValue as number) ? (options.minAbsValue as number) : 4;
+
+  const ratioDistance = (a: number, b: number): number => {
+    const absA = Math.abs(a);
+    const absB = Math.abs(b);
+    if (absA < 1e-8 || absB < 1e-8) return Number.POSITIVE_INFINITY;
+    return Math.max(absA / absB, absB / absA);
+  };
+
+  const cleaned = anchors.map((item) => ({ ...item }));
+  let changed = true;
+
+  // Iterate a few passes so adjacent pulse artifacts can also be removed.
+  for (let pass = 0; pass < 4 && changed; pass += 1) {
+    changed = false;
+
+    for (let i = 0; i < cleaned.length; i += 1) {
+      const currValue = sanitizeSignedRatio(cleaned[i][key]);
+      if (currValue === null) continue;
+
+      let prevIndex = i - 1;
+      while (prevIndex >= 0 && sanitizeSignedRatio(cleaned[prevIndex][key]) === null) {
+        prevIndex -= 1;
+      }
+
+      let nextIndex = i + 1;
+      while (nextIndex < cleaned.length && sanitizeSignedRatio(cleaned[nextIndex][key]) === null) {
+        nextIndex += 1;
+      }
+
+      if (prevIndex < 0 || nextIndex >= cleaned.length) continue;
+
+      const prevValue = sanitizeSignedRatio(cleaned[prevIndex][key]);
+      const nextValue = sanitizeSignedRatio(cleaned[nextIndex][key]);
+      if (prevValue === null || currValue === null || nextValue === null) continue;
+
+      const prevTs = toTs(cleaned[prevIndex].date);
+      const currTs = toTs(cleaned[i].date);
+      const nextTs = toTs(cleaned[nextIndex].date);
+      if (!prevTs || !currTs || !nextTs) continue;
+
+      const prevGapDays = (currTs - prevTs) / 86_400_000;
+      const nextGapDays = (nextTs - currTs) / 86_400_000;
+      if (
+        !Number.isFinite(prevGapDays) ||
+        !Number.isFinite(nextGapDays) ||
+        prevGapDays <= 0 ||
+        nextGapDays <= 0 ||
+        prevGapDays > maxNeighborGapDays ||
+        nextGapDays > maxNeighborGapDays
+      ) {
+        continue;
+      }
+
+      if (
+        Math.abs(prevValue) < minAbsValue ||
+        Math.abs(currValue) < minAbsValue ||
+        Math.abs(nextValue) < minAbsValue
+      ) {
+        continue;
+      }
+
+      if (prevValue * nextValue <= 0) continue;
+
+      const neighborsSimilarity = ratioDistance(prevValue, nextValue);
+      if (neighborsSimilarity > neighborSimilarityFactor) continue;
+
+      const currVsPrev = ratioDistance(currValue, prevValue);
+      const currVsNext = ratioDistance(currValue, nextValue);
+      const isHardSpike = currVsPrev >= spikeFactor && currVsNext >= spikeFactor;
+      const isLocalExtreme =
+        (currValue > prevValue && currValue > nextValue) ||
+        (currValue < prevValue && currValue < nextValue);
+      const isShortPulseSpike =
+        isLocalExtreme &&
+        currVsPrev >= shortPulseSpikeFactor &&
+        currVsNext >= shortPulseSpikeFactor &&
+        prevGapDays <= shortPulseMaxGapDays &&
+        nextGapDays <= shortPulseMaxGapDays;
+
+      if (isHardSpike || isShortPulseSpike) {
+        cleaned[i][key] = null;
+        changed = true;
+      }
+    }
+  }
+
+  return cleaned;
+}
+
+function dropForwardPeShortPulseFromPoints(points: SnapshotPoint[]): SnapshotPoint[] {
+  if (!Array.isArray(points) || points.length < 3) return points;
+
+  const forwardAnchors: RatioAnchor[] = points.map((point) => ({
+    date: point.date,
+    pe_ttm: null,
+    pe_forward: Number.isFinite(point.pe_forward as number) ? (point.pe_forward as number) : null,
+    pb: null,
+  }));
+
+  const cleanedAnchors = dropIsolatedMetricSpikeAnchors(forwardAnchors, "pe_forward", {
+    spikeFactor: 1.8,
+    shortPulseSpikeFactor: 1.34,
+    neighborSimilarityFactor: 1.32,
+    maxNeighborGapDays: 7,
+    shortPulseMaxGapDays: 5,
+    minAbsValue: 4,
+  });
+
+  const cleanedByDate = new Map<string, number | null>();
+  for (const item of cleanedAnchors) {
+    cleanedByDate.set(item.date, sanitizeSignedRatio(item.pe_forward));
+  }
+
+  let changed = false;
+  const nextPoints = points.map((point) => {
+    const nextForward = cleanedByDate.get(point.date) ?? null;
+    if (nextForward === point.pe_forward) {
+      return point;
+    }
+
+    changed = true;
+    return {
+      ...point,
+      pe_forward: nextForward,
+    };
+  });
+
+  return changed ? nextPoints : points;
 }
 
 function getCloseAtOrBefore(closePoints: ClosePoint[], targetDate: string): ClosePoint {
@@ -3653,7 +3822,7 @@ function buildValuationSeries(
   }
 
   return {
-    points,
+    points: dropForwardPeShortPulseFromPoints(points),
     usedFallback: peAnchors.usedFallback || pbAnchors.usedFallback,
     forwardStartDate,
   };
@@ -4094,12 +4263,20 @@ async function main(): Promise<void> {
 
     const mergedLongPeSeries = mergeMetricSeriesWithPreference(ychartsSeries?.pe_ttm || [], longPeSeries);
     const mergedLongPbSeries = mergeMetricSeriesWithPreference(ychartsSeries?.pb || [], longPbSeries);
-    const mergedLongForwardSeries = ychartsSeries?.pe_forward || [];
+    // Forward PE source policy:
+    // 1) Prefer stock-level ratios from StockAnalysis (quarterly anchors + latest),
+    // 2) Use YCharts forward series only as sparse-history fallback.
+    const stockForwardAnchorCount = countForwardAnchors(stockPayload);
+    const ychartsForwardSeries = ychartsSeries?.pe_forward || [];
+    const useYchartsForwardFallback =
+      stockForwardAnchorCount < MIN_FORWARD_ANCHORS_FOR_HISTORY &&
+      ychartsForwardSeries.length >= MIN_FORWARD_ANCHORS_FOR_HISTORY;
+    const mergedLongForwardSeries = useYchartsForwardFallback ? ychartsForwardSeries : [];
 
     const sourceHints = {
       pe: (ychartsSeries?.pe_ttm || []).length ? "ycharts-pe-ratio" : "companiesmarketcap-pe-ratio",
       pb: (ychartsSeries?.pb || []).length ? "ycharts-price-to-book-value" : "companiesmarketcap-pb-ratio",
-      forward: (ychartsSeries?.pe_forward || []).length ? "ycharts-forward-pe-ratio" : "",
+      forward: useYchartsForwardFallback ? "ycharts-forward-pe-ratio-fallback" : "stockanalysis-forward-ratios-primary",
     };
 
     if (!closePoints.length) {
