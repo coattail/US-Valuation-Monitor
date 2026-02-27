@@ -1,6 +1,6 @@
 # US Valuation Monitor
 
-US Valuation Monitor is a market valuation platform for major US indices and S&P 500 sectors. It combines a production-oriented Web interface, a lightweight API service, and a data pipeline that rebuilds valuation history from multiple public data sources.
+US Valuation Monitor is a valuation platform for major US indices, S&P 500 sectors, and Top 100 US companies. It combines a production-oriented Web interface, a WeChat Mini Program client, a lightweight API service, and a daily-refresh data pipeline.
 
 The project is built to be practical in real operations:
 - daily-refresh capable (GitHub Actions)
@@ -14,13 +14,16 @@ The project is built to be practical in real operations:
 - Multi-metric coverage: `pe_ttm`, `pe_forward`, `pb`, `earnings_yield`
 - Historical context: full-history / 10Y / 5Y percentiles, valuation regime, and z-score
 - Comparison workflow for key indices (default: S&P 500, Nasdaq 100, Dow 30)
-- Watchlist + alert-state persistence via API runtime store
+- Company valuation board (Top 100) with company detail pages (valuation series + percentile sub-chart)
+- Mini Program support for both index and company boards, detail charts, alerts, and settings
+- Watchlist + alert-state persistence via API runtime store (index); company watchlist persisted locally in Mini Program
 
 ### Technical capabilities
 - One-command dataset build from source adapters and normalization logic
 - Shared core package for metric/statistical consistency across clients
-- API endpoints for metadata, snapshots, time series, heatmap, watchlist, alerts, and daily job triggering
+- API endpoints for metadata, snapshots, time series, heatmap, watchlist, alerts, company valuation, and daily job triggering
 - Scheduled daily data refresh with automatic commit-and-push on data change
+- Mini Program UX upgrades including custom navigation, custom tab bar, and lifecycle-safe async rendering
 
 ## 2) Repository Layout
 
@@ -28,7 +31,7 @@ The project is built to be practical in real operations:
 us-valuation-monitor/
 ├─ apps/
 │  ├─ web/                         # Web client (HTML/CSS/JS)
-│  └─ miniprogram/                 # WeChat Mini Program scaffold
+│  └─ miniprogram/                 # WeChat Mini Program (boards + detail + alerts + settings)
 ├─ cloudfunctions/                 # Node HTTP API server
 │  ├─ server.ts                    # entry point (HOST/PORT)
 │  └─ src/app.ts                   # routes + runtime stores
@@ -87,6 +90,22 @@ npm run start:api
 
 Default API base URL:
 - `http://127.0.0.1:9040`
+
+## 5.1) Run the WeChat Mini Program Locally
+
+1. Start API service (recommended):
+
+```bash
+npm run start:api
+```
+
+2. Open WeChat DevTools and import:
+   - `apps/miniprogram`
+3. In the app, go to `Profile -> Connection Settings` to verify/test API base (default `http://localhost:9040`).
+
+Notes:
+- Index watchlist is persisted via backend `/api/watchlist`.
+- Company watchlist is currently persisted in Mini Program local storage (`usvm-company-watchlist`).
 
 ## 6) Script Reference
 
@@ -182,5 +201,6 @@ curl -sS "http://127.0.0.1:9040/api/series?indexId=sp500&metric=pe_ttm"
 ## 12) Roadmap
 
 - Continue hardening historical valuation coverage for all tracked indices
-- Expand Mini Program from scaffold to production parity with Web
+- Continue improving Mini Program/Web visual consistency and interaction details
+- Add backend persistence + cross-device sync for company watchlists
 - Add richer alert center and operational monitoring

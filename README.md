@@ -4,8 +4,16 @@
 
 US Valuation Monitor is a US equity valuation monitoring platform with:
 - a production-oriented Web client
+- a WeChat Mini Program client
 - a lightweight API service
 - a multi-source daily-refresh data pipeline
+
+## Recent Updates
+
+- Added company valuation board (Top 100) for both Web and Mini Program.
+- Added company detail API endpoints: `/api/company/meta`, `/api/company/snapshot`, `/api/company/series`.
+- Upgraded Mini Program UX: custom nav bar, custom tab bar, compact company cards, and dual-chart detail views.
+- Enhanced Profile page with both index and company watchlist selectors (with independent scroll areas).
 
 ## Quick Start
 
@@ -27,6 +35,9 @@ npm run start:api
 
 API base URL:
 - `http://127.0.0.1:9040`
+
+Mini Program project path:
+- `apps/miniprogram`
 
 ## Full Documentation
 
