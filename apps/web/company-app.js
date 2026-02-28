@@ -953,7 +953,6 @@ function renderSnapshotGrid(rows) {
         <div class="line"><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(row.pe_ttm_change_1y * 100, 1, true)}</strong></div>
         <div class="line"><span>PE百分位（近十年）</span><strong style="color:${percentileColor(row.percentile_10y)}">${fmtPct(row.percentile_10y, 1)}</strong></div>
-        <div class="line line-muted"><span>数据区间</span><strong>${row.startDate} ~ ${row.endDate}</strong></div>
         <div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>
       </article>`;
     })
