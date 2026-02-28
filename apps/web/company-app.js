@@ -51,6 +51,29 @@ const COMPARE_LINE_COLORS = [
 ];
 
 const DEFAULT_COMPARE_COMPANY_SYMBOLS = ["NVDA", "AAPL", "MSFT"];
+const ADR_SYMBOLS = new Set([
+  "ASML",
+  "AZN",
+  "BABA",
+  "BHP",
+  "BUD",
+  "HDB",
+  "HSBC",
+  "MUFG",
+  "NVO",
+  "NVS",
+  "RIO",
+  "RY",
+  "SAN",
+  "SAP",
+  "SHEL",
+  "TCEHY",
+  "TD",
+  "TM",
+  "TSM",
+  "TTE",
+  "UL",
+]);
 
 const state = {
   dataset: null,
@@ -917,6 +940,11 @@ function snapshotBadge(row) {
   return '<span class="badge neutral">中性</span>';
 }
 
+function companyTypeLabel(symbol) {
+  const normalized = String(symbol || "").trim().toUpperCase();
+  return ADR_SYMBOLS.has(normalized) ? "ADR" : "美股公司";
+}
+
 function renderSnapshotGrid(rows) {
   elements.snapshotDate.textContent = rows[0]?.date ? `更新到 ${rows[0].date}` : "--";
   const isSearching = state.overview.search.trim().length > 0;
@@ -943,7 +971,7 @@ function renderSnapshotGrid(rows) {
         <div class="name-row">
           <div>
             <div class="${nameClass}" title="${row.displayName}">${row.displayName}</div>
-            <div class="symbol">${row.symbol} · 美股公司</div>
+            <div class="symbol">${row.symbol} · ${companyTypeLabel(row.symbol)}</div>
           </div>
           ${snapshotBadge(row)}
         </div>
