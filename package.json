@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build:data:index": "node packages/data-pipeline/src/build-snapshot.ts",
-    "build:data:company": "node packages/data-pipeline/src/build-company-snapshot.ts",
+    "build:data:company": "node packages/data-pipeline/src/build-company-snapshot.ts && node packages/data-pipeline/src/split-company-dataset.ts",
     "build:data": "npm run build:data:index && npm run build:data:company",
     "start:api": "node cloudfunctions/server.ts",
     "start:web": "python3 -m http.server 9030",

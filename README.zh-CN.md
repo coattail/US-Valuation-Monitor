@@ -161,7 +161,7 @@ npm run start:api
 当前策略：
 - 定时触发（`cron: 15 13 * * *`）+ 手动触发
 - 执行 `npm run build:data`
-- 仅在 `data/standardized/valuation-history.json` 有变化时提交并推送
+- 仅在标准化数据文件有变化时提交并推送（含企业快照与分公司时序文件）
 
 手动运行步骤：
 1. 打开仓库的 **Actions**
@@ -171,6 +171,9 @@ npm run start:api
 ## 9）数据文件与运行时文件
 
 - 标准化主数据：`data/standardized/valuation-history.json`
+- 企业全量历史：`data/standardized/company-valuation-history.json`
+- 企业轻量快照（Web 首屏使用）：`data/standardized/company-valuation-snapshot.json`
+- 企业分公司时序（按需加载）：`data/standardized/company-series/<company_id>.json`
 - 自选存储：`data/runtime/watchlists.json`
 - 提醒存储：`data/runtime/alerts.json`
 - 提醒状态：`data/runtime/alert-state.json`

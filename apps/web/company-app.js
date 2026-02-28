@@ -1,7 +1,19 @@
-const DATA_PATH_CANDIDATES = [
+const SNAPSHOT_PATH_CANDIDATES = [
+  "/data/standardized/company-valuation-snapshot.json",
+  "../../data/standardized/company-valuation-snapshot.json",
+  "./company-valuation-snapshot.json",
+];
+
+const FULL_DATA_PATH_CANDIDATES = [
   "/data/standardized/company-valuation-history.json",
   "../../data/standardized/company-valuation-history.json",
   "./company-valuation-history.json",
+];
+
+const SERIES_PATH_CANDIDATES = [
+  "/data/standardized/company-series",
+  "../../data/standardized/company-series",
+  "./company-series",
 ];
 
 const COMPANY_REFRESH_API_CANDIDATES = [
@@ -75,6 +87,12 @@ const state = {
 
   caches: {
     metricSeries: new Map(),
+    seriesPromises: new Map(),
+  },
+
+  runtime: {
+    detailRenderToken: 0,
+    compareRenderToken: 0,
   },
 };
 
@@ -426,21 +444,187 @@ function metricValueFromRaw(point, metric) {
   return toFiniteNumber(point?.[metric]);
 }
 
+function normalizeSnapshotDataset(payload) {
+  if (!payload || !Array.isArray(payload.indices) || !payload.indices.length) return null;
+
+  const normalizedIndices = payload.indices
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const id = String(item.id || item.indexId || "").trim();
+      const symbol = String(item.symbol || "").trim().toUpperCase();
+      const displayName = String(item.displayName || "").trim();
+      if (!id || !symbol || !displayName) return null;
+
+      const points = Array.isArray(item.points) ? item.points : [];
+      const firstPoint = points[0] || null;
+      const lastPoint = points[points.length - 1] || null;
+
+      return {
+        id,
+        symbol,
+        displayName,
+        description: String(item.description || `${displayName} (${symbol})`),
+        rank: Number(item.rank || 9999),
+        marketCap: Number(item.marketCap || 0),
+        forwardStartDate: String(
+          item.forwardStartDate || item.startForwardDate || item.endDate || lastPoint?.date || ""
+        ),
+        startDate: String(item.startDate || firstPoint?.date || ""),
+        endDate: String(item.endDate || lastPoint?.date || ""),
+        pointCount: Number(item.pointCount || points.length || 0),
+        date: String(item.date || item.endDate || lastPoint?.date || ""),
+        pe_ttm: toFiniteNumber(item.pe_ttm),
+        pe_forward: toFiniteNumber(item.pe_forward),
+        pb: toFiniteNumber(item.pb),
+        percentile_5y: Number.isFinite(Number(item.percentile_5y))
+          ? clamp(Number(item.percentile_5y), 0, 1)
+          : null,
+        percentile_10y: Number.isFinite(Number(item.percentile_10y))
+          ? clamp(Number(item.percentile_10y), 0, 1)
+          : null,
+        percentile_full: Number.isFinite(Number(item.percentile_full))
+          ? clamp(Number(item.percentile_full), 0, 1)
+          : null,
+        z_score_3y: Number.isFinite(Number(item.z_score_3y)) ? Number(item.z_score_3y) : null,
+        pe_ttm_change_1y: Number.isFinite(Number(item.pe_ttm_change_1y))
+          ? Number(item.pe_ttm_change_1y)
+          : null,
+        regime: String(item.regime || ""),
+        points,
+        quarterlyEps: Array.isArray(item.quarterlyEps) ? item.quarterlyEps : [],
+        quarterlyNetIncome: Array.isArray(item.quarterlyNetIncome) ? item.quarterlyNetIncome : [],
+      };
+    })
+    .filter(Boolean);
+
+  if (!normalizedIndices.length) return null;
+
+  return {
+    generatedAt: String(payload.generatedAt || ""),
+    source: String(payload.source || "company-snapshot"),
+    indices: normalizedIndices,
+  };
+}
+
 async function fetchDataset() {
   const cacheBust = `v=${Date.now()}`;
-  for (const basePath of DATA_PATH_CANDIDATES) {
+  for (const basePath of SNAPSHOT_PATH_CANDIDATES) {
     const path = `${basePath}${basePath.includes("?") ? "&" : "?"}${cacheBust}`;
     try {
       const response = await fetch(path, { cache: "no-store" });
       if (!response.ok) continue;
       const payload = await response.json();
-      if (!payload || !Array.isArray(payload.indices) || !payload.indices.length) continue;
-      return payload;
+      const normalized = normalizeSnapshotDataset(payload);
+      if (!normalized) continue;
+      return normalized;
+    } catch {
+      // continue
+    }
+  }
+
+  for (const basePath of FULL_DATA_PATH_CANDIDATES) {
+    const path = `${basePath}${basePath.includes("?") ? "&" : "?"}${cacheBust}`;
+    try {
+      const response = await fetch(path, { cache: "no-store" });
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const normalized = normalizeSnapshotDataset(payload);
+      if (!normalized) continue;
+      return normalized;
     } catch {
       // continue
     }
   }
   throw new Error("无法读取本地数据快照，请先在项目根目录运行 npm run build:data");
+}
+
+function getDatasetIndex(indexId) {
+  if (!indexId) return null;
+  return state.dataset?.indices?.find((item) => item.id === indexId) || null;
+}
+
+function normalizeSeriesPayload(payload, indexId = "") {
+  if (!payload || typeof payload !== "object") return null;
+
+  const points = Array.isArray(payload.points) ? payload.points : [];
+  const id = String(payload.indexId || payload.id || indexId || "").trim();
+  if (!id || !points.length) return null;
+
+  return {
+    id,
+    symbol: String(payload.symbol || "").trim().toUpperCase(),
+    displayName: String(payload.displayName || ""),
+    description: String(payload.description || ""),
+    forwardStartDate: String(payload.forwardStartDate || ""),
+    points,
+    quarterlyEps: Array.isArray(payload.quarterlyEps) ? payload.quarterlyEps : [],
+    quarterlyNetIncome: Array.isArray(payload.quarterlyNetIncome) ? payload.quarterlyNetIncome : [],
+  };
+}
+
+async function fetchCompanySeries(indexId) {
+  const versionTag = encodeURIComponent(String(state.dataset?.generatedAt || "latest"));
+  let lastError = null;
+
+  for (const basePath of SERIES_PATH_CANDIDATES) {
+    const normalizedBase = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
+    const path = `${normalizedBase}/${encodeURIComponent(indexId)}.json?v=${versionTag}`;
+    try {
+      const response = await fetch(path);
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const normalized = normalizeSeriesPayload(payload, indexId);
+      if (!normalized) continue;
+      return normalized;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+  return null;
+}
+
+async function ensureIndexSeriesLoaded(indexId) {
+  if (!indexId) return null;
+  const indexData = getDatasetIndex(indexId);
+  if (!indexData) return null;
+  if (Array.isArray(indexData.points) && indexData.points.length) return indexData;
+
+  if (state.caches.seriesPromises.has(indexId)) {
+    return state.caches.seriesPromises.get(indexId);
+  }
+
+  const pending = (async () => {
+    const payload = await fetchCompanySeries(indexId);
+    if (!payload) return indexData;
+
+    const target = getDatasetIndex(indexId);
+    if (!target) return null;
+
+    target.forwardStartDate = payload.forwardStartDate || target.forwardStartDate || "";
+    target.points = Array.isArray(payload.points) ? payload.points : [];
+    target.quarterlyEps = Array.isArray(payload.quarterlyEps) ? payload.quarterlyEps : [];
+    target.quarterlyNetIncome = Array.isArray(payload.quarterlyNetIncome) ? payload.quarterlyNetIncome : [];
+
+    if (!target.startDate) {
+      target.startDate = String(target.points[0]?.date || "");
+    }
+    if (!target.endDate) {
+      target.endDate = String(target.points[target.points.length - 1]?.date || "");
+    }
+    if (!Number.isFinite(Number(target.pointCount)) || Number(target.pointCount) <= 0) {
+      target.pointCount = target.points.length;
+    }
+    return target;
+  })().finally(() => {
+    state.caches.seriesPromises.delete(indexId);
+  });
+
+  state.caches.seriesPromises.set(indexId, pending);
+  return pending;
 }
 
 function setUpdatedChipText(generatedAt = "") {
@@ -450,7 +634,7 @@ function setUpdatedChipText(generatedAt = "") {
 
 function symbolByIndexId(indexId) {
   if (!indexId) return "";
-  const row = state.dataset?.indices?.find((item) => item.id === indexId);
+  const row = getDatasetIndex(indexId);
   return String(row?.symbol || "").trim().toUpperCase();
 }
 
@@ -553,10 +737,12 @@ function buildMetaRows() {
       displayName: item.displayName,
       group: "company",
       description: item.description,
-      startDate: item.points[0]?.date || "",
-      endDate: item.points[item.points.length - 1]?.date || "",
-      pointCount: item.points.length,
-      forwardStartDate: item.forwardStartDate || item.points[item.points.length - 1]?.date || "",
+      startDate: String(item.startDate || item.points?.[0]?.date || ""),
+      endDate: String(item.endDate || item.points?.[item.points.length - 1]?.date || ""),
+      pointCount: Number(item.pointCount || item.points?.length || 0),
+      forwardStartDate: String(
+        item.forwardStartDate || item.endDate || item.points?.[item.points.length - 1]?.date || ""
+      ),
       rank: Number(item.rank || 9999),
       marketCap: Number(item.marketCap || 0),
       order: Number(item.rank || 9999),
@@ -572,7 +758,7 @@ function buildMetaRows() {
 }
 
 function getIndexData(indexId) {
-  return state.dataset.indices.find((item) => item.id === indexId);
+  return getDatasetIndex(indexId);
 }
 
 function getMetricSeries(indexId, metric) {
@@ -583,8 +769,10 @@ function getMetricSeries(indexId, metric) {
 
   const indexData = getIndexData(indexId);
   if (!indexData) return [];
+  const points = Array.isArray(indexData.points) ? indexData.points : [];
+  if (!points.length) return [];
 
-  const forwardStartDate = metric === "pe_forward" ? (indexData.forwardStartDate || indexData.points[indexData.points.length - 1]?.date || "") : "";
+  const forwardStartDate = metric === "pe_forward" ? (indexData.forwardStartDate || points[points.length - 1]?.date || "") : "";
   const values = [];
   const dates = [];
   const result = [];
@@ -592,8 +780,8 @@ function getMetricSeries(indexId, metric) {
   let start10 = 0;
   let start3 = 0;
 
-  for (let i = 0; i < indexData.points.length; i += 1) {
-    const point = indexData.points[i];
+  for (let i = 0; i < points.length; i += 1) {
+    const point = points[i];
     if (metric === "pe_forward" && forwardStartDate && point.date < forwardStartDate) {
       continue;
     }
@@ -635,8 +823,21 @@ function getMetricSeries(indexId, metric) {
 function buildSnapshotRows() {
   state.snapshotRows = state.dataset.indices.map((indexData) => {
     const points = Array.isArray(indexData.points) ? indexData.points : [];
+    const hasSnapshotStats =
+      Number.isFinite(Number(indexData.percentile_10y)) &&
+      Number.isFinite(Number(indexData.percentile_full)) &&
+      Number.isFinite(Number(indexData.pe_ttm_change_1y));
     const latestRaw = points[points.length - 1] || {};
-    const latestPe = computeLatestPeStats(points);
+    const latestPe = hasSnapshotStats
+      ? {
+          percentile_5y: clamp(Number(indexData.percentile_5y), 0, 1),
+          percentile_10y: clamp(Number(indexData.percentile_10y), 0, 1),
+          percentile_full: clamp(Number(indexData.percentile_full), 0, 1),
+          z_score_3y: Number(indexData.z_score_3y || 0),
+          pe_ttm_change_1y: Number(indexData.pe_ttm_change_1y || 0),
+          regime: String(indexData.regime || "") || regimeFromPercentile(Number(indexData.percentile_full || 0.5)),
+        }
+      : computeLatestPeStats(points);
 
     return {
       indexId: indexData.id,
@@ -645,19 +846,19 @@ function buildSnapshotRows() {
       group: "company",
       rank: Number(indexData.rank || 9999),
       marketCap: Number(indexData.marketCap || 0),
-      date: latestRaw.date,
-      pe_ttm: latestRaw.pe_ttm,
-      pe_forward: latestRaw.pe_forward,
-      pb: latestRaw.pb,
+      date: String(indexData.date || latestRaw.date || indexData.endDate || ""),
+      pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm) ?? 0,
+      pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward) ?? 0,
+      pb: toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb) ?? 0,
       percentile_5y: latestPe.percentile_5y,
       percentile_10y: latestPe.percentile_10y,
       percentile_full: latestPe.percentile_full,
       z_score_3y: latestPe.z_score_3y,
       pe_ttm_change_1y: latestPe.pe_ttm_change_1y,
       regime: latestPe.regime,
-      startDate: points[0]?.date || "",
-      endDate: points[points.length - 1]?.date || "",
-      pointCount: points.length,
+      startDate: String(indexData.startDate || points[0]?.date || ""),
+      endDate: String(indexData.endDate || points[points.length - 1]?.date || ""),
+      pointCount: Number(indexData.pointCount || points.length || 0),
     };
   });
 }
@@ -1972,24 +2173,44 @@ function renderDetailEpsPriceChart(indexMeta, indexId, rangeCode) {
   });
 }
 
-function renderDetail() {
+async function renderDetail() {
   const indexId = state.detail.indexId;
   const metric = state.detail.metric;
+  const renderToken = ++state.runtime.detailRenderToken;
 
   if (!indexId) return;
+  elements.detailStats.innerHTML = '<div class="hint">正在加载公司历史数据...</div>';
 
-  const fullRows = getMetricSeries(indexId, metric);
-  const rangedRows = filterRowsByRange(fullRows, state.detail.range);
-  const viewRows = recomputeRangeRollingStats(rangedRows);
+  try {
+    await ensureIndexSeriesLoaded(indexId);
+  } catch (error) {
+    if (renderToken !== state.runtime.detailRenderToken) return;
+    const message = error instanceof Error ? error.message : "加载失败";
+    elements.detailStats.innerHTML = `<div class="hint">公司历史数据加载失败：${message}</div>`;
+    return;
+  }
+  if (renderToken !== state.runtime.detailRenderToken) return;
 
-  const indexMeta = state.metaRows.find((item) => item.id === indexId);
-  if (!indexMeta || !viewRows.length) return;
+  try {
+    const fullRows = getMetricSeries(indexId, metric);
+    const rangedRows = filterRowsByRange(fullRows, state.detail.range);
+    const viewRows = recomputeRangeRollingStats(rangedRows);
 
-  renderDetailChart(indexMeta, viewRows);
-  renderDetailPercentileChart(viewRows);
-  renderDetailEpsPriceChart(indexMeta, indexId, state.detail.range);
-  bindDetailZoomSync();
-  renderDetailStats(fullRows, viewRows);
+    const indexMeta = state.metaRows.find((item) => item.id === indexId);
+    if (!indexMeta || !viewRows.length) {
+      elements.detailStats.innerHTML = '<div class="hint">该公司暂无可用时序数据</div>';
+      return;
+    }
+
+    renderDetailChart(indexMeta, viewRows);
+    renderDetailPercentileChart(viewRows);
+    renderDetailEpsPriceChart(indexMeta, indexId, state.detail.range);
+    bindDetailZoomSync();
+    renderDetailStats(fullRows, viewRows);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "渲染失败";
+    elements.detailStats.innerHTML = `<div class="hint">详情渲染失败：${message}</div>`;
+  }
 }
 
 function populateDetailOptions() {
@@ -2067,6 +2288,11 @@ function buildCompareRows() {
       rows,
     };
   }).filter((item) => item.rows.length >= 2);
+}
+
+async function ensureCompareSeriesReady(indexIds) {
+  if (!Array.isArray(indexIds) || !indexIds.length) return;
+  await Promise.all(indexIds.map((indexId) => ensureIndexSeriesLoaded(indexId)));
 }
 
 function getSeriesPointAtOrBefore(seriesRows, targetDate) {
@@ -2284,9 +2510,24 @@ function resolveCompareYAxisRange(rows, metricCfg, startPercent, endPercent) {
   };
 }
 
-function renderCompareCharts() {
-  const metricCfg = METRIC_CONFIG[state.compare.metric];
-  syncCompareDateInputBounds();
+async function renderCompareCharts() {
+  const renderToken = ++state.runtime.compareRenderToken;
+  const selectedIds = state.compare.indexIds.length ? state.compare.indexIds : state.watchlist.slice(0, 4);
+  elements.compareTableBody.innerHTML = '<tr><td colspan="4" class="hint">正在加载对比数据...</td></tr>';
+
+  try {
+    await ensureCompareSeriesReady(selectedIds);
+  } catch (error) {
+    if (renderToken !== state.runtime.compareRenderToken) return;
+    const message = error instanceof Error ? error.message : "加载失败";
+    elements.compareTableBody.innerHTML = `<tr><td colspan="4" class="hint">对比数据加载失败：${message}</td></tr>`;
+    return;
+  }
+  if (renderToken !== state.runtime.compareRenderToken) return;
+
+  try {
+    const metricCfg = METRIC_CONFIG[state.compare.metric];
+    syncCompareDateInputBounds();
 
   if (elements.compareChartTitle) {
     const hasCustomDate = Boolean(state.compare.startDate || state.compare.endDate);
@@ -2296,78 +2537,78 @@ function renderCompareCharts() {
     elements.compareChartTitle.textContent = `对比走势 · ${metricCfg.label}${dateTag}`;
   }
 
-  const chart = ensureChart("compare", elements.compareChart);
-  const rows = buildCompareRows();
-  const compareChartWidth = elements.compareChart?.clientWidth || 0;
-  const endLabelLayout = getLineEndLabelLayout(compareChartWidth, rows.length);
-  const compareLabelFontSize = Math.max(endLabelLayout.fontSize + 3, 15);
-  const compareRightPadding = Math.round(
-    Math.max(24, Math.min(endLabelLayout.rightSpace * 0.38 + 10, compareChartWidth * 0.06, 50))
-  );
+    const chart = ensureChart("compare", elements.compareChart);
+    const rows = buildCompareRows();
+    const compareChartWidth = elements.compareChart?.clientWidth || 0;
+    const endLabelLayout = getLineEndLabelLayout(compareChartWidth, rows.length);
+    const compareLabelFontSize = Math.max(endLabelLayout.fontSize + 3, 15);
+    const compareRightPadding = Math.round(
+      Math.max(24, Math.min(endLabelLayout.rightSpace * 0.38 + 10, compareChartWidth * 0.06, 50))
+    );
 
-  if (!rows.length) {
-    const noDataMessage =
-      state.compare.startDate || state.compare.endDate
-        ? "当前日期范围样本不足（每条曲线至少需要 2 个点）"
-        : "请至少选择一个有效公司";
-    elements.compareTableBody.innerHTML = `<tr><td colspan="4" class="hint">${noDataMessage}</td></tr>`;
-    renderCompareSummary([], metricCfg);
-    chart?.clear();
-    return;
-  }
+    if (!rows.length) {
+      const noDataMessage =
+        state.compare.startDate || state.compare.endDate
+          ? "当前日期范围样本不足（每条曲线至少需要 2 个点）"
+          : "请至少选择一个有效公司";
+      elements.compareTableBody.innerHTML = `<tr><td colspan="4" class="hint">${noDataMessage}</td></tr>`;
+      renderCompareSummary([], metricCfg);
+      chart?.clear();
+      return;
+    }
 
-  const legend = [];
-  const lineSeries = [];
-  const lineColorByIndexId = new Map();
+    const legend = [];
+    const lineSeries = [];
+    const lineColorByIndexId = new Map();
 
-  for (const [seriesIndex, item] of rows.entries()) {
-    const meta = state.metaRows.find((m) => m.id === item.indexId);
-    if (!meta) continue;
-    legend.push(meta.displayName);
-    const lineColor = COMPARE_LINE_COLORS[seriesIndex % COMPARE_LINE_COLORS.length];
-    lineColorByIndexId.set(item.indexId, lineColor);
+    for (const [seriesIndex, item] of rows.entries()) {
+      const meta = state.metaRows.find((m) => m.id === item.indexId);
+      if (!meta) continue;
+      legend.push(meta.displayName);
+      const lineColor = COMPARE_LINE_COLORS[seriesIndex % COMPARE_LINE_COLORS.length];
+      lineColorByIndexId.set(item.indexId, lineColor);
 
-    const data = item.rows.map((row) => {
-      const raw = metricCfg.percentage ? row.value * 100 : row.value;
-      return [row.date, raw];
-    });
+      const data = item.rows.map((row) => {
+        const raw = metricCfg.percentage ? row.value * 100 : row.value;
+        return [row.date, raw];
+      });
 
-    lineSeries.push({
-      name: meta.displayName,
-      type: "line",
-      smooth: false,
-      showSymbol: false,
-      lineStyle: {
-        width: 2.5,
-        color: lineColor,
-      },
-      itemStyle: {
-        color: lineColor,
-      },
-      endLabel: {
-        show: true,
-        position: "right",
-        distance: 6,
-        align: "left",
-        verticalAlign: "middle",
-        formatter(params) {
-          const value = params.value?.[1];
-          return metricCfg.percentage ? `${fmt(value, metricCfg.digits)}%` : fmt(value, metricCfg.digits);
+      lineSeries.push({
+        name: meta.displayName,
+        type: "line",
+        smooth: false,
+        showSymbol: false,
+        lineStyle: {
+          width: 2.5,
+          color: lineColor,
         },
-        color: lineColor,
-        fontSize: compareLabelFontSize,
-        fontWeight: 900,
-        padding: 0,
-      },
-      labelLayout: {
-        moveOverlap: "shiftY",
-      },
-      data,
-    });
-  }
+        itemStyle: {
+          color: lineColor,
+        },
+        endLabel: {
+          show: true,
+          position: "right",
+          distance: 6,
+          align: "left",
+          verticalAlign: "middle",
+          formatter(params) {
+            const value = params.value?.[1];
+            return metricCfg.percentage ? `${fmt(value, metricCfg.digits)}%` : fmt(value, metricCfg.digits);
+          },
+          color: lineColor,
+          fontSize: compareLabelFontSize,
+          fontWeight: 900,
+          padding: 0,
+        },
+        labelLayout: {
+          moveOverlap: "shiftY",
+        },
+        data,
+      });
+    }
 
-  if (chart) {
-    chart.setOption(
+    if (chart) {
+      chart.setOption(
       {
         animationDuration: 500,
         legend: {
@@ -2426,65 +2667,69 @@ function renderCompareCharts() {
       true
     );
 
-    chart.off("datazoom");
-  }
+      chart.off("datazoom");
+    }
 
-  const timeline = rows[0]?.rows?.map((point) => point.date) || [];
-  const defaultFocusDate = timeline[timeline.length - 1] || "";
-  let activeFocusDate = defaultFocusDate;
-  let rafSyncId = 0;
-  let pendingZoomRange = { start: 0, end: 100 };
+    const timeline = rows[0]?.rows?.map((point) => point.date) || [];
+    const defaultFocusDate = timeline[timeline.length - 1] || "";
+    let activeFocusDate = defaultFocusDate;
+    let rafSyncId = 0;
+    let pendingZoomRange = { start: 0, end: 100 };
 
-  const applyCompareYAxisRange = (startPercent, endPercent) => {
-    if (!chart) return;
-    const range = resolveCompareYAxisRange(rows, metricCfg, startPercent, endPercent);
-    if (!range) return;
+    const applyCompareYAxisRange = (startPercent, endPercent) => {
+      if (!chart) return;
+      const range = resolveCompareYAxisRange(rows, metricCfg, startPercent, endPercent);
+      if (!range) return;
 
-    chart.setOption(
-      {
-        yAxis: {
-          min: range.min,
-          max: range.max,
+      chart.setOption(
+        {
+          yAxis: {
+            min: range.min,
+            max: range.max,
+          },
         },
-      },
-      false
-    );
-  };
-
-  const syncCrossSection = (focusDate) => {
-    const finalDate = focusDate || defaultFocusDate;
-    const crossSectionRows = buildCompareCrossSection(rows, finalDate);
-    renderCompareSummary(rows, metricCfg, crossSectionRows);
-    renderCompareLatestViews(crossSectionRows, metricCfg, lineColorByIndexId);
-  };
-
-  syncCrossSection(defaultFocusDate);
-  applyCompareYAxisRange(0, 100);
-
-  if (!chart || timeline.length < 2) return;
-
-  chart.on("datazoom", () => {
-    const dz = chart.getOption()?.dataZoom?.[0];
-    const rawEndValue = dz?.endValue;
-    const fromEndValue = rawEndValue !== undefined && rawEndValue !== null ? formatAxisDate(rawEndValue) : "";
-    const endPercent = clamp(Number(dz?.end ?? 100), 0, 100);
-    const index = clamp(Math.round((endPercent / 100) * (timeline.length - 1)), 0, timeline.length - 1);
-    const nextFocusDate = fromEndValue || timeline[index] || defaultFocusDate;
-    pendingZoomRange = {
-      start: clamp(Number(dz?.start ?? 0), 0, 100),
-      end: endPercent,
+        false
+      );
     };
 
-    if (rafSyncId) cancelAnimationFrame(rafSyncId);
-    rafSyncId = requestAnimationFrame(() => {
-      applyCompareYAxisRange(pendingZoomRange.start, pendingZoomRange.end);
-      if (nextFocusDate) {
-        activeFocusDate = nextFocusDate;
-      }
-      syncCrossSection(activeFocusDate);
-      rafSyncId = 0;
+    const syncCrossSection = (focusDate) => {
+      const finalDate = focusDate || defaultFocusDate;
+      const crossSectionRows = buildCompareCrossSection(rows, finalDate);
+      renderCompareSummary(rows, metricCfg, crossSectionRows);
+      renderCompareLatestViews(crossSectionRows, metricCfg, lineColorByIndexId);
+    };
+
+    syncCrossSection(defaultFocusDate);
+    applyCompareYAxisRange(0, 100);
+
+    if (!chart || timeline.length < 2) return;
+
+    chart.on("datazoom", () => {
+      const dz = chart.getOption()?.dataZoom?.[0];
+      const rawEndValue = dz?.endValue;
+      const fromEndValue = rawEndValue !== undefined && rawEndValue !== null ? formatAxisDate(rawEndValue) : "";
+      const endPercent = clamp(Number(dz?.end ?? 100), 0, 100);
+      const index = clamp(Math.round((endPercent / 100) * (timeline.length - 1)), 0, timeline.length - 1);
+      const nextFocusDate = fromEndValue || timeline[index] || defaultFocusDate;
+      pendingZoomRange = {
+        start: clamp(Number(dz?.start ?? 0), 0, 100),
+        end: endPercent,
+      };
+
+      if (rafSyncId) cancelAnimationFrame(rafSyncId);
+      rafSyncId = requestAnimationFrame(() => {
+        applyCompareYAxisRange(pendingZoomRange.start, pendingZoomRange.end);
+        if (nextFocusDate) {
+          activeFocusDate = nextFocusDate;
+        }
+        syncCrossSection(activeFocusDate);
+        rafSyncId = 0;
+      });
     });
-  });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "渲染失败";
+    elements.compareTableBody.innerHTML = `<tr><td colspan="4" class="hint">对比渲染失败：${message}</td></tr>`;
+  }
 }
 
 function renderSettings() {
@@ -2799,6 +3044,7 @@ function initSelections() {
 function applyDatasetToUi(payload, initializeSelections = false) {
   state.dataset = payload;
   state.caches.metricSeries.clear();
+  state.caches.seriesPromises.clear();
   buildMetaRows();
   ensureWatchlistDefaults();
   buildSnapshotRows();

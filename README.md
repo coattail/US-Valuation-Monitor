@@ -14,6 +14,7 @@ US Valuation Monitor is a US equity valuation monitoring platform with:
 - Added company detail API endpoints: `/api/company/meta`, `/api/company/snapshot`, `/api/company/series`.
 - Upgraded Mini Program UX: custom nav bar, custom tab bar, compact company cards, and dual-chart detail views.
 - Enhanced Profile page with both index and company watchlist selectors (with independent scroll areas).
+- Optimized company Web loading: lightweight snapshot first, company series loaded on demand.
 
 ## Quick Start
 

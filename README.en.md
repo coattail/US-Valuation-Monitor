@@ -161,7 +161,7 @@ Workflow file:
 Current behavior:
 - Runs on schedule (`cron: 15 13 * * *`) and manual dispatch
 - Executes `npm run build:data`
-- Commits and pushes `data/standardized/valuation-history.json` **only when changed**
+- Commits and pushes standardized dataset outputs **only when changed** (including company snapshot and split series files)
 
 To trigger manually:
 1. Open GitHub repository → **Actions**
@@ -171,6 +171,9 @@ To trigger manually:
 ## 9) Dataset and Runtime Files
 
 - Main dataset: `data/standardized/valuation-history.json`
+- Full company dataset: `data/standardized/company-valuation-history.json`
+- Lightweight company snapshot (for Web first paint): `data/standardized/company-valuation-snapshot.json`
+- Split company series (loaded on demand): `data/standardized/company-series/<company_id>.json`
 - Runtime watchlists: `data/runtime/watchlists.json`
 - Runtime alerts: `data/runtime/alerts.json`
 - Alert states: `data/runtime/alert-state.json`
