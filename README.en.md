@@ -82,6 +82,11 @@ npm run start:web
 Open Web app:
 - `http://127.0.0.1:9030/apps/web/`
 
+GitHub-hosted Web (GitHub Pages):
+- `https://sunny-1991.github.io/us-valuation-monitor/`
+- Direct index board: `https://sunny-1991.github.io/us-valuation-monitor/apps/web/index.html`
+- Direct company board: `https://sunny-1991.github.io/us-valuation-monitor/apps/web/companies.html`
+
 Optional API server:
 
 ```bash

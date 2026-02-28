@@ -82,6 +82,11 @@ npm run start:web
 打开 Web：
 - `http://127.0.0.1:9030/apps/web/`
 
+GitHub 线上访问（GitHub Pages）：
+- `https://sunny-1991.github.io/us-valuation-monitor/`
+- 指数估值页：`https://sunny-1991.github.io/us-valuation-monitor/apps/web/index.html`
+- 企业估值页：`https://sunny-1991.github.io/us-valuation-monitor/apps/web/companies.html`
+
 可选启动 API：
 
 ```bash
