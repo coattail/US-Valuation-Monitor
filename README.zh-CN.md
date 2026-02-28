@@ -171,6 +171,8 @@ npm run start:api
 ## 9）数据文件与运行时文件
 
 - 标准化主数据：`data/standardized/valuation-history.json`
+- 指数轻量快照（Web 首屏使用）：`data/standardized/valuation-snapshot.json`
+- 指数分指数时序（按需加载）：`data/standardized/index-series/<index_id>.json`
 - 企业全量历史：`data/standardized/company-valuation-history.json`
 - 企业轻量快照（Web 首屏使用）：`data/standardized/company-valuation-snapshot.json`
 - 企业分公司时序（按需加载）：`data/standardized/company-series/<company_id>.json`

@@ -2878,6 +2878,12 @@ function switchView(view) {
   setTimeout(resizeActiveCharts, 260);
 }
 
+function getActiveView() {
+  const activePanel = elements.viewPanels.find((panel) => panel.classList.contains("is-active"));
+  if (!activePanel) return "overview";
+  return activePanel.id.replace("view-", "");
+}
+
 function applyTheme() {
   document.body.dataset.theme = "terminal";
 }
@@ -3067,9 +3073,14 @@ function applyDatasetToUi(payload, initializeSelections = false) {
   buildCompareIndexList();
 
   renderOverview();
-  renderDetail();
-  renderCompareCharts();
   renderSettings();
+
+  const activeView = getActiveView();
+  if (activeView === "detail") {
+    renderDetail();
+  } else if (activeView === "compare") {
+    renderCompareCharts();
+  }
 
   applyDataSourceBadge(state.dataset.source);
   setUpdatedChipText(state.dataset.generatedAt);

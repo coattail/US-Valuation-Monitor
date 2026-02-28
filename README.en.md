@@ -171,6 +171,8 @@ To trigger manually:
 ## 9) Dataset and Runtime Files
 
 - Main dataset: `data/standardized/valuation-history.json`
+- Lightweight index snapshot (for Web first paint): `data/standardized/valuation-snapshot.json`
+- Split index series (loaded on demand): `data/standardized/index-series/<index_id>.json`
 - Full company dataset: `data/standardized/company-valuation-history.json`
 - Lightweight company snapshot (for Web first paint): `data/standardized/company-valuation-snapshot.json`
 - Split company series (loaded on demand): `data/standardized/company-series/<company_id>.json`
