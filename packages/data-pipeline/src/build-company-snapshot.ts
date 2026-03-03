@@ -23,6 +23,7 @@ interface RatioAnchor {
   pe_ttm: number | null;
   pe_forward: number | null;
   pb: number | null;
+  peg: number | null;
 }
 
 interface RatioPayload {
@@ -31,6 +32,7 @@ interface RatioPayload {
     pe_ttm: number | null;
     pe_forward: number | null;
     pb: number | null;
+    peg: number | null;
   };
   source: string;
 }
@@ -54,6 +56,7 @@ interface SnapshotPoint {
   pe_ttm: number;
   pe_forward: number | null;
   pb: number;
+  peg: number | null;
   us10y_yield: number;
 }
 
@@ -104,6 +107,7 @@ interface SplitEvent {
 interface PreviousSeries {
   forwardStartDate: string;
   points: SnapshotPoint[];
+  peg?: number | null;
   quarterlyEps?: QuarterlyEpsPoint[];
   quarterlyNetIncome?: QuarterlyNetIncomePoint[];
 }
@@ -162,12 +166,14 @@ const DEFAULT_METRICS = {
   pe_ttm: 20,
   pe_forward: 18,
   pb: 3,
+  peg: 1.5,
 };
 
 const METRIC_MAX = {
   pe_ttm: 1_000_000,
   pe_forward: 1_000_000,
   pb: 1_000_000,
+  peg: 1_000_000,
 };
 
 const LONG_SERIES_FRESH_DAYS = 120;
@@ -232,6 +238,14 @@ function clamp(value: number, min: number, max: number): number {
 
 function toTs(dateText: string): number {
   return Date.parse(`${dateText}T00:00:00Z`) || 0;
+}
+
+function subtractYears(dateText: string, years: number): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateText || ""))) return String(dateText || "");
+  const date = new Date(`${dateText}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return String(dateText || "");
+  date.setUTCFullYear(date.getUTCFullYear() - years);
+  return date.toISOString().slice(0, 10);
 }
 
 function stripTags(raw: string): string {
@@ -1280,6 +1294,13 @@ function extractArrayLiteralByCandidates(
   return [];
 }
 
+function normalizeRatioDateKey(value: unknown): string {
+  const text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (/^\d{4}$/.test(text)) return `${text}-12-31`;
+  return "";
+}
+
 function parseRatioPayloadFromScript(rawText: string): RatioPayload | null {
   const text = String(rawText || "").replace(/\n/g, " ");
   if (!text.includes("financialData:{")) return null;
@@ -1295,6 +1316,12 @@ function parseRatioPayloadFromScript(rawText: string): RatioPayload | null {
     { key: "forwardPe", nextKey: "ps" },
   ]);
   const pbRaw = extractArrayLiteral(text, "pb", "ptbvRatio");
+  const pegRaw = extractArrayLiteralByCandidates(text, [
+    { key: "pegRatio", nextKey: "fiscalYear" },
+    { key: "pegRatio", nextKey: "ttmRevenueGrowth" },
+    { key: "peg", nextKey: "fiscalYear" },
+    { key: "peg", nextKey: "ttmRevenueGrowth" },
+  ]);
 
   const dateKeys = dateKeysRaw.map((item) => String(item || ""));
   if (!dateKeys.length) return null;
@@ -1304,6 +1331,7 @@ function parseRatioPayloadFromScript(rawText: string): RatioPayload | null {
     pe_ttm: null,
     pe_forward: null,
     pb: null,
+    peg: null,
   };
 
   for (let i = 0; i < dateKeys.length; i += 1) {
@@ -1311,24 +1339,28 @@ function parseRatioPayloadFromScript(rawText: string): RatioPayload | null {
     const pe = sanitizeSignedRatio(peRaw[i]);
     const peForward = sanitizeSignedRatio(fwdRaw[i]);
     const pb = sanitizeSignedRatio(pbRaw[i]);
+    const peg = sanitizeSignedRatio(pegRaw[i]);
 
     if (i === 0 || key === "TTM") {
       latest = {
         pe_ttm: pe,
         pe_forward: peForward,
         pb,
+        peg,
       };
       continue;
     }
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
-    if (!pe && !peForward && !pb) continue;
+    const normalizedDate = normalizeRatioDateKey(key);
+    if (!normalizedDate) continue;
+    if (!pe && !peForward && !pb && !peg) continue;
 
     anchors.push({
-      date: key,
+      date: normalizedDate,
       pe_ttm: pe,
       pe_forward: peForward,
       pb,
+      peg,
     });
   }
 
@@ -1342,6 +1374,11 @@ function parseRatioPayloadFromScript(rawText: string): RatioPayload | null {
 function countForwardAnchors(payload: RatioPayload | null): number {
   if (!payload) return 0;
   return payload.anchors.filter((item) => sanitizeSignedRatio(item.pe_forward)).length;
+}
+
+function countPegAnchors(payload: RatioPayload | null): number {
+  if (!payload) return 0;
+  return payload.anchors.filter((item) => sanitizeSignedRatio(item.peg)).length;
 }
 
 function parseYahooKeyStatisticsRatioPayload(rawText: string): RatioPayload | null {
@@ -1369,8 +1406,9 @@ function parseYahooKeyStatisticsRatioPayload(rawText: string): RatioPayload | nu
   const peTtm = pickRawNumberByKeys(["trailingPE", "trailingPe"]);
   const peForward = pickRawNumberByKeys(["forwardPE", "forwardPe"]);
   const pb = pickRawNumberByKeys(["priceToBook", "priceToBookRatio"]);
+  const peg = pickRawNumberByKeys(["pegRatio", "peg"]);
 
-  if (!peTtm && !peForward && !pb) {
+  if (!peTtm && !peForward && !pb && !peg) {
     return null;
   }
 
@@ -1380,8 +1418,58 @@ function parseYahooKeyStatisticsRatioPayload(rawText: string): RatioPayload | nu
       pe_ttm: peTtm,
       pe_forward: peForward,
       pb,
+      peg,
     },
     source: "yahoo-key-statistics-latest",
+  };
+}
+
+function parseYahooTrailingPegTimeseriesPayload(rawText: string): RatioPayload | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const resultList = (((parsed.timeseries as Record<string, unknown> | undefined)?.result as unknown[]) || []).filter(
+    (item) => item && typeof item === "object"
+  ) as Array<Record<string, unknown>>;
+  if (!resultList.length) return null;
+
+  const sourceRows = resultList
+    .map((item) => (Array.isArray(item.trailingPegRatio) ? item.trailingPegRatio : []))
+    .find((rows) => rows.length) as Array<Record<string, unknown>> | undefined;
+  if (!sourceRows || !sourceRows.length) return null;
+
+  let latestPeg: number | null = null;
+  let latestDate = "";
+  for (const row of sourceRows) {
+    if (!row || typeof row !== "object") continue;
+    const asOfDate = String(row.asOfDate || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) continue;
+
+    const rawValue = (row.reportedValue as Record<string, unknown> | undefined)?.raw;
+    const peg = sanitizeSignedRatio(rawValue);
+    if (peg === null) continue;
+
+    if (!latestDate || asOfDate >= latestDate) {
+      latestDate = asOfDate;
+      latestPeg = peg;
+    }
+  }
+
+  if (latestPeg === null) return null;
+
+  return {
+    anchors: [],
+    latest: {
+      pe_ttm: null,
+      pe_forward: null,
+      pb: null,
+      peg: latestPeg,
+    },
+    source: "yahoo-trailing-peg-timeseries",
   };
 }
 
@@ -1389,6 +1477,44 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Rati
   const candidates = [...new Set([symbol, symbol.replace(/\./g, "-"), symbol.replace(/-/g, ".")])]
     .map((item) => String(item || "").trim().toUpperCase())
     .filter(Boolean);
+  const period1 = Math.floor(toTs(HISTORY_START_DATE) / 1000);
+  const period2 = Math.floor(Date.now() / 1000) + 86400 * 30;
+
+  for (const candidate of candidates) {
+    const timeseriesUrl =
+      `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/` +
+      `${encodeURIComponent(candidate)}?type=trailingPegRatio&period1=${period1}&period2=${period2}`;
+
+    try {
+      const { stdout } = await execFileAsync(
+        "curl",
+        [
+          "-4",
+          "-sSL",
+          "--compressed",
+          "--max-time",
+          "25",
+          "-A",
+          "Mozilla/5.0",
+          "-H",
+          "accept-language: en-US,en;q=0.9",
+          timeseriesUrl,
+        ],
+        { maxBuffer: 24 * 1024 * 1024 }
+      );
+      const text = String(stdout || "").trim();
+      if (!text || isRejectedPayload(text)) {
+        continue;
+      }
+
+      const payload = parseYahooTrailingPegTimeseriesPayload(text);
+      if (payload) {
+        return payload;
+      }
+    } catch {
+      // fallback to key-statistics HTML parser
+    }
+  }
 
   for (const candidate of candidates) {
     for (const host of YAHOO_KEY_STATISTICS_HOSTS) {
@@ -1452,9 +1578,10 @@ function applyLatestRatioOverrideAtLastDate(
     pe_forward: sanitizeSignedRatio(latestOverride.latest.pe_forward),
     // Yahoo PB may have mixed share-class/ADR basis on certain tickers; keep existing PB source for stability.
     pb: null,
+    peg: sanitizeSignedRatio(latestOverride.latest.peg),
   };
 
-  if (!overrideLatest.pe_ttm && !overrideLatest.pe_forward && !overrideLatest.pb) {
+  if (!overrideLatest.pe_ttm && !overrideLatest.pe_forward && !overrideLatest.pb && !overrideLatest.peg) {
     return payload;
   }
 
@@ -1465,6 +1592,7 @@ function applyLatestRatioOverrideAtLastDate(
           pe_ttm: sanitizeSignedRatio(payload.latest.pe_ttm),
           pe_forward: sanitizeSignedRatio(payload.latest.pe_forward),
           pb: sanitizeSignedRatio(payload.latest.pb),
+          peg: sanitizeSignedRatio(payload.latest.peg),
         },
         source: payload.source,
       }
@@ -1474,6 +1602,7 @@ function applyLatestRatioOverrideAtLastDate(
           pe_ttm: null,
           pe_forward: null,
           pb: null,
+          peg: null,
         },
         source: "",
       };
@@ -1485,6 +1614,7 @@ function applyLatestRatioOverrideAtLastDate(
       pe_ttm: sanitizeSignedRatio(item.pe_ttm),
       pe_forward: sanitizeSignedRatio(item.pe_forward),
       pb: sanitizeSignedRatio(item.pb),
+      peg: sanitizeSignedRatio(item.peg),
     });
   }
 
@@ -1493,6 +1623,7 @@ function applyLatestRatioOverrideAtLastDate(
     pe_ttm: null,
     pe_forward: null,
     pb: null,
+    peg: null,
   };
 
   if (overrideLatest.pe_ttm) {
@@ -1507,17 +1638,29 @@ function applyLatestRatioOverrideAtLastDate(
     current.pb = overrideLatest.pb;
     base.latest.pb = overrideLatest.pb;
   }
+  if (overrideLatest.peg) {
+    current.peg = overrideLatest.peg;
+    base.latest.peg = overrideLatest.peg;
+  }
 
   byDate.set(lastDate, current);
   base.anchors = [...byDate.values()]
-    .filter((item) => item.pe_ttm || item.pe_forward || item.pb)
+    .filter((item) => item.pe_ttm || item.pe_forward || item.pb || item.peg)
     .sort((a, b) => a.date.localeCompare(b.date));
   base.source = [base.source, latestOverride.source].filter(Boolean).join("+");
   return base;
 }
 
 function mergeRatioPayloadList(payloads: RatioPayload[]): RatioPayload | null {
-  const normalized = payloads.filter((item) => item && (item.anchors.length || item.latest.pe_ttm || item.latest.pe_forward || item.latest.pb));
+  const normalized = payloads.filter(
+    (item) =>
+      item &&
+      (item.anchors.length ||
+        item.latest.pe_ttm ||
+        item.latest.pe_forward ||
+        item.latest.pb ||
+        item.latest.peg)
+  );
   if (!normalized.length) return null;
 
   const byDate = new Map<string, RatioAnchor>();
@@ -1525,6 +1668,7 @@ function mergeRatioPayloadList(payloads: RatioPayload[]): RatioPayload | null {
     pe_ttm: null,
     pe_forward: null,
     pb: null,
+    peg: null,
   };
   const sourceTags: string[] = [];
 
@@ -1537,25 +1681,28 @@ function mergeRatioPayloadList(payloads: RatioPayload[]): RatioPayload | null {
         pe_ttm: null,
         pe_forward: null,
         pb: null,
+        peg: null,
       };
       byDate.set(item.date, {
         date: item.date,
         pe_ttm: current.pe_ttm ?? sanitizeSignedRatio(item.pe_ttm),
         pe_forward: current.pe_forward ?? sanitizeSignedRatio(item.pe_forward),
         pb: current.pb ?? sanitizeSignedRatio(item.pb),
+        peg: current.peg ?? sanitizeSignedRatio(item.peg),
       });
     }
 
     latest.pe_ttm = latest.pe_ttm ?? sanitizeSignedRatio(payload.latest.pe_ttm);
     latest.pe_forward = latest.pe_forward ?? sanitizeSignedRatio(payload.latest.pe_forward);
     latest.pb = latest.pb ?? sanitizeSignedRatio(payload.latest.pb);
+    latest.peg = latest.peg ?? sanitizeSignedRatio(payload.latest.peg);
   }
 
   const anchors = [...byDate.values()]
-    .filter((item) => item.pe_ttm || item.pe_forward || item.pb)
+    .filter((item) => item.pe_ttm || item.pe_forward || item.pb || item.peg)
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  if (!anchors.length && !latest.pe_ttm && !latest.pe_forward && !latest.pb) {
+  if (!anchors.length && !latest.pe_ttm && !latest.pe_forward && !latest.pb && !latest.peg) {
     return null;
   }
 
@@ -1657,6 +1804,7 @@ function parseRatioPayloadFromDataJson(rawText: string): StockAnalysisDataRatioP
   const peRaw = pickArray("pe");
   const fwdRaw = pickArray("peForward", "forwardPE", "forwardPe");
   const pbRaw = pickArray("pb", "ptbvRatio");
+  const pegRaw = pickArray("pegRatio", "peg");
 
   const anchors: RatioAnchor[] = [];
   const ttmIndex = Math.max(
@@ -1667,12 +1815,13 @@ function parseRatioPayloadFromDataJson(rawText: string): StockAnalysisDataRatioP
     pe_ttm: sanitizeSignedRatio(peRaw[ttmIndex]),
     pe_forward: sanitizeSignedRatio(fwdRaw[ttmIndex]),
     pb: sanitizeSignedRatio(pbRaw[ttmIndex]),
+    peg: sanitizeSignedRatio(pegRaw[ttmIndex]),
   };
   const trailingDate = toIsoDateFromText(
     (root.details as Record<string, unknown> | undefined)?.lastTrailingDate
   );
 
-  if (trailingDate && (latest.pe_ttm || latest.pe_forward || latest.pb)) {
+  if (trailingDate && (latest.pe_ttm || latest.pe_forward || latest.pb || latest.peg)) {
     anchors.push({
       date: trailingDate,
       // Keep trailing-date anchor focused on forward/PB to avoid injecting
@@ -1680,6 +1829,7 @@ function parseRatioPayloadFromDataJson(rawText: string): StockAnalysisDataRatioP
       pe_ttm: null,
       pe_forward: latest.pe_forward,
       pb: latest.pb,
+      peg: latest.peg,
     });
   }
 
@@ -1687,23 +1837,26 @@ function parseRatioPayloadFromDataJson(rawText: string): StockAnalysisDataRatioP
     if (i === ttmIndex) continue;
 
     const key = dateKeys[i];
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+    const normalizedDate = normalizeRatioDateKey(key);
+    if (!normalizedDate) continue;
 
     const pe = sanitizeSignedRatio(peRaw[i]);
     const peForward = sanitizeSignedRatio(fwdRaw[i]);
     const pb = sanitizeSignedRatio(pbRaw[i]);
-    if (!pe && !peForward && !pb) continue;
+    const peg = sanitizeSignedRatio(pegRaw[i]);
+    if (!pe && !peForward && !pb && !peg) continue;
 
     anchors.push({
-      date: key,
+      date: normalizedDate,
       pe_ttm: pe,
       pe_forward: peForward,
       pb,
+      peg,
     });
   }
 
   const payload: RatioPayload | null =
-    anchors.length || latest.pe_ttm || latest.pe_forward || latest.pb
+    anchors.length || latest.pe_ttm || latest.pe_forward || latest.pb || latest.peg
       ? {
           anchors: anchors.sort((a, b) => a.date.localeCompare(b.date)),
           latest,
@@ -2139,6 +2292,7 @@ function parseRatioPayloadFromStatisticsDataJson(rawText: string): StockAnalysis
   let peTtm: number | null = null;
   let peForward: number | null = null;
   let pb: number | null = null;
+  let peg: number | null = null;
 
   for (const entry of ratioEntries) {
     if (!entry || typeof entry !== "object") continue;
@@ -2159,10 +2313,14 @@ function parseRatioPayloadFromStatisticsDataJson(rawText: string): StockAnalysis
     }
     if ((id === "pb" || id === "pbratio") && !pb) {
       pb = value;
+      continue;
+    }
+    if ((id === "peg" || id === "pegratio") && !peg) {
+      peg = value;
     }
   }
 
-  if (!peTtm && !peForward && !pb) {
+  if (!peTtm && !peForward && !pb && !peg) {
     return {
       payload: null,
       redirectPath: "",
@@ -2176,6 +2334,7 @@ function parseRatioPayloadFromStatisticsDataJson(rawText: string): StockAnalysis
         pe_ttm: peTtm,
         pe_forward: peForward,
         pb,
+        peg,
       },
       source: "stockanalysis-statistics-data-json",
     },
@@ -3168,11 +3327,13 @@ async function fetchQuarterlyRatioPayload(symbol: string): Promise<RatioPayload 
       await collect("annual");
 
       const mergedPrimary = mergeRatioPayloadList(payloads);
-      const shouldBackfillForward =
+      const shouldBackfillForwardOrPeg =
         !sanitizeSignedRatio(mergedPrimary?.latest.pe_forward) ||
-        countForwardAnchors(mergedPrimary) < MIN_FORWARD_ANCHORS_FOR_HISTORY;
+        countForwardAnchors(mergedPrimary) < MIN_FORWARD_ANCHORS_FOR_HISTORY ||
+        !sanitizeSignedRatio(mergedPrimary?.latest.peg) ||
+        countPegAnchors(mergedPrimary) < MIN_FORWARD_ANCHORS_FOR_HISTORY;
 
-      if (shouldBackfillForward) {
+      if (shouldBackfillForwardOrPeg) {
         const alternatives = [...discoveredSources]
           .map((item) => item.trim().toLowerCase())
           .filter(Boolean)
@@ -3289,12 +3450,14 @@ function mergeRatioPayloads(
       pe_ttm: null,
       pe_forward: null,
       pb: null,
+      peg: null,
     };
     mergedByDate.set(date, {
       date,
       pe_ttm: preferPatch ? patch.pe_ttm ?? current.pe_ttm : current.pe_ttm ?? patch.pe_ttm,
       pe_forward: preferPatch ? patch.pe_forward ?? current.pe_forward : current.pe_forward ?? patch.pe_forward,
       pb: preferPatch ? patch.pb ?? current.pb : current.pb ?? patch.pb,
+      peg: preferPatch ? patch.peg ?? current.peg : current.peg ?? patch.peg,
     });
   };
 
@@ -3304,6 +3467,7 @@ function mergeRatioPayloads(
       pe_ttm: dropStockPeAnchorsDueBasisMismatch ? null : sanitizeSignedRatio(item.pe_ttm),
       pe_forward: sanitizeSignedRatio(item.pe_forward),
       pb: sanitizeSignedRatio(item.pb),
+      peg: sanitizeSignedRatio(item.peg),
     });
   }
 
@@ -3327,20 +3491,30 @@ function mergeRatioPayloads(
       stockPayload?.latest.pe_forward ?? null
     ),
     pb: resolveLatestMetricValue("pb", longPbSeries, stockPayload?.latest.pb ?? null),
+    peg: sanitizeSignedRatio(stockPayload?.latest.peg ?? null),
   };
 
   let anchors = [...mergedByDate.values()]
-    .filter((item) => item.pe_ttm || item.pe_forward || item.pb)
+    .filter((item) => item.pe_ttm || item.pe_forward || item.pb || item.peg)
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  anchors = dropIsolatedMetricSpikeAnchors(anchors, "pe_ttm", {
+    spikeFactor: 1.9,
+    shortPulseSpikeFactor: 1.3,
+    neighborSimilarityFactor: 1.28,
+    maxNeighborGapDays: 16,
+    shortPulseMaxGapDays: 8,
+    minAbsValue: 4,
+  }).filter((item) => item.pe_ttm || item.pe_forward || item.pb || item.peg);
 
   anchors = dropIsolatedMetricSpikeAnchors(anchors, "pe_forward", {
     spikeFactor: 1.8,
     neighborSimilarityFactor: 1.32,
     maxNeighborGapDays: 32,
     minAbsValue: 4,
-  }).filter((item) => item.pe_ttm || item.pe_forward || item.pb);
+  }).filter((item) => item.pe_ttm || item.pe_forward || item.pb || item.peg);
 
-  if (!anchors.length && !latest.pe_ttm && !latest.pe_forward && !latest.pb) {
+  if (!anchors.length && !latest.pe_ttm && !latest.pe_forward && !latest.pb && !latest.peg) {
     return null;
   }
 
@@ -3483,6 +3657,7 @@ function dropForwardPeShortPulseFromPoints(points: SnapshotPoint[]): SnapshotPoi
     pe_ttm: null,
     pe_forward: Number.isFinite(point.pe_forward as number) ? (point.pe_forward as number) : null,
     pb: null,
+    peg: null,
   }));
 
   const cleanedAnchors = dropIsolatedMetricSpikeAnchors(forwardAnchors, "pe_forward", {
@@ -3573,6 +3748,7 @@ function buildUnifiedAnchors(closePoints: ClosePoint[], ratioPayload: RatioPaylo
       pe_ttm: sanitizeSignedRatio(item.pe_ttm),
       pe_forward: sanitizeSignedRatio(item.pe_forward),
       pb: sanitizeSignedRatio(item.pb),
+      peg: sanitizeSignedRatio(item.peg),
     });
   }
 
@@ -3580,14 +3756,16 @@ function buildUnifiedAnchors(closePoints: ClosePoint[], ratioPayload: RatioPaylo
     pe_ttm: null,
     pe_forward: null,
     pb: null,
+    peg: null,
   };
 
-  if (latest.pe_ttm || latest.pe_forward || latest.pb) {
+  if (latest.pe_ttm || latest.pe_forward || latest.pb || latest.peg) {
     const current = byDate.get(lastDate) || {
       date: lastDate,
       pe_ttm: null,
       pe_forward: null,
       pb: null,
+      peg: null,
     };
 
     byDate.set(lastDate, {
@@ -3595,6 +3773,7 @@ function buildUnifiedAnchors(closePoints: ClosePoint[], ratioPayload: RatioPaylo
       pe_ttm: current.pe_ttm ?? sanitizeSignedRatio(latest.pe_ttm),
       pe_forward: current.pe_forward ?? sanitizeSignedRatio(latest.pe_forward),
       pb: current.pb ?? sanitizeSignedRatio(latest.pb),
+      peg: current.peg ?? sanitizeSignedRatio(latest.peg),
     });
   }
 
@@ -3718,11 +3897,18 @@ function projectMetricByAnchorWindow(
       return;
     }
 
-    for (let i = leftIndex; i <= rightIndex; i += 1) {
-      const progress = (i - leftIndex) / steps;
-      const value = leftRatio + (rightRatio - leftRatio) * progress;
-      out[i] = clampRatio(value);
+    const rawLeftDenominator = Number(leftAnchor.denominator);
+    const leftDenominator =
+      Math.abs(rawLeftDenominator) < 1e-6
+        ? rawLeftDenominator < 0
+          ? -1e-6
+          : 1e-6
+        : rawLeftDenominator;
+
+    for (let i = leftIndex; i < rightIndex; i += 1) {
+      out[i] = clampRatio(closePoints[i].close / leftDenominator);
     }
+    out[rightIndex] = clampRatio(rightRatio);
   };
 
   for (let i = 0; i < ordered.length - 1; i += 1) {
@@ -3739,6 +3925,45 @@ function projectMetricByAnchorWindow(
     for (let i = tailIndex; i < closePoints.length; i += 1) {
       out[i] = clampRatio(closePoints[i].close / denominator);
     }
+  }
+
+  return out;
+}
+
+function projectDirectMetricByAnchorCarry(
+  closePoints: ClosePoint[],
+  anchors: RatioAnchor[],
+  key: "peg",
+  min: number,
+  max: number
+): Array<number | null> {
+  if (!closePoints.length || !anchors.length) {
+    return [];
+  }
+
+  const ordered = anchors
+    .map((item) => ({
+      ts: toTs(item.date),
+      value: sanitizeSignedRatio(item[key]),
+    }))
+    .filter((item) => Number.isFinite(item.ts) && Number.isFinite(item.value as number))
+    .sort((a, b) => a.ts - b.ts);
+
+  if (!ordered.length) return [];
+
+  const out: Array<number | null> = Array.from({ length: closePoints.length }, () => null);
+  let anchorIndex = 0;
+  let latestValue: number | null = null;
+
+  for (let i = 0; i < closePoints.length; i += 1) {
+    const pointTs = closePoints[i].ts;
+    while (anchorIndex < ordered.length && ordered[anchorIndex].ts <= pointTs) {
+      latestValue = Number(ordered[anchorIndex].value);
+      anchorIndex += 1;
+    }
+
+    if (!Number.isFinite(latestValue as number)) continue;
+    out[i] = roundTo(clamp(Number(latestValue), min, max), 4);
   }
 
   return out;
@@ -3799,6 +4024,20 @@ function buildValuationSeries(
     -METRIC_MAX.pb,
     METRIC_MAX.pb
   );
+  const pegSeries = projectDirectMetricByAnchorCarry(
+    closePoints,
+    unifiedAnchors,
+    "peg",
+    -METRIC_MAX.peg,
+    METRIC_MAX.peg
+  );
+  const impliedTtmEpsSeries: Array<number | null> = closePoints.map((point, index) => {
+    const close = Number(point.close);
+    const peTtm = Number(peSeries[index]);
+    if (!Number.isFinite(close) || close <= 0) return null;
+    if (!Number.isFinite(peTtm) || Math.abs(peTtm) <= 1e-8) return null;
+    return close / peTtm;
+  });
 
   const points: SnapshotPoint[] = [];
 
@@ -3806,10 +4045,49 @@ function buildValuationSeries(
     const peTtm = peSeries[i];
     const pb = pbSeries[i];
     const peForward = Number.isFinite(forwardSeries[i] as number) ? (forwardSeries[i] as number) : null;
+    const pegFromAnchors = Number.isFinite(pegSeries[i] as number) ? (pegSeries[i] as number) : null;
 
     if (!Number.isFinite(peTtm) || !Number.isFinite(pb)) {
       continue;
     }
+
+    let pegDerived: number | null = null;
+    if (Number.isFinite(peTtm as number) && Number.isFinite(peForward as number) && Math.abs(Number(peForward)) > 1e-8) {
+      const growthRate = Number(peTtm) / Number(peForward) - 1;
+      if (Number.isFinite(growthRate) && Math.abs(growthRate) > 1e-8) {
+        const growthPercent = growthRate * 100;
+        const pegValue = Number(peTtm) / growthPercent;
+        if (Number.isFinite(pegValue)) {
+          pegDerived = roundTo(clamp(pegValue, -METRIC_MAX.peg, METRIC_MAX.peg), 4);
+        }
+      }
+    }
+
+    let pegImpliedGrowth: number | null = null;
+    const impliedCurrentEps = impliedTtmEpsSeries[i];
+    if (Number.isFinite(impliedCurrentEps as number)) {
+      const referenceDate = subtractYears(closePoints[i].date, 1);
+      const referenceTs = toTs(referenceDate);
+      const referenceIndex = referenceTs ? getCloseIndexAtOrBeforeTs(closePoints, referenceTs) : -1;
+      if (referenceIndex >= 0 && referenceIndex < i) {
+        const impliedPrevEps = impliedTtmEpsSeries[referenceIndex];
+        if (Number.isFinite(impliedPrevEps as number) && Math.abs(Number(impliedPrevEps)) > 1e-8) {
+          const growthRate = Number(impliedCurrentEps) / Number(impliedPrevEps) - 1;
+          if (Number.isFinite(growthRate) && Math.abs(growthRate) > 1e-8) {
+            const pegValue = Number(peTtm) / (growthRate * 100);
+            if (Number.isFinite(pegValue)) {
+              pegImpliedGrowth = roundTo(clamp(pegValue, -METRIC_MAX.peg, METRIC_MAX.peg), 4);
+            }
+          }
+        }
+      }
+    }
+
+    const peg = Number.isFinite(pegFromAnchors as number)
+      ? pegFromAnchors
+      : Number.isFinite(pegDerived as number)
+        ? pegDerived
+        : pegImpliedGrowth;
 
     points.push({
       date: closePoints[i].date,
@@ -3817,6 +4095,7 @@ function buildValuationSeries(
       pe_ttm: peTtm as number,
       pe_forward: peForward,
       pb: pb as number,
+      peg,
       us10y_yield: 0,
     });
   }
@@ -4136,6 +4415,84 @@ function overrideRecentPeTtmWithLatestActualTtmEps(
   });
 }
 
+function buildTtmGrowthAnchorsFromQuarterlyEps(
+  quarterlyRows: QuarterlyEpsPoint[]
+): Array<{ date: string; growthRate: number }> {
+  if (!Array.isArray(quarterlyRows) || quarterlyRows.length < 8) return [];
+
+  const actualRows = normalizeQuarterlyEpsRows(quarterlyRows).filter((row) => row.source === "actual");
+  if (actualRows.length < 8) return [];
+
+  const ttmAnchors = buildTtmAnchorsFromQuarterlyEps(actualRows).filter((row) => row.source === "actual");
+  if (ttmAnchors.length < 8) return [];
+
+  const out: Array<{ date: string; growthRate: number }> = [];
+  for (let i = 4; i < ttmAnchors.length; i += 1) {
+    const current = ttmAnchors[i];
+    const prevYear = ttmAnchors[i - 4];
+    const currEps = Number(current.eps);
+    const prevEps = Number(prevYear.eps);
+    if (!Number.isFinite(currEps) || !Number.isFinite(prevEps) || Math.abs(prevEps) <= 1e-8) continue;
+
+    const growthRate = currEps / prevEps - 1;
+    if (!Number.isFinite(growthRate) || Math.abs(growthRate) <= 1e-8) continue;
+    if (Math.abs(growthRate) > 20) continue;
+
+    out.push({
+      date: current.date,
+      growthRate,
+    });
+  }
+
+  const byDate = new Map<string, number>();
+  for (const item of out) {
+    byDate.set(item.date, item.growthRate);
+  }
+
+  return [...byDate.entries()]
+    .map(([date, growthRate]) => ({ date, growthRate }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function enrichPegFromQuarterlyEpsGrowth(
+  valuationPoints: SnapshotPoint[],
+  quarterlyRows: QuarterlyEpsPoint[]
+): SnapshotPoint[] {
+  if (!Array.isArray(valuationPoints) || !valuationPoints.length) return valuationPoints;
+
+  const growthAnchors = buildTtmGrowthAnchorsFromQuarterlyEps(quarterlyRows);
+  if (!growthAnchors.length) return valuationPoints;
+
+  let anchorIndex = 0;
+  let latestGrowthRate: number | null = null;
+  let changed = false;
+
+  const nextPoints = valuationPoints.map((point) => {
+    while (anchorIndex < growthAnchors.length && growthAnchors[anchorIndex].date <= point.date) {
+      latestGrowthRate = growthAnchors[anchorIndex].growthRate;
+      anchorIndex += 1;
+    }
+
+    const currentPeg = Number(point.peg);
+    if (Number.isFinite(currentPeg)) return point;
+    if (!Number.isFinite(latestGrowthRate as number) || Math.abs(Number(latestGrowthRate)) <= 1e-8) return point;
+
+    const peTtm = Number(point.pe_ttm);
+    if (!Number.isFinite(peTtm)) return point;
+
+    const pegValue = peTtm / (Number(latestGrowthRate) * 100);
+    if (!Number.isFinite(pegValue)) return point;
+
+    changed = true;
+    return {
+      ...point,
+      peg: roundTo(clamp(pegValue, -METRIC_MAX.peg, METRIC_MAX.peg), 4),
+    };
+  });
+
+  return changed ? nextPoints : valuationPoints;
+}
+
 async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>> {
   const bySymbol = new Map<string, PreviousSeries>();
 
@@ -4145,6 +4502,7 @@ async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>
       indices?: Array<{
         symbol?: string;
         forwardStartDate?: string;
+        peg?: number | null;
         points?: SnapshotPoint[];
         quarterlyEps?: QuarterlyEpsPoint[];
         quarterlyNetIncome?: QuarterlyNetIncomePoint[];
@@ -4158,6 +4516,7 @@ async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>
 
       bySymbol.set(symbol, {
         forwardStartDate: String(item?.forwardStartDate || points[0]?.date || ""),
+        peg: sanitizeSignedRatio(item?.peg),
         points,
         quarterlyEps: normalizeQuarterlyEpsRows(item?.quarterlyEps),
         quarterlyNetIncome: normalizeQuarterlyNetIncomeRows(item?.quarterlyNetIncome),
@@ -4172,6 +4531,17 @@ async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>
 
 function toCompanyId(symbol: string): string {
   return `company_${symbol.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`;
+}
+
+function stripGrowthOnlyFieldsFromSnapshotPoints(points: SnapshotPoint[]): Array<Record<string, unknown>> {
+  return points
+    .filter((point) => point && typeof point === "object")
+    .map((point) => {
+      const nextPoint = { ...(point as Record<string, unknown>) };
+      delete nextPoint.close;
+      delete nextPoint.peg;
+      return nextPoint;
+    });
 }
 
 async function main(): Promise<void> {
@@ -4216,6 +4586,9 @@ async function main(): Promise<void> {
           description: `${company.displayName} (${company.symbol})`,
           rank: company.rank,
           marketCap: company.marketCap,
+          peg:
+            previousSeries.peg ??
+            null,
           forwardStartDate: previousSeries.forwardStartDate || previousSeries.points[0]?.date || "",
           points: previousSeries.points,
           quarterlyEps: previousSeries.quarterlyEps || [],
@@ -4241,11 +4614,12 @@ async function main(): Promise<void> {
       fetchCloseHistory(company.symbol, company.slug),
       fetchQuarterlyRatioPayload(company.symbol),
       fetchStockAnalysisStatisticsRatioPayload(company.symbol),
-      shouldUseYahooLatestOverride ? fetchYahooKeyStatisticsRatioPayload(company.symbol) : Promise.resolve(null),
+      fetchYahooKeyStatisticsRatioPayload(company.symbol),
       fetchCompaniesMarketCapMetricSeries(company.slug, "pe-ratio"),
       fetchCompaniesMarketCapMetricSeries(company.slug, "pb-ratio"),
       fetchYchartsSeriesBundle(company.symbol),
     ]);
+    const yahooLatestPeg = sanitizeSignedRatio(yahooLatestPayload?.latest.peg ?? null);
 
     const stockPayload = mergeRatioPayloadList(
       [stockQuarterlyPayload, stockStatisticsPayload].filter(Boolean) as RatioPayload[]
@@ -4290,6 +4664,10 @@ async function main(): Promise<void> {
           description: `${company.displayName} (${company.symbol})`,
           rank: company.rank,
           marketCap: company.marketCap,
+          peg:
+            yahooLatestPeg ??
+            previousSeries.peg ??
+            null,
           forwardStartDate: previousSeries.forwardStartDate || previousSeries.points[0]?.date || "",
           points: previousSeries.points,
           quarterlyEps: previousSeries.quarterlyEps || [],
@@ -4317,7 +4695,9 @@ async function main(): Promise<void> {
       sourceHints,
       company.symbol
     );
-    ratioPayload = applyLatestRatioOverrideAtLastDate(ratioPayload, yahooLatestPayload, lastCloseDate);
+    if (shouldUseYahooLatestOverride) {
+      ratioPayload = applyLatestRatioOverrideAtLastDate(ratioPayload, yahooLatestPayload, lastCloseDate);
+    }
     const { points, usedFallback, forwardStartDate } = buildValuationSeries(closePoints, ratioPayload);
     const quarterlyEps = alignQuarterlyEpsToValuationBasis(quarterlyEpsRaw, points);
     const pointsWithLatestActualTtm = overrideRecentPeTtmWithLatestActualTtmEps(points, quarterlyEps);
@@ -4336,6 +4716,10 @@ async function main(): Promise<void> {
           description: `${company.displayName} (${company.symbol})`,
           rank: company.rank,
           marketCap: company.marketCap,
+          peg:
+            yahooLatestPeg ??
+            previousSeries.peg ??
+            null,
           forwardStartDate: previousSeries.forwardStartDate || previousSeries.points[0]?.date || "",
           points: previousSeries.points,
           quarterlyEps: previousSeries.quarterlyEps || [],
@@ -4355,6 +4739,7 @@ async function main(): Promise<void> {
       description: `${company.displayName} (${company.symbol})`,
       rank: company.rank,
       marketCap: company.marketCap,
+      peg: yahooLatestPeg,
       forwardStartDate: forwardStartDate || pointsWithLatestActualTtm[pointsWithLatestActualTtm.length - 1]?.date || "",
       points: pointsWithLatestActualTtm,
       quarterlyEps,
@@ -4372,6 +4757,18 @@ async function main(): Promise<void> {
   const symbolFilterSourceTag = symbolFilter.length
     ? `symbol-filter-target-${symbolFilter.join("_").toLowerCase()}`
     : "symbol-filter-target-all";
+
+  const serializedIndices = indices.map((item) => ({
+    id: item.id,
+    symbol: item.symbol,
+    displayName: item.displayName,
+    description: item.description,
+    rank: item.rank,
+    marketCap: item.marketCap,
+    peg: sanitizeSignedRatio(item.peg ?? null),
+    forwardStartDate: item.forwardStartDate,
+    points: stripGrowthOnlyFieldsFromSnapshotPoints(item.points),
+  }));
 
   const dataset = {
     generatedAt: new Date().toISOString(),
@@ -4391,6 +4788,7 @@ async function main(): Promise<void> {
       "companiesmarketcap-pb-ratio",
       "stockanalysis-quarterly-ratios",
       "stockanalysis-statistics-ratios-latest-fallback",
+      "yahoo-key-statistics-latest-peg",
       "stockanalysis-quarterly-income-eps",
       "stockanalysis-quarterly-income-net-income",
       "stockanalysis-forecast-quarterly-eps",
@@ -4404,7 +4802,7 @@ async function main(): Promise<void> {
       `skipped-${skippedCount}`,
       `history-start-${HISTORY_START_DATE}`,
     ].join("+"),
-    indices,
+    indices: serializedIndices,
   };
 
   await mkdir(OUTPUT_DIR, { recursive: true });

@@ -3,6 +3,8 @@ import type { MetricId, RawValuationPoint, Regime, SeriesMetricPoint, SnapshotRo
 import { INDEX_MAP } from "./constants.ts";
 
 const TRADING_DAYS_PER_YEAR = 252;
+const NEGATIVE_VALUATION_BASE = 1_000_000;
+const NEGATIVE_VALUATION_EPSILON = 1e-6;
 
 function resolveRegime(percentileFull: number): Regime {
   if (percentileFull <= 0.15) return "low";
@@ -10,9 +12,24 @@ function resolveRegime(percentileFull: number): Regime {
   return "neutral";
 }
 
+function metricUsesNegativeAwareRanking(metric: MetricId): boolean {
+  return metric === "pe_ttm" || metric === "pe_forward" || metric === "pb";
+}
+
+function valuationRankValue(value: number): number {
+  if (value >= 0) return value;
+  const abs = Math.max(Math.abs(value), NEGATIVE_VALUATION_EPSILON);
+  return NEGATIVE_VALUATION_BASE + 1 / abs;
+}
+
+function rankMetricValue(metric: MetricId, value: number): number {
+  return metricUsesNegativeAwareRanking(metric) ? valuationRankValue(value) : value;
+}
+
 export function enrichSeries(points: RawValuationPoint[]): ValuationPoint[] {
   const result: ValuationPoint[] = [];
   const peSeries: number[] = [];
+  const peRankSeries: number[] = [];
   const window5 = TRADING_DAYS_PER_YEAR * 5;
   const window10 = TRADING_DAYS_PER_YEAR * 10;
   const window3 = TRADING_DAYS_PER_YEAR * 3;
@@ -20,10 +37,12 @@ export function enrichSeries(points: RawValuationPoint[]): ValuationPoint[] {
   for (let i = 0; i < points.length; i += 1) {
     const point = points[i];
     peSeries.push(point.pe_ttm);
+    const peRankValue = valuationRankValue(point.pe_ttm);
+    peRankSeries.push(peRankValue);
 
-    const percentile5y = percentileRankWindow(peSeries, i - window5 + 1, i, point.pe_ttm);
-    const percentile10y = percentileRankWindow(peSeries, i - window10 + 1, i, point.pe_ttm);
-    const percentileFull = percentileRankWindow(peSeries, 0, i, point.pe_ttm);
+    const percentile5y = percentileRankWindow(peRankSeries, i - window5 + 1, i, peRankValue);
+    const percentile10y = percentileRankWindow(peRankSeries, i - window10 + 1, i, peRankValue);
+    const percentileFull = percentileRankWindow(peRankSeries, 0, i, peRankValue);
 
     const earningsYield = point.pe_ttm > 0 ? 1 / point.pe_ttm : 0;
     const erpProxy = earningsYield - point.us10y_yield;
@@ -55,6 +74,7 @@ export function buildMetricSeries(
 ): SeriesMetricPoint[] {
   const enriched = enrichSeries(points);
   const values: number[] = [];
+  const rankValues: number[] = [];
   const rows: SeriesMetricPoint[] = [];
   const window5 = TRADING_DAYS_PER_YEAR * 5;
   const window10 = TRADING_DAYS_PER_YEAR * 10;
@@ -66,12 +86,14 @@ export function buildMetricSeries(
     }
 
     const metricValue = pickMetricValue(point, metric);
+    const rankValue = rankMetricValue(metric, metricValue);
     values.push(metricValue);
+    rankValues.push(rankValue);
     const valueIndex = values.length - 1;
 
-    const percentile5 = percentileRankWindow(values, valueIndex - window5 + 1, valueIndex, metricValue);
-    const percentile10 = percentileRankWindow(values, valueIndex - window10 + 1, valueIndex, metricValue);
-    const percentileFull = percentileRankWindow(values, 0, valueIndex, metricValue);
+    const percentile5 = percentileRankWindow(rankValues, valueIndex - window5 + 1, valueIndex, rankValue);
+    const percentile10 = percentileRankWindow(rankValues, valueIndex - window10 + 1, valueIndex, rankValue);
+    const percentileFull = percentileRankWindow(rankValues, 0, valueIndex, rankValue);
 
     rows.push({
       date: point.date,

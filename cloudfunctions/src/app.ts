@@ -37,7 +37,14 @@ const WATCHLIST_FILE = ["data", "runtime", "watchlists.json"];
 const ALERTS_FILE = ["data", "runtime", "alerts.json"];
 const ALERT_STATE_FILE = ["data", "runtime", "alert-state.json"];
 const execFileAsync = promisify(execFile);
+type CompanyMetricId = MetricId;
 const METRIC_SET = new Set<MetricId>([
+  "pe_ttm",
+  "pe_forward",
+  "pb",
+  "earnings_yield",
+]);
+const COMPANY_METRIC_SET = new Set<CompanyMetricId>([
   "pe_ttm",
   "pe_forward",
   "pb",
@@ -56,6 +63,7 @@ interface CompanyDatasetIndex {
   forwardStartDate?: string;
   rank?: number;
   marketCap?: number;
+  peg?: number | null;
   points: CompanyValuationPoint[];
   quarterlyNetIncome?: Array<{ date: string; netIncome: number; source?: string }>;
   quarterlyEps?: Array<{ date: string; eps: number; source?: string }>;
@@ -214,6 +222,13 @@ function findIndexSeries(dataset: ValuationDataset, indexId: string): RawValuati
   return index.points;
 }
 
+function stripCompanyPointGrowthFields(point: CompanyValuationPoint): CompanyValuationPoint {
+  const nextPoint = { ...(point as Record<string, unknown>) };
+  delete nextPoint.close;
+  delete nextPoint.peg;
+  return nextPoint as CompanyValuationPoint;
+}
+
 export async function loadDataset(rootDir: string): Promise<ValuationDataset> {
   const dataPath = resolvePath(rootDir, DATA_FILE);
   const payload = await readJsonFile<ValuationDataset | null>(dataPath, null);
@@ -248,7 +263,7 @@ export async function loadCompanyDataset(rootDir: string): Promise<CompanyValuat
     .filter((item) => item && typeof item === "object")
     .map((item) => ({
       ...item,
-      points: Array.isArray(item.points) ? item.points : [],
+      points: Array.isArray(item.points) ? item.points.map((point) => stripCompanyPointGrowthFields(point)) : [],
     }))
     .filter((item) => item.id && item.symbol && item.displayName);
 
@@ -404,6 +419,15 @@ function toFiniteNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(num) ? num : fallback;
 }
 
+const NEGATIVE_VALUATION_BASE = 1_000_000;
+const NEGATIVE_VALUATION_EPSILON = 1e-6;
+
+function valuationRankValue(value: number): number {
+  if (value >= 0) return value;
+  const abs = Math.max(Math.abs(value), NEGATIVE_VALUATION_EPSILON);
+  return NEGATIVE_VALUATION_BASE + 1 / abs;
+}
+
 function findCompanyIndex(dataset: CompanyValuationDataset, indexId: string): CompanyDatasetIndex | null {
   return dataset.indices.find((item) => item.id === indexId) || null;
 }
@@ -447,6 +471,7 @@ function computeLatestCompanyPeStats(points: CompanyValuationPoint[]) {
   const latest = validRows[validRows.length - 1];
   const latestDate = latest.date;
   const latestValue = latest.value;
+  const latestRankValue = valuationRankValue(latestValue);
   const cutoff5 = subtractYears(latestDate, 5);
   const cutoff10 = subtractYears(latestDate, 10);
   const cutoff3 = subtractYears(latestDate, 3);
@@ -460,7 +485,7 @@ function computeLatestCompanyPeStats(points: CompanyValuationPoint[]) {
 
   const percentileFromRows = (rows: Array<{ date: string; value: number }>) => {
     if (!rows.length) return 0.5;
-    const count = rows.filter((row) => row.value <= latestValue).length;
+    const count = rows.filter((row) => valuationRankValue(row.value) <= latestRankValue).length;
     return Math.max(0, Math.min(1, count / rows.length));
   };
 
@@ -494,7 +519,7 @@ function computeLatestCompanyPeStats(points: CompanyValuationPoint[]) {
     percentile_10y: percentile10,
     percentile_full: percentileFull,
     z_score_3y: zScore3y,
-    regime: regimeFromPercentile(percentileFull),
+    regime: regimeFromPercentile(percentile10),
     pe_ttm_change_1y: peChange1y,
   };
 }
@@ -534,6 +559,7 @@ function buildCompanySnapshotRow(item: CompanyDatasetIndex) {
     pe_ttm: toFiniteNumber(latestRaw?.pe_ttm, 0),
     pe_forward: toFiniteNumber(latestRaw?.pe_forward, 0),
     pb: toFiniteNumber(latestRaw?.pb, 0),
+    peg: Number.isFinite(Number(item.peg)) ? Number(item.peg) : null,
     earnings_yield:
       Number.isFinite(latestPe) && Math.abs(latestPe) > 1e-12 ? Number((1 / latestPe).toFixed(8)) : 0,
     percentile_5y: peStats.percentile_5y,
@@ -585,11 +611,11 @@ function buildCompanySnapshotPayloadCached(dataset: CompanyValuationDataset) {
 export function buildCompanySeriesPayload(
   dataset: CompanyValuationDataset,
   indexId: string,
-  metric: MetricId,
+  metric: CompanyMetricId,
   fromDate?: string,
   toDate?: string
 ) {
-  if (!METRIC_SET.has(metric)) {
+  if (!COMPANY_METRIC_SET.has(metric)) {
     throw new Error(`Invalid metric: ${metric}`);
   }
 
@@ -862,7 +888,7 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
           json(res, 400, { error: "Invalid indexId" });
           return;
         }
-        if (!METRIC_SET.has(metric as MetricId)) {
+        if (!COMPANY_METRIC_SET.has(metric as CompanyMetricId)) {
           json(res, 400, { error: "Invalid metric" });
           return;
         }
@@ -870,7 +896,7 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
         json(
           res,
           200,
-          buildCompanySeriesPayload(companyDataset, indexId, metric as MetricId, fromDate, toDate)
+          buildCompanySeriesPayload(companyDataset, indexId, metric as CompanyMetricId, fromDate, toDate)
         );
         return;
       }

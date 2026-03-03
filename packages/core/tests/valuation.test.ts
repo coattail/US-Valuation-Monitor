@@ -43,6 +43,39 @@ test("buildMetricSeries percentile uses filtered range only", () => {
   assert.equal(rows[1].percentile_full, 1);
 });
 
+test("buildMetricSeries treats negative PE as higher valuation than positive", () => {
+  const points = [
+    { date: "2026-01-02", pe_ttm: 12, pe_forward: 10, pb: 2.4, us10y_yield: 0.03 },
+    { date: "2026-01-03", pe_ttm: -8, pe_forward: -6, pb: -1.2, us10y_yield: 0.03 },
+  ];
+
+  const rows = buildMetricSeries(points, "pe_ttm");
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1].percentile_full, 1);
+});
+
+test("buildMetricSeries ranks smaller absolute negative PE as more expensive", () => {
+  const points = [
+    { date: "2026-01-02", pe_ttm: -2, pe_forward: -1.8, pb: -0.5, us10y_yield: 0.03 },
+    { date: "2026-01-03", pe_ttm: -12, pe_forward: -10, pb: -2.5, us10y_yield: 0.03 },
+  ];
+
+  const rows = buildMetricSeries(points, "pe_ttm");
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1].percentile_full, 0.5);
+});
+
+test("buildMetricSeries applies the same negative-aware ranking to PB", () => {
+  const points = [
+    { date: "2026-01-02", pe_ttm: 16, pe_forward: 14, pb: 3.5, us10y_yield: 0.03 },
+    { date: "2026-01-03", pe_ttm: 15, pe_forward: 13.5, pb: -0.8, us10y_yield: 0.03 },
+  ];
+
+  const rows = buildMetricSeries(points, "pb");
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1].percentile_full, 1);
+});
+
 test("buildSnapshot returns latest row", () => {
   const snapshot = buildSnapshot("sp500", rawPoints);
   assert.equal(snapshot.date, "2026-01-07");

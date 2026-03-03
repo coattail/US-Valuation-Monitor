@@ -13,7 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700&family=Source+Serif+4:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260227-card-index-ticker-watermark-v23" />
+    <link rel="stylesheet" href="./styles.css?v=20260303-remove-growth-series-v24" />
   </head>
   <body data-theme="terminal">
     <div class="site-bg"></div>
@@ -61,7 +61,10 @@
                 <option value="percentile_desc">10Y分位从高到低</option>
                 <option value="percentile_asc">10Y分位从低到高</option>
                 <option value="pe_desc">PE 从高到低</option>
+                <option value="pe_asc">PE 从低到高</option>
                 <option value="pb_desc">PB 从高到低</option>
+                <option value="pb_asc">PB 从低到高</option>
+                <option value="peg_asc">PEG 从低到高</option>
                 <option value="name">名称 A-Z</option>
               </select>
             </label>
@@ -96,7 +99,6 @@
                 <option value="pe_ttm">PE (TTM)</option>
                 <option value="pe_forward">PE (Forward)</option>
                 <option value="pb">PB</option>
-                <option value="earnings_yield">Earnings Yield</option>
               </select>
             </label>
             <div class="range-chip-group" id="detail-range-chips">
@@ -123,11 +125,6 @@
               <div id="detail-percentile-track" class="percentile-track"></div>
             </div>
           </div>
-          <div class="panel-title-row compact detail-growth-title-row">
-            <h3>股价 vs 滚动净利润（定基100）</h3>
-            <span id="detail-eps-price-hint" class="hint">区间起点=100</span>
-          </div>
-          <div id="detail-eps-price-chart" class="chart-medium detail-growth-chart"></div>
           <div id="detail-stats" class="detail-stats"></div>
         </article>
       </section>
@@ -146,7 +143,6 @@
                 <option value="pe_ttm">PE (TTM)</option>
                 <option value="pe_forward">PE (Forward)</option>
                 <option value="pb">PB</option>
-                <option value="earnings_yield">Earnings Yield</option>
               </select>
             </label>
             <label>
@@ -257,6 +253,6 @@
     <div id="toast" class="toast"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <script type="module" src="./company-app.js?v=20260228-company-adr-tag-v23"></script>
+    <script type="module" src="./company-app.js?v=20260304-company-sort-asc-v28"></script>
   </body>
 </html>

@@ -1273,24 +1273,6 @@ input:focus {
   margin-top: 0;
 }
 
-.detail-growth-title-row {
-  margin-top: 6px;
-}
-
-.detail-growth-chart {
-  width: 50%;
-  max-width: 100%;
-  min-width: 460px;
-  align-self: flex-start;
-  height: clamp(364px, 52vh, 533px);
-  border: 1px solid rgba(174, 194, 245, 0.28);
-  border-radius: var(--radius-soft);
-  padding: 8px;
-  background:
-    radial-gradient(circle at 10% -24%, rgba(156, 188, 255, 0.18), transparent 48%),
-    linear-gradient(156deg, rgba(35, 53, 107, 0.72), rgba(27, 40, 84, 0.9));
-}
-
 .detail-controls,
 .compare-controls {
   display: flex;
@@ -1802,10 +1784,6 @@ input:focus {
     grid-template-columns: 1fr 64px 64px 64px 60px;
   }
 
-  .detail-growth-chart {
-    width: 100%;
-    min-width: 0;
-  }
 }
 
 @media (max-width: 760px) {
@@ -1875,12 +1853,6 @@ input:focus {
 
   .chart-medium {
     height: 34vh;
-  }
-
-  .detail-growth-chart {
-    width: 100%;
-    min-width: 0;
-    height: clamp(325px, 47vh, 442px);
   }
 
   .regime-title-row {

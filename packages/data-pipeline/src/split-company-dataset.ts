@@ -7,7 +7,9 @@ interface CompanyValuationPoint {
   pe_ttm?: number | null;
   pe_forward?: number | null;
   pb?: number | null;
+  peg?: number | null;
   close?: number | null;
+  [key: string]: unknown;
 }
 
 interface CompanyIndexInput {
@@ -17,6 +19,7 @@ interface CompanyIndexInput {
   description?: string;
   rank?: number;
   marketCap?: number;
+  peg?: number | null;
   forwardStartDate?: string;
   points?: CompanyValuationPoint[];
   quarterlyEps?: Array<{ date: string; eps?: number; source?: string }>;
@@ -44,6 +47,7 @@ interface CompanySnapshotIndex {
   pe_ttm: number | null;
   pe_forward: number | null;
   pb: number | null;
+  peg: number | null;
   percentile_5y: number;
   percentile_10y: number;
   percentile_full: number;
@@ -58,14 +62,24 @@ const DATA_DIR = path.join(ROOT_DIR, "data", "standardized");
 const INPUT_FILE = path.join(DATA_DIR, "company-valuation-history.json");
 const SNAPSHOT_FILE = path.join(DATA_DIR, "company-valuation-snapshot.json");
 const SERIES_DIR = path.join(DATA_DIR, "company-series");
+const NEGATIVE_VALUATION_BASE = 1_000_000;
+const NEGATIVE_VALUATION_EPSILON = 1e-6;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
 function toFiniteNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && !value.trim()) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function valuationRankValue(value: number): number {
+  if (value >= 0) return value;
+  const abs = Math.max(Math.abs(value), NEGATIVE_VALUATION_EPSILON);
+  return NEGATIVE_VALUATION_BASE + 1 / abs;
 }
 
 function subtractYears(dateText: string, years: number): string {
@@ -105,6 +119,7 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
   const latestRow = validRows[validRows.length - 1];
   const latestDate = latestRow.date;
   const latestPe = Number(latestRow.pe);
+  const latestPeRank = valuationRankValue(latestPe);
 
   const cutoff5 = subtractYears(latestDate, 5);
   const cutoff10 = subtractYears(latestDate, 10);
@@ -120,7 +135,7 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
 
   const percentileFromRows = (rows: Array<{ date: string; pe: number | null }>) => {
     if (!rows.length) return 0.5;
-    const count = rows.filter((row) => Number(row.pe) <= latestPe).length;
+    const count = rows.filter((row) => valuationRankValue(Number(row.pe)) <= latestPeRank).length;
     return clamp(count / rows.length, 0, 1);
   };
 
@@ -155,7 +170,7 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
     percentile_full: percentileFull,
     z_score_3y: zScore3y,
     pe_ttm_change_1y: peChange1y,
-    regime: regimeFromPercentile(percentileFull),
+    regime: regimeFromPercentile(percentile10),
   };
 }
 
@@ -179,6 +194,7 @@ function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
     pe_ttm: toFiniteNumber(latestPoint.pe_ttm),
     pe_forward: toFiniteNumber(latestPoint.pe_forward),
     pb: toFiniteNumber(latestPoint.pb),
+    peg: toFiniteNumber(item.peg),
     percentile_5y: peStats.percentile_5y,
     percentile_10y: peStats.percentile_10y,
     percentile_full: peStats.percentile_full,
@@ -186,6 +202,17 @@ function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
     pe_ttm_change_1y: peStats.pe_ttm_change_1y,
     regime: peStats.regime,
   };
+}
+
+function stripGrowthOnlyFieldsFromPoints(points: CompanyValuationPoint[]): CompanyValuationPoint[] {
+  return points
+    .filter((point) => point && typeof point === "object")
+    .map((point) => {
+      const nextPoint = { ...(point as Record<string, unknown>) };
+      delete nextPoint.close;
+      delete nextPoint.peg;
+      return nextPoint as CompanyValuationPoint;
+    });
 }
 
 async function removeStaleSeriesFiles(validFileNames: Set<string>): Promise<void> {
@@ -214,8 +241,6 @@ async function main(): Promise<void> {
       symbol: String(item.symbol || "").trim().toUpperCase(),
       displayName: String(item.displayName || "").trim(),
       points: Array.isArray(item.points) ? item.points : [],
-      quarterlyEps: Array.isArray(item.quarterlyEps) ? item.quarterlyEps : [],
-      quarterlyNetIncome: Array.isArray(item.quarterlyNetIncome) ? item.quarterlyNetIncome : [],
     }))
     .filter((item) => item.id && item.symbol && item.displayName);
 
@@ -258,9 +283,7 @@ async function main(): Promise<void> {
       rank: Number(item.rank || 9999),
       marketCap: Number(item.marketCap || 0),
       forwardStartDate: String(item.forwardStartDate || item.points[item.points.length - 1]?.date || ""),
-      points: item.points,
-      quarterlyEps: item.quarterlyEps,
-      quarterlyNetIncome: item.quarterlyNetIncome,
+      points: stripGrowthOnlyFieldsFromPoints(item.points),
     };
     return writeFile(filePath, `${JSON.stringify(payload)}\n`, "utf8");
   });

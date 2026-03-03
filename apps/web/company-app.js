@@ -36,8 +36,9 @@ const METRIC_CONFIG = {
   pe_ttm: { label: "PE (TTM)", digits: 2 },
   pe_forward: { label: "PE (Forward)", digits: 2 },
   pb: { label: "PB", digits: 2 },
-  earnings_yield: { label: "Earnings Yield", digits: 2, percentage: true },
 };
+const NEGATIVE_VALUATION_BASE = 1_000_000;
+const NEGATIVE_VALUATION_EPSILON = 1e-6;
 
 const COMPARE_LINE_COLORS = [
   "#6b90ff",
@@ -144,8 +145,6 @@ const elements = {
   detailPercentileTrack: document.getElementById("detail-percentile-track"),
   detailChart: document.getElementById("detail-chart"),
   detailPercentileChart: document.getElementById("detail-percentile-chart"),
-  detailEpsPriceHint: document.getElementById("detail-eps-price-hint"),
-  detailEpsPriceChart: document.getElementById("detail-eps-price-chart"),
 
   compareMetric: document.getElementById("compare-metric"),
   compareRange: document.getElementById("compare-range"),
@@ -172,7 +171,6 @@ const elements = {
 const charts = {
   detail: null,
   detailPercentile: null,
-  detailEpsPrice: null,
   compare: null,
 };
 
@@ -204,6 +202,8 @@ function roundTo(value, digits = 2) {
 }
 
 function toFiniteNumber(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && !value.trim()) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -296,6 +296,20 @@ function percentileWindow(values, startIndex, endIndex, current) {
     if (values[i] <= current) count += 1;
   }
   return clamp(count / length, 0, 1);
+}
+
+function metricUsesNegativeAwareRanking(metric) {
+  return metric === "pe_ttm" || metric === "pe_forward" || metric === "pb";
+}
+
+function valuationRankValue(value) {
+  if (value >= 0) return value;
+  const abs = Math.max(Math.abs(value), NEGATIVE_VALUATION_EPSILON);
+  return NEGATIVE_VALUATION_BASE + 1 / abs;
+}
+
+function metricRankValue(metric, value) {
+  return metricUsesNegativeAwareRanking(metric) ? valuationRankValue(value) : value;
 }
 
 function zScoreWindow(values, startIndex, endIndex, current) {
@@ -397,6 +411,7 @@ function computeLatestPeStats(points) {
 
   const latestRow = validRows[validRows.length - 1];
   const latestPe = latestRow.pe;
+  const latestPeRank = metricRankValue("pe_ttm", latestPe);
   const latestDate = latestRow.date;
 
   const cutoff5 = subtractYears(latestDate, 5);
@@ -413,7 +428,7 @@ function computeLatestPeStats(points) {
 
   const percentileFromRows = (rows) => {
     if (!rows.length) return 0.5;
-    const count = rows.filter((row) => row.pe <= latestPe).length;
+    const count = rows.filter((row) => metricRankValue("pe_ttm", Number(row.pe)) <= latestPeRank).length;
     return clamp(count / rows.length, 0, 1);
   };
 
@@ -447,7 +462,7 @@ function computeLatestPeStats(points) {
     percentile_10y: pct10,
     percentile_full: pctFull,
     z_score_3y: zScore3y,
-    regime: regimeFromPercentile(pctFull),
+    regime: regimeFromPercentile(pct10),
     pe_ttm_change_1y: peChange1y,
   };
 }
@@ -459,12 +474,19 @@ function regimeLabel(regime) {
 }
 
 function metricValueFromRaw(point, metric) {
-  if (metric === "earnings_yield") {
-    const pe = toFiniteNumber(point?.pe_ttm);
-    if (pe === null || Math.abs(pe) <= 1e-12) return null;
-    return 1 / pe;
-  }
   return toFiniteNumber(point?.[metric]);
+}
+
+function stripGrowthOnlyFieldsFromPoints(points) {
+  if (!Array.isArray(points) || !points.length) return [];
+  return points
+    .filter((point) => point && typeof point === "object")
+    .map((point) => {
+      const nextPoint = { ...point };
+      delete nextPoint.close;
+      delete nextPoint.peg;
+      return nextPoint;
+    });
 }
 
 function normalizeSnapshotDataset(payload) {
@@ -478,7 +500,7 @@ function normalizeSnapshotDataset(payload) {
       const displayName = String(item.displayName || "").trim();
       if (!id || !symbol || !displayName) return null;
 
-      const points = Array.isArray(item.points) ? item.points : [];
+      const points = stripGrowthOnlyFieldsFromPoints(item.points);
       const firstPoint = points[0] || null;
       const lastPoint = points[points.length - 1] || null;
 
@@ -499,6 +521,7 @@ function normalizeSnapshotDataset(payload) {
         pe_ttm: toFiniteNumber(item.pe_ttm),
         pe_forward: toFiniteNumber(item.pe_forward),
         pb: toFiniteNumber(item.pb),
+        peg: toFiniteNumber(item.peg),
         percentile_5y: Number.isFinite(Number(item.percentile_5y))
           ? clamp(Number(item.percentile_5y), 0, 1)
           : null,
@@ -514,8 +537,6 @@ function normalizeSnapshotDataset(payload) {
           : null,
         regime: String(item.regime || ""),
         points,
-        quarterlyEps: Array.isArray(item.quarterlyEps) ? item.quarterlyEps : [],
-        quarterlyNetIncome: Array.isArray(item.quarterlyNetIncome) ? item.quarterlyNetIncome : [],
       };
     })
     .filter(Boolean);
@@ -569,7 +590,7 @@ function getDatasetIndex(indexId) {
 function normalizeSeriesPayload(payload, indexId = "") {
   if (!payload || typeof payload !== "object") return null;
 
-  const points = Array.isArray(payload.points) ? payload.points : [];
+  const points = stripGrowthOnlyFieldsFromPoints(payload.points);
   const id = String(payload.indexId || payload.id || indexId || "").trim();
   if (!id || !points.length) return null;
 
@@ -580,8 +601,6 @@ function normalizeSeriesPayload(payload, indexId = "") {
     description: String(payload.description || ""),
     forwardStartDate: String(payload.forwardStartDate || ""),
     points,
-    quarterlyEps: Array.isArray(payload.quarterlyEps) ? payload.quarterlyEps : [],
-    quarterlyNetIncome: Array.isArray(payload.quarterlyNetIncome) ? payload.quarterlyNetIncome : [],
   };
 }
 
@@ -628,9 +647,7 @@ async function ensureIndexSeriesLoaded(indexId) {
     if (!target) return null;
 
     target.forwardStartDate = payload.forwardStartDate || target.forwardStartDate || "";
-    target.points = Array.isArray(payload.points) ? payload.points : [];
-    target.quarterlyEps = Array.isArray(payload.quarterlyEps) ? payload.quarterlyEps : [];
-    target.quarterlyNetIncome = Array.isArray(payload.quarterlyNetIncome) ? payload.quarterlyNetIncome : [];
+    target.points = stripGrowthOnlyFieldsFromPoints(payload.points);
 
     if (!target.startDate) {
       target.startDate = String(target.points[0]?.date || "");
@@ -797,6 +814,7 @@ function getMetricSeries(indexId, metric) {
 
   const forwardStartDate = metric === "pe_forward" ? (indexData.forwardStartDate || points[points.length - 1]?.date || "") : "";
   const values = [];
+  const rankValues = [];
   const dates = [];
   const result = [];
   let start5 = 0;
@@ -812,7 +830,9 @@ function getMetricSeries(indexId, metric) {
     if (!Number.isFinite(value)) {
       continue;
     }
+    const rankValue = metricRankValue(metric, value);
     values.push(value);
+    rankValues.push(rankValue);
     dates.push(point.date);
     const valueIndex = values.length - 1;
 
@@ -824,9 +844,9 @@ function getMetricSeries(indexId, metric) {
     while (start10 < valueIndex && dates[start10] < cutoff10) start10 += 1;
     while (start3 < valueIndex && dates[start3] < cutoff3) start3 += 1;
 
-    const pct5 = percentileWindow(values, start5, valueIndex, value);
-    const pct10 = percentileWindow(values, start10, valueIndex, value);
-    const pctFull = percentileWindow(values, 0, valueIndex, value);
+    const pct5 = percentileWindow(rankValues, start5, valueIndex, rankValue);
+    const pct10 = percentileWindow(rankValues, start10, valueIndex, rankValue);
+    const pctFull = percentileWindow(rankValues, 0, valueIndex, rankValue);
 
     result.push({
       date: point.date,
@@ -858,7 +878,7 @@ function buildSnapshotRows() {
           percentile_full: clamp(Number(indexData.percentile_full), 0, 1),
           z_score_3y: Number(indexData.z_score_3y || 0),
           pe_ttm_change_1y: Number(indexData.pe_ttm_change_1y || 0),
-          regime: String(indexData.regime || "") || regimeFromPercentile(Number(indexData.percentile_full || 0.5)),
+          regime: regimeFromPercentile(clamp(Number(indexData.percentile_10y), 0, 1)),
         }
       : computeLatestPeStats(points);
 
@@ -873,6 +893,7 @@ function buildSnapshotRows() {
       pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm) ?? 0,
       pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward) ?? 0,
       pb: toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb) ?? 0,
+      peg: toFiniteNumber(indexData.peg),
       percentile_5y: latestPe.percentile_5y,
       percentile_10y: latestPe.percentile_10y,
       percentile_full: latestPe.percentile_full,
@@ -909,8 +930,14 @@ function getOverviewFilteredRows() {
         return a.percentile_10y - b.percentile_10y;
       case "pe_desc":
         return b.pe_ttm - a.pe_ttm;
+      case "pe_asc":
+        return a.pe_ttm - b.pe_ttm;
       case "pb_desc":
         return b.pb - a.pb;
+      case "pb_asc":
+        return a.pb - b.pb;
+      case "peg_asc":
+        return Number(a.peg ?? Number.POSITIVE_INFINITY) - Number(b.peg ?? Number.POSITIVE_INFINITY);
       case "name":
         return a.displayName.localeCompare(b.displayName, "en");
       case "percentile_desc":
@@ -979,6 +1006,7 @@ function renderSnapshotGrid(rows) {
         <div class="line"><span>PE(TTM)</span><strong>${fmt(row.pe_ttm, 2)}</strong></div>
         <div class="line"><span>PE(FWD)</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
         <div class="line"><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
+        <div class="line"><span>PEG</span><strong>${fmt(row.peg, 2)}</strong></div>
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(row.pe_ttm_change_1y * 100, 1, true)}</strong></div>
         <div class="line"><span>PE百分位（近十年）</span><strong style="color:${percentileColor(row.percentile_10y)}">${fmtPct(row.percentile_10y, 1)}</strong></div>
         <div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>
@@ -1052,34 +1080,6 @@ function applyZoomRange(chart, range) {
   });
 }
 
-function parseSeriesDataPoint(item) {
-  const rawDate = Array.isArray(item) ? item[0] : item?.value?.[0];
-  const rawValue = Array.isArray(item) ? item[1] : item?.value?.[1];
-  const value =
-    rawValue === null || rawValue === undefined || rawValue === ""
-      ? Number.NaN
-      : Number(rawValue);
-  let dateText = "";
-  if (rawDate instanceof Date) {
-    if (Number.isFinite(rawDate.getTime())) {
-      dateText = rawDate.toISOString().slice(0, 10);
-    }
-  } else if (typeof rawDate === "number" && Number.isFinite(rawDate)) {
-    const date = new Date(rawDate);
-    if (Number.isFinite(date.getTime())) {
-      dateText = date.toISOString().slice(0, 10);
-    }
-  } else {
-    dateText = String(rawDate || "");
-  }
-  const ts = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? Date.parse(`${dateText}T00:00:00Z`) : Date.parse(dateText);
-  return {
-    date: dateText,
-    ts: Number.isFinite(ts) ? ts : NaN,
-    value,
-  };
-}
-
 function resolveYAxisRangeFromSeriesData(seriesData, startPercent, endPercent, lockMinZeroIfNonNegative = false) {
   if (!Array.isArray(seriesData) || !seriesData.length) return null;
 
@@ -1116,65 +1116,6 @@ function resolveYAxisRangeFromSeriesData(seriesData, startPercent, endPercent, l
   max += pad * 0.35;
 
   if (min === max) {
-    min -= pad;
-    max += pad;
-  }
-
-  return {
-    min: roundTo(min, 3),
-    max: roundTo(max, 3),
-  };
-}
-
-function resolveYAxisRangeFromMultiSeries(seriesList, startPercent, endPercent) {
-  if (!Array.isArray(seriesList) || !seriesList.length) return null;
-
-  const values = [];
-  for (const seriesData of seriesList) {
-    if (!Array.isArray(seriesData) || !seriesData.length) continue;
-    const points = seriesData
-      .map((item) => parseSeriesDataPoint(item))
-      .filter((point) => Number.isFinite(point.ts) && Number.isFinite(point.value));
-    if (!points.length) continue;
-
-    const total = points.length;
-    const lo = clamp(Math.floor((clamp(startPercent, 0, 100) / 100) * (total - 1)), 0, total - 1);
-    const hi = clamp(Math.ceil((clamp(endPercent, 0, 100) / 100) * (total - 1)), 0, total - 1);
-    const from = Math.min(lo, hi);
-    const to = Math.max(lo, hi);
-
-    for (let i = from; i <= to; i += 1) {
-      const value = points[i]?.value;
-      if (Number.isFinite(value)) {
-        values.push(value);
-      }
-    }
-  }
-
-  if (!values.length) return null;
-
-  let min = Math.min(...values);
-  let max = Math.max(...values);
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-
-  if (min >= 0) {
-    const span = Math.max(max - min, 1e-6);
-    const topPad = Math.max(span * 0.14, Math.abs(max) * 0.05, 0.8);
-    return {
-      min: 0,
-      max: roundTo(max + topPad, 3),
-    };
-  }
-
-  const span = Math.max(max - min, 1e-6);
-  const topPad = Math.max(span * 0.14, Math.abs(max) * 0.05, 0.8);
-  const bottomPad = Math.max(span * 0.08, Math.abs(min) * 0.03, 0.4);
-
-  min -= bottomPad;
-  max += topPad;
-
-  if (min === max) {
-    const pad = Math.max(Math.abs(max) * 0.08, 1);
     min -= pad;
     max += pad;
   }
@@ -1259,7 +1200,7 @@ function sanitizeLegacyStaticMetricOption() {
   const cleanSelect = (selectEl) => {
     if (!selectEl) return;
     [...selectEl.options].forEach((option) => {
-      if (String(option.value || "").trim() === "pe_static") {
+      if (["pe_static", "earnings_yield"].includes(String(option.value || "").trim())) {
         option.remove();
       }
     });
@@ -1284,227 +1225,6 @@ function filterRowsByRange(rows, rangeCode) {
   return filtered;
 }
 
-function quarterKeyFromDate(dateText) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateText || ""))) return "";
-  const year = Number(String(dateText).slice(0, 4));
-  const month = Number(String(dateText).slice(5, 7));
-  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return "";
-  const quarter = Math.floor((month - 1) / 3) + 1;
-  return `${year}-Q${quarter}`;
-}
-
-function normalizeQuarterlyEpsRows(rawRows) {
-  if (!Array.isArray(rawRows) || !rawRows.length) return [];
-
-  const byQuarter = new Map();
-
-  for (const rawRow of rawRows) {
-    if (!rawRow || typeof rawRow !== "object") continue;
-    const date = String(rawRow.date || "");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-
-    const eps = Number(rawRow.netIncome ?? rawRow.eps);
-    if (!Number.isFinite(eps)) continue;
-
-    const quarterKey = quarterKeyFromDate(date);
-    if (!quarterKey) continue;
-
-    const source = rawRow.source === "expected" ? "expected" : "actual";
-    const existing = byQuarter.get(quarterKey);
-    if (!existing || (existing.source === "expected" && source === "actual")) {
-      byQuarter.set(quarterKey, {
-        date,
-        eps,
-        source,
-        quarterKey,
-      });
-      continue;
-    }
-
-    if (existing.source === source && date < existing.date) {
-      byQuarter.set(quarterKey, {
-        date,
-        eps,
-        source,
-        quarterKey,
-      });
-    }
-  }
-
-  return [...byQuarter.values()].sort((a, b) => a.date.localeCompare(b.date));
-}
-
-function buildTtmAnchorsFromQuarterlyEps(quarterlyRows, latestPriceDate = "") {
-  if (!Array.isArray(quarterlyRows) || quarterlyRows.length < 4) return [];
-
-  const anchors = [];
-  for (let i = 3; i < quarterlyRows.length; i += 1) {
-    const window = quarterlyRows.slice(i - 3, i + 1);
-    if (window.some((row) => !Number.isFinite(Number(row?.eps)))) continue;
-
-    const isWindowContiguous = window.slice(1).every((row, idx) => {
-      const prevDate = Date.parse(`${window[idx].date}T00:00:00Z`);
-      const currDate = Date.parse(`${row.date}T00:00:00Z`);
-      if (!Number.isFinite(prevDate) || !Number.isFinite(currDate)) return false;
-      const dayGap = (currDate - prevDate) / 86_400_000;
-      return dayGap >= 40 && dayGap <= 140;
-    });
-    if (!isWindowContiguous) continue;
-
-    const current = quarterlyRows[i];
-    const ttm = window.reduce((sum, row) => sum + Number(row.eps), 0);
-    let anchorDate = current.date;
-    if (current.source === "expected" && latestPriceDate && anchorDate > latestPriceDate) {
-      anchorDate = latestPriceDate;
-    }
-
-    anchors.push({
-      date: anchorDate,
-      eps: roundTo(ttm, 6),
-      source: current.source === "expected" ? "expected" : "ttm",
-      quarterKey: current.quarterKey || quarterKeyFromDate(current.date),
-    });
-  }
-
-  const byDate = new Map();
-  for (const row of anchors) {
-    const existing = byDate.get(row.date);
-    if (!existing || (existing.source !== "expected" && row.source === "expected")) {
-      byDate.set(row.date, row);
-    }
-  }
-
-  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-}
-
-function buildDetailIndexedGrowthRows(indexId, rangeCode) {
-  const indexData = getIndexData(indexId);
-  if (!indexData || !Array.isArray(indexData.points) || !indexData.points.length) {
-    return { priceRaw: [], epsRaw: [], defaultBaseDate: "", usesExpectedCurrentQuarter: false };
-  }
-
-  const ranged = filterRowsByRange(indexData.points, rangeCode);
-  if (!ranged.length) {
-    return { priceRaw: [], epsRaw: [], defaultBaseDate: "", usesExpectedCurrentQuarter: false };
-  }
-
-  const rangeStartDate = ranged[0]?.date || "";
-  const latestPoint = ranged[ranged.length - 1];
-  const quarterlyRows = normalizeQuarterlyEpsRows(indexData.quarterlyNetIncome || indexData.quarterlyEps || []);
-  const fullTtmAnchors = buildTtmAnchorsFromQuarterlyEps(quarterlyRows, latestPoint?.date || "");
-  const epsAnchors = fullTtmAnchors.filter((row) => row.date >= rangeStartDate);
-  const validStartDate = epsAnchors[0]?.date || "";
-
-  if (!epsAnchors.length || !validStartDate) {
-    return { priceRaw: [], epsRaw: [], defaultBaseDate: "", usesExpectedCurrentQuarter: false };
-  }
-
-  const priceRaw = ranged
-    .map((point) => {
-      const close = Number(point?.close);
-      if (!Number.isFinite(close) || close <= 0) return null;
-      return { date: point.date, close };
-    })
-    .filter(Boolean)
-    .filter((point) => point.date >= validStartDate);
-
-  return {
-    priceRaw,
-    epsRaw: epsAnchors
-      .map((anchor) => ({
-        date: anchor.date,
-        eps: Number(anchor.eps),
-        source: anchor.source,
-        quarterKey: anchor.quarterKey,
-      }))
-      .filter((anchor) => Number.isFinite(anchor.eps)),
-    defaultBaseDate: priceRaw[0]?.date || validStartDate,
-    usesExpectedCurrentQuarter: epsAnchors.some((row) => row.source === "expected"),
-  };
-}
-
-function resolveDateByPercent(priceRows, startPercent) {
-  if (!Array.isArray(priceRows) || !priceRows.length) return "";
-  if (priceRows.length === 1) return priceRows[0].date;
-
-  const start = clamp(Number(startPercent), 0, 100);
-  const idx = clamp(Math.floor((start / 100) * (priceRows.length - 1)), 0, priceRows.length - 1);
-  return priceRows[idx]?.date || priceRows[0].date;
-}
-
-function rebaseIndexedGrowthRows(priceRaw, epsRaw, requestedBaseDate = "") {
-  if (!Array.isArray(priceRaw) || !priceRaw.length || !Array.isArray(epsRaw) || !epsRaw.length) {
-    return { price: [], eps: [], baseDate: "" };
-  }
-
-  const baseTargetDate = requestedBaseDate || priceRaw[0].date;
-  const epsMinAbs = 1e-8;
-  const latestEpsPoint = [...epsRaw].reverse().find((row) => Number.isFinite(row?.eps) && Math.abs(Number(row.eps)) > 1e-8);
-  const latestEpsSign = Math.sign(Number(latestEpsPoint?.eps || 0));
-  const hasSameSignAfterTarget =
-    latestEpsSign !== 0 &&
-    epsRaw.some(
-      (row) =>
-        row.date >= baseTargetDate &&
-        Number.isFinite(row.eps) &&
-        Math.abs(Number(row.eps)) > epsMinAbs &&
-        Math.sign(Number(row.eps)) === latestEpsSign
-    );
-  const isEpsBaseValid = (row) =>
-    row &&
-    Number.isFinite(row.eps) &&
-    Math.abs(Number(row.eps)) > epsMinAbs &&
-    (!hasSameSignAfterTarget || Math.sign(Number(row.eps)) === latestEpsSign);
-
-  const baseEpsCandidate =
-    [...epsRaw].reverse().find((row) => row.date <= baseTargetDate && isEpsBaseValid(row)) ||
-    epsRaw.find((row) => row.date >= baseTargetDate && isEpsBaseValid(row)) ||
-    [...epsRaw].reverse().find((row) => row.date <= baseTargetDate && Number.isFinite(row.eps) && Math.abs(Number(row.eps)) > 1e-8) ||
-    epsRaw.find((row) => row.date >= baseTargetDate && Number.isFinite(row.eps) && Math.abs(Number(row.eps)) > 1e-8);
-
-  if (!baseEpsCandidate || !Number.isFinite(baseEpsCandidate.eps) || Math.abs(Number(baseEpsCandidate.eps)) <= 1e-8) {
-    return { price: [], eps: [], baseDate: "" };
-  }
-
-  const alignedBaseDate = baseEpsCandidate.date > baseTargetDate ? baseEpsCandidate.date : baseTargetDate;
-  const basePricePoint = priceRaw.find((row) => row.date >= alignedBaseDate) || priceRaw[priceRaw.length - 1];
-  if (!basePricePoint || !Number.isFinite(basePricePoint.close) || basePricePoint.close <= 0) {
-    return { price: [], eps: [], baseDate: "" };
-  }
-
-  const baseDate = basePricePoint.date;
-  const baseEpsPoint =
-    [...epsRaw].reverse().find((row) => row.date <= baseDate && isEpsBaseValid(row)) ||
-    epsRaw.find((row) => row.date >= baseDate && isEpsBaseValid(row)) ||
-    baseEpsCandidate;
-  if (!baseEpsPoint || !Number.isFinite(baseEpsPoint.eps) || Math.abs(Number(baseEpsPoint.eps)) <= 1e-8) {
-    return { price: [], eps: [], baseDate: "" };
-  }
-
-  const basePrice = Number(basePricePoint.close);
-  const baseEps = Number(baseEpsPoint.eps);
-
-  const priceRows = priceRaw.map((row) => ({
-    date: row.date,
-    value: row.date < baseDate ? null : roundTo((Number(row.close) / basePrice) * 100, 3),
-  }));
-
-  const epsRows = epsRaw.map((row) => ({
-    date: row.date,
-    value: row.date < baseDate ? null : roundTo((Number(row.eps) / baseEps) * 100, 3),
-    source: row.source,
-    quarterKey: row.quarterKey,
-  }));
-
-  const hasPrice = priceRows.some((row) => Number.isFinite(row.value));
-  const hasEps = epsRows.some((row) => Number.isFinite(row.value));
-  if (!hasPrice || !hasEps) {
-    return { price: [], eps: [], baseDate: "" };
-  }
-
-  return { price: priceRows, eps: epsRows, baseDate };
-}
-
 function normalizeCompareDateRange(startDate = "", endDate = "") {
   const start = /^\d{4}-\d{2}-\d{2}$/.test(String(startDate || "")) ? String(startDate) : "";
   const end = /^\d{4}-\d{2}-\d{2}$/.test(String(endDate || "")) ? String(endDate) : "";
@@ -1526,10 +1246,11 @@ function filterRowsByCustomDateRange(rows, startDate = "", endDate = "") {
   });
 }
 
-function recomputeRangeRollingStats(rows) {
+function recomputeRangeRollingStats(rows, metric) {
   if (!rows.length) return rows;
 
   const values = [];
+  const rankValues = [];
   const dates = [];
   const result = [];
   let start5 = 0;
@@ -1542,7 +1263,9 @@ function recomputeRangeRollingStats(rows) {
     if (!date || value === null) {
       continue;
     }
+    const rankValue = metricRankValue(metric, value);
     values.push(value);
+    rankValues.push(rankValue);
     dates.push(date);
     const valueIndex = values.length - 1;
 
@@ -1554,9 +1277,9 @@ function recomputeRangeRollingStats(rows) {
     while (start10 < valueIndex && dates[start10] < cutoff10) start10 += 1;
     while (start3 < valueIndex && dates[start3] < cutoff3) start3 += 1;
 
-    const pct5 = percentileWindow(values, start5, valueIndex, value);
-    const pct10 = percentileWindow(values, start10, valueIndex, value);
-    const pctFull = percentileWindow(values, 0, valueIndex, value);
+    const pct5 = percentileWindow(rankValues, start5, valueIndex, rankValue);
+    const pct10 = percentileWindow(rankValues, start10, valueIndex, rankValue);
+    const pctFull = percentileWindow(rankValues, 0, valueIndex, rankValue);
 
     result.push({
       ...row,
@@ -1932,274 +1655,6 @@ function renderDetailPercentileChart(rows) {
   );
 }
 
-function renderDetailEpsPriceChart(indexMeta, indexId, rangeCode) {
-  const chart = ensureChart("detailEpsPrice", elements.detailEpsPriceChart);
-  if (!chart) return;
-
-  const growthData = buildDetailIndexedGrowthRows(indexId, rangeCode);
-  const priceRaw = growthData?.priceRaw || [];
-  const epsRaw = growthData?.epsRaw || [];
-  const usesExpectedCurrentQuarter = Boolean(growthData?.usesExpectedCurrentQuarter);
-  const priceSeriesName = "股价(定基100)";
-  const epsSeriesName = "滚动净利润(定基100)";
-
-  const updateGrowthHint = (baseDate = "", hasData = true) => {
-    if (!elements.detailEpsPriceHint) return;
-    if (!hasData) {
-      elements.detailEpsPriceHint.textContent = `${indexMeta.displayName} · 缺少有效股价/净利润样本`;
-      return;
-    }
-    const tailNote = usesExpectedCurrentQuarter
-      ? "；滚动净利润=当季(市场预期净利润)+过去3季实际净利润"
-      : "；滚动净利润=当季+过去3季实际净利润";
-    elements.detailEpsPriceHint.textContent = `${indexMeta.displayName} · 基准日 ${baseDate} = 100${tailNote}`;
-  };
-
-  if (!priceRaw.length || !epsRaw.length) {
-    chart.off("datazoom");
-    updateGrowthHint("", false);
-    chart.clear();
-    chart.setOption(
-      {
-        animation: false,
-        title: {
-          text: "暂无足够数据绘制股价与滚动净利润对比",
-          left: "center",
-          top: "middle",
-          textStyle: {
-            color: "#8aa5b8",
-            fontSize: 13,
-            fontWeight: 600,
-          },
-        },
-        xAxis: { type: "time", show: false },
-        yAxis: { type: "value", show: false },
-        series: [],
-      },
-      true
-    );
-    return;
-  }
-
-  const initialIndexed = rebaseIndexedGrowthRows(
-    priceRaw,
-    epsRaw,
-    growthData?.defaultBaseDate || priceRaw[0]?.date || ""
-  );
-  const initialPriceRows = initialIndexed?.price || [];
-  const initialEpsRows = initialIndexed?.eps || [];
-
-  if (!initialPriceRows.length || !initialEpsRows.length) {
-    chart.off("datazoom");
-    updateGrowthHint("", false);
-    chart.clear();
-    chart.setOption(
-      {
-        animation: false,
-        title: {
-          text: "暂无足够数据绘制股价与滚动净利润对比",
-          left: "center",
-          top: "middle",
-          textStyle: {
-            color: "#8aa5b8",
-            fontSize: 13,
-            fontWeight: 600,
-          },
-        },
-        xAxis: { type: "time", show: false },
-        yAxis: { type: "value", show: false },
-        series: [],
-      },
-      true
-    );
-    return;
-  }
-
-  updateGrowthHint(initialIndexed.baseDate, true);
-
-  const detailChartWidth = elements.detailEpsPriceChart?.clientWidth || 0;
-  const endLabelLayout = getLineEndLabelLayout(detailChartWidth, 2);
-  const rightPadding = Math.round(
-    Math.max(detailChartWidth * 0.04, Math.min(endLabelLayout.rightSpace + 10, 108))
-  );
-
-  chart.setOption(
-    {
-      animationDuration: 460,
-      legend: {
-        top: 4,
-        textStyle: { color: "#9ab3d3" },
-      },
-      grid: { left: 56, right: rightPadding, top: 44, bottom: 86 },
-      tooltip: {
-        trigger: "axis",
-        formatter(params) {
-          const price = params.find((item) => item.seriesName === priceSeriesName);
-          const eps = params.find((item) => item.seriesName === epsSeriesName);
-          const epsSource = eps?.data?.[2] === "expected" ? "市场预期净利润" : "滚动净利润";
-          const axisDate = formatAxisDate(price?.axisValue ?? eps?.axisValue ?? params?.[0]?.axisValue);
-
-          return [
-            axisDate,
-            `${priceSeriesName}: <strong>${price ? fmt(price.data?.[1], 2) : "--"}</strong>`,
-            `${epsSeriesName}（${epsSource}）: <strong>${eps ? fmt(eps.data?.[1], 2) : "--"}</strong>`,
-          ].join("<br/>");
-        },
-      },
-      xAxis: {
-        type: "time",
-        axisLabel: { color: "#9ab3d3" },
-      },
-      dataZoom: [
-        {
-          type: "slider",
-          xAxisIndex: 0,
-          filterMode: "none",
-          height: 22,
-          bottom: 10,
-          brushSelect: false,
-          showDetail: false,
-          borderColor: "rgba(163, 186, 233, 0.38)",
-          backgroundColor: "rgba(35, 52, 95, 0.68)",
-          fillerColor: "rgba(132, 171, 255, 0.25)",
-          handleSize: 22,
-          handleStyle: {
-            color: "#9ab8ff",
-            borderColor: "#dce7ff",
-            borderWidth: 1,
-          },
-          moveHandleStyle: {
-            color: "rgba(166, 188, 255, 0.62)",
-          },
-          moveHandleSize: 18,
-          textStyle: {
-            color: "#9ab3d3",
-          },
-        },
-      ],
-      yAxis: {
-        type: "value",
-        scale: true,
-        axisLabel: { color: "#9ab3d3" },
-        splitLine: { lineStyle: { color: "rgba(140,165,210,0.18)" } },
-      },
-      series: [
-        {
-          name: priceSeriesName,
-          type: "line",
-          smooth: false,
-          showSymbol: false,
-          lineStyle: { width: 2.4, color: "#0d4d87" },
-          endLabel: {
-            show: true,
-            position: "right",
-            distance: 8,
-            formatter(params) {
-              return fmt(params.value?.[1], 1);
-            },
-            color: "#0d4d87",
-            fontSize: Math.max(endLabelLayout.fontSize + 2, 13),
-            fontWeight: 800,
-            padding: 0,
-            borderRadius: 0,
-            backgroundColor: "transparent",
-          },
-          labelLayout: {
-            moveOverlap: "shiftY",
-          },
-          data: initialPriceRows.map((row) => [row.date, row.value]),
-        },
-        {
-          name: epsSeriesName,
-          type: "line",
-          smooth: 0.24,
-          showSymbol: true,
-          symbolSize: 7,
-          lineStyle: { width: 2.4, color: "#66bfff" },
-          endLabel: {
-            show: true,
-            position: "right",
-            distance: 8,
-            formatter(params) {
-              return fmt(params.value?.[1], 1);
-            },
-            color: "#66bfff",
-            fontSize: Math.max(endLabelLayout.fontSize + 2, 13),
-            fontWeight: 800,
-            padding: 0,
-            borderRadius: 0,
-            backgroundColor: "transparent",
-          },
-          labelLayout: {
-            moveOverlap: "shiftY",
-          },
-          data: initialEpsRows.map((row) => [row.date, row.value, row.source, row.quarterKey]),
-        },
-      ],
-    },
-    true
-  );
-
-  const applyEpsPriceYAxisRange = (startPercent, endPercent, priceData = null, epsData = null) => {
-    const priceSeriesData = Array.isArray(priceData) ? priceData : chart.getOption?.()?.series?.[0]?.data || [];
-    const epsSeriesData = Array.isArray(epsData) ? epsData : chart.getOption?.()?.series?.[1]?.data || [];
-    const range = resolveYAxisRangeFromMultiSeries([priceSeriesData, epsSeriesData], startPercent, endPercent);
-    if (!range) return;
-
-    chart.setOption(
-      {
-        yAxis: {
-          min: range.min,
-          max: range.max,
-        },
-      },
-      false
-    );
-  };
-
-  applyEpsPriceYAxisRange(0, 100);
-
-  chart.off("datazoom");
-  let suppressZoomRebase = false;
-  chart.on("datazoom", (payload) => {
-    if (suppressZoomRebase) {
-      return;
-    }
-
-    const zoom = extractZoomRange(chart, payload);
-    const requestedBaseDate = resolveDateByPercent(priceRaw, zoom.start);
-    if (!requestedBaseDate) return;
-
-    const rebased = rebaseIndexedGrowthRows(priceRaw, epsRaw, requestedBaseDate);
-    if (!rebased.price.length || !rebased.eps.length) return;
-    const priceData = rebased.price.map((row) => [row.date, row.value]);
-    const epsData = rebased.eps.map((row) => [row.date, row.value, row.source, row.quarterKey]);
-    const yRange = resolveYAxisRangeFromMultiSeries([priceData, epsData], zoom.start, zoom.end);
-
-    suppressZoomRebase = true;
-    chart.setOption(
-      {
-        yAxis: yRange
-          ? {
-              min: yRange.min,
-              max: yRange.max,
-            }
-          : {},
-        series: [
-          { data: priceData },
-          { data: epsData },
-        ],
-      },
-      false
-    );
-    requestAnimationFrame(() => {
-      suppressZoomRebase = false;
-    });
-
-    updateGrowthHint(rebased.baseDate, true);
-  });
-}
-
 async function renderDetail() {
   const indexId = state.detail.indexId;
   const metric = state.detail.metric;
@@ -2221,7 +1676,7 @@ async function renderDetail() {
   try {
     const fullRows = getMetricSeries(indexId, metric);
     const rangedRows = filterRowsByRange(fullRows, state.detail.range);
-    const viewRows = recomputeRangeRollingStats(rangedRows);
+    const viewRows = recomputeRangeRollingStats(rangedRows, metric);
 
     const indexMeta = state.metaRows.find((item) => item.id === indexId);
     if (!indexMeta || !viewRows.length) {
@@ -2231,7 +1686,6 @@ async function renderDetail() {
 
     renderDetailChart(indexMeta, viewRows);
     renderDetailPercentileChart(viewRows);
-    renderDetailEpsPriceChart(indexMeta, indexId, state.detail.range);
     bindDetailZoomSync();
     renderDetailStats(fullRows, viewRows);
   } catch (error) {
@@ -2292,7 +1746,7 @@ function buildCompareRows() {
       const full = getMetricSeries(indexId, metric);
       const ranged = filterRowsByRange(full, range);
       const filtered = filterRowsByCustomDateRange(ranged, customStart, customEnd);
-      const normalized = recomputeRangeRollingStats(filtered);
+      const normalized = recomputeRangeRollingStats(filtered, metric);
       return {
         indexId,
         full,
@@ -2892,7 +2346,6 @@ function switchView(view) {
     if (view === "detail") {
       charts.detail?.resize();
       charts.detailPercentile?.resize();
-      charts.detailEpsPrice?.resize();
       return;
     }
     if (view === "compare") {

@@ -6,7 +6,6 @@ const METRIC_OPTIONS = [
   { label: "PE(TTM)", value: "pe_ttm" },
   { label: "PE(Forward)", value: "pe_forward" },
   { label: "PB", value: "pb" },
-  { label: "Earnings Yield", value: "earnings_yield" },
 ];
 
 const RANGE_OPTIONS = [
@@ -31,7 +30,6 @@ function toNumberText(value, digits) {
 function toMetricText(value, metric) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "--";
-  if (metric === "earnings_yield") return `${(n * 100).toFixed(2)}%`;
   return n.toFixed(2);
 }
 
