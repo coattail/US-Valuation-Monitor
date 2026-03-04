@@ -225,7 +225,6 @@ function findIndexSeries(dataset: ValuationDataset, indexId: string): RawValuati
 function stripCompanyPointGrowthFields(point: CompanyValuationPoint): CompanyValuationPoint {
   const nextPoint = { ...(point as Record<string, unknown>) };
   delete nextPoint.close;
-  delete nextPoint.peg;
   return nextPoint as CompanyValuationPoint;
 }
 

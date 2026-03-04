@@ -194,7 +194,7 @@ function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
     pe_ttm: toFiniteNumber(latestPoint.pe_ttm),
     pe_forward: toFiniteNumber(latestPoint.pe_forward),
     pb: toFiniteNumber(latestPoint.pb),
-    peg: toFiniteNumber(item.peg),
+    peg: toFiniteNumber(item.peg ?? latestPoint.peg),
     percentile_5y: peStats.percentile_5y,
     percentile_10y: peStats.percentile_10y,
     percentile_full: peStats.percentile_full,
@@ -210,7 +210,6 @@ function stripGrowthOnlyFieldsFromPoints(points: CompanyValuationPoint[]): Compa
     .map((point) => {
       const nextPoint = { ...(point as Record<string, unknown>) };
       delete nextPoint.close;
-      delete nextPoint.peg;
       return nextPoint as CompanyValuationPoint;
     });
 }

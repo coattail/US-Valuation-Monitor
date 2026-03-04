@@ -135,10 +135,21 @@ interface YchartsSeriesResult {
   pb: MetricPoint[];
 }
 
+interface YahooDailyMetricSnapshot {
+  date: string;
+  pe_ttm: number | null;
+  pe_forward: number | null;
+  pb: number | null;
+  peg: number | null;
+  source?: string;
+  capturedAt?: string;
+}
+
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const ROOT_DIR = path.resolve(path.dirname(CURRENT_FILE), "../../..");
 const OUTPUT_DIR = path.join(ROOT_DIR, "data", "standardized");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "company-valuation-history.json");
+const YAHOO_DAILY_METRICS_FILE = path.join(OUTPUT_DIR, "company-yahoo-daily-metrics.json");
 const execFileAsync = promisify(execFile);
 let companiesMarketCapFetchChain: Promise<unknown> = Promise.resolve();
 let yahooSplitFetchChain: Promise<unknown> = Promise.resolve();
@@ -1762,6 +1773,171 @@ function applyLatestRatioOverrideAtLastDate(
     .sort((a, b) => a.date.localeCompare(b.date));
   base.source = [base.source, latestOverride.source].filter(Boolean).join("+");
   return base;
+}
+
+function applyLatestRatioOverrideToLastPoint(
+  valuationPoints: SnapshotPoint[],
+  latestOverride: RatioPayload | null
+): SnapshotPoint[] {
+  if (!Array.isArray(valuationPoints) || !valuationPoints.length || !latestOverride) {
+    return valuationPoints;
+  }
+
+  const overridePeTtm = sanitizeSignedRatio(latestOverride.latest.pe_ttm);
+  const overridePeForward = sanitizeSignedRatio(latestOverride.latest.pe_forward);
+  if (!overridePeTtm && !overridePeForward) {
+    return valuationPoints;
+  }
+
+  const lastIndex = valuationPoints.length - 1;
+  const currentLastPoint = valuationPoints[lastIndex];
+  let nextLastPoint: SnapshotPoint | null = null;
+
+  if (overridePeTtm && overridePeTtm !== sanitizeSignedRatio(currentLastPoint.pe_ttm)) {
+    nextLastPoint = {
+      ...(nextLastPoint || currentLastPoint),
+      pe_ttm: roundTo(overridePeTtm, 6),
+    };
+  }
+
+  if (overridePeForward && overridePeForward !== sanitizeSignedRatio(currentLastPoint.pe_forward)) {
+    nextLastPoint = {
+      ...(nextLastPoint || currentLastPoint),
+      pe_forward: roundTo(overridePeForward, 4),
+    };
+  }
+
+  if (!nextLastPoint) {
+    return valuationPoints;
+  }
+
+  const nextPoints = [...valuationPoints];
+  nextPoints[lastIndex] = nextLastPoint;
+  return nextPoints;
+}
+
+function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapshot | null {
+  if (!raw || typeof raw !== "object") return null;
+  const item = raw as Record<string, unknown>;
+  const date = String(item.date || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+
+  const peTtm = sanitizeSignedRatio(item.pe_ttm);
+  const peForward = sanitizeSignedRatio(item.pe_forward);
+  const pb = sanitizeSignedRatio(item.pb);
+  const peg = sanitizeSignedRatio(item.peg);
+  if (!peTtm && !peForward && !pb && !peg) return null;
+
+  return {
+    date,
+    pe_ttm: peTtm,
+    pe_forward: peForward,
+    pb,
+    peg,
+    source: String(item.source || "").trim(),
+    capturedAt: String(item.capturedAt || "").trim(),
+  };
+}
+
+function createYahooDailyMetricSnapshot(date: string, payload: RatioPayload | null): YahooDailyMetricSnapshot | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !payload) return null;
+
+  const peTtm = sanitizeSignedRatio(payload.latest.pe_ttm);
+  const peForward = sanitizeSignedRatio(payload.latest.pe_forward);
+  const pb = sanitizeSignedRatio(payload.latest.pb);
+  const peg = sanitizeSignedRatio(payload.latest.peg);
+  if (!peTtm && !peForward && !pb && !peg) return null;
+
+  return {
+    date,
+    pe_ttm: peTtm,
+    pe_forward: peForward,
+    pb,
+    peg,
+    source: String(payload.source || "").trim(),
+    capturedAt: new Date().toISOString(),
+  };
+}
+
+function upsertYahooDailyMetricSnapshot(
+  bySymbol: Map<string, YahooDailyMetricSnapshot[]>,
+  symbol: string,
+  snapshot: YahooDailyMetricSnapshot | null
+): void {
+  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+  if (!normalizedSymbol || !snapshot) return;
+
+  const nextByDate = new Map<string, YahooDailyMetricSnapshot>();
+  for (const item of bySymbol.get(normalizedSymbol) || []) {
+    const normalized = normalizeYahooDailyMetricSnapshot(item);
+    if (!normalized) continue;
+    nextByDate.set(normalized.date, normalized);
+  }
+
+  nextByDate.set(snapshot.date, snapshot);
+  bySymbol.set(
+    normalizedSymbol,
+    [...nextByDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+  );
+}
+
+function applyYahooDailyMetricSnapshotsToPoints(
+  valuationPoints: SnapshotPoint[],
+  snapshots: YahooDailyMetricSnapshot[]
+): SnapshotPoint[] {
+  if (!Array.isArray(valuationPoints) || !valuationPoints.length || !Array.isArray(snapshots) || !snapshots.length) {
+    return valuationPoints;
+  }
+
+  const byDate = new Map<string, YahooDailyMetricSnapshot>();
+  for (const item of snapshots) {
+    const normalized = normalizeYahooDailyMetricSnapshot(item);
+    if (!normalized) continue;
+    byDate.set(normalized.date, normalized);
+  }
+  if (!byDate.size) return valuationPoints;
+
+  let changed = false;
+  const nextPoints = valuationPoints.map((point) => {
+    const snapshot = byDate.get(point.date);
+    if (!snapshot) return point;
+
+    let nextPoint: SnapshotPoint | null = null;
+
+    if (snapshot.pe_ttm && snapshot.pe_ttm !== sanitizeSignedRatio(point.pe_ttm)) {
+      nextPoint = {
+        ...(nextPoint || point),
+        pe_ttm: roundTo(snapshot.pe_ttm, 6),
+      };
+    }
+
+    if (snapshot.pe_forward && snapshot.pe_forward !== sanitizeSignedRatio(point.pe_forward)) {
+      nextPoint = {
+        ...(nextPoint || point),
+        pe_forward: roundTo(snapshot.pe_forward, 4),
+      };
+    }
+
+    if (snapshot.pb && snapshot.pb !== sanitizeSignedRatio(point.pb)) {
+      nextPoint = {
+        ...(nextPoint || point),
+        pb: roundTo(snapshot.pb, 4),
+      };
+    }
+
+    if (snapshot.peg && snapshot.peg !== sanitizeSignedRatio(point.peg)) {
+      nextPoint = {
+        ...(nextPoint || point),
+        peg: roundTo(snapshot.peg, 4),
+      };
+    }
+
+    if (!nextPoint) return point;
+    changed = true;
+    return nextPoint;
+  });
+
+  return changed ? nextPoints : valuationPoints;
 }
 
 function mergeRatioPayloadList(payloads: RatioPayload[]): RatioPayload | null {
@@ -4658,6 +4834,61 @@ async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>
   return bySymbol;
 }
 
+async function loadYahooDailyMetricSnapshotsBySymbol(): Promise<Map<string, YahooDailyMetricSnapshot[]>> {
+  const bySymbol = new Map<string, YahooDailyMetricSnapshot[]>();
+
+  try {
+    const raw = await readFile(YAHOO_DAILY_METRICS_FILE, "utf8");
+    const parsed = JSON.parse(raw) as {
+      symbols?: Record<string, unknown>;
+    };
+    const source = parsed?.symbols && typeof parsed.symbols === "object" ? parsed.symbols : {};
+
+    for (const [rawSymbol, rawRows] of Object.entries(source)) {
+      const symbol = String(rawSymbol || "").trim().toUpperCase();
+      if (!symbol || !Array.isArray(rawRows)) continue;
+
+      const byDate = new Map<string, YahooDailyMetricSnapshot>();
+      for (const row of rawRows) {
+        const normalized = normalizeYahooDailyMetricSnapshot(row);
+        if (!normalized) continue;
+        byDate.set(normalized.date, normalized);
+      }
+
+      if (!byDate.size) continue;
+      bySymbol.set(
+        symbol,
+        [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+      );
+    }
+  } catch {
+    // no previous yahoo daily metric store yet
+  }
+
+  return bySymbol;
+}
+
+function serializeYahooDailyMetricSnapshots(
+  bySymbol: Map<string, YahooDailyMetricSnapshot[]>
+): { generatedAt: string; symbols: Record<string, YahooDailyMetricSnapshot[]> } {
+  const symbols = [...bySymbol.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .reduce<Record<string, YahooDailyMetricSnapshot[]>>((acc, [symbol, rows]) => {
+      const normalizedRows = rows
+        .map((item) => normalizeYahooDailyMetricSnapshot(item))
+        .filter((item): item is YahooDailyMetricSnapshot => !!item)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (!normalizedRows.length) return acc;
+      acc[symbol] = normalizedRows;
+      return acc;
+    }, {});
+
+  return {
+    generatedAt: new Date().toISOString(),
+    symbols,
+  };
+}
+
 function toCompanyId(symbol: string): string {
   return `company_${symbol.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`;
 }
@@ -4668,13 +4899,13 @@ function stripGrowthOnlyFieldsFromSnapshotPoints(points: SnapshotPoint[]): Array
     .map((point) => {
       const nextPoint = { ...(point as Record<string, unknown>) };
       delete nextPoint.close;
-      delete nextPoint.peg;
       return nextPoint;
     });
 }
 
 async function main(): Promise<void> {
   const previousSeriesBySymbol = await loadPreviousSeriesBySymbol();
+  const yahooDailyMetricsBySymbol = await loadYahooDailyMetricSnapshotsBySymbol();
   const symbolFilter = parseSymbolFilterFromEnv();
   const symbolFilterSet = symbolFilter.length ? new Set(symbolFilter) : null;
 
@@ -4708,6 +4939,11 @@ async function main(): Promise<void> {
     if (symbolFilterSet && !symbolFilterSet.has(company.symbol)) {
       if (previousSeries) {
         reusedPreviousCount += 1;
+        const reusedPoints = applyYahooDailyMetricSnapshotsToPoints(
+          previousSeries.points,
+          yahooDailyMetricsBySymbol.get(company.symbol) || []
+        );
+        const reusedLatestPoint = reusedPoints[reusedPoints.length - 1] || null;
         return {
           id: toCompanyId(company.symbol),
           symbol: company.symbol,
@@ -4716,10 +4952,11 @@ async function main(): Promise<void> {
           rank: company.rank,
           marketCap: company.marketCap,
           peg:
+            sanitizeSignedRatio(reusedLatestPoint?.peg) ??
             previousSeries.peg ??
             null,
           forwardStartDate: previousSeries.forwardStartDate || previousSeries.points[0]?.date || "",
-          points: previousSeries.points,
+          points: reusedPoints,
           quarterlyEps: previousSeries.quarterlyEps || [],
           quarterlyNetIncome: previousSeries.quarterlyNetIncome || [],
         };
@@ -4749,6 +4986,9 @@ async function main(): Promise<void> {
       fetchYchartsSeriesBundle(company.symbol),
     ]);
     const yahooLatestPeg = sanitizeSignedRatio(yahooLatestPayload?.latest.peg ?? null);
+    const preferredLatestRatioOverride = shouldUseYahooLatestOverride
+      ? yahooLatestPayload
+      : null;
 
     const stockPayload = mergeRatioPayloadList(
       [stockQuarterlyPayload, stockStatisticsPayload].filter(Boolean) as RatioPayload[]
@@ -4786,6 +5026,11 @@ async function main(): Promise<void> {
       if (previousSeries) {
         reusedPreviousCount += 1;
         console.warn(`[company] reuse ${company.symbol}: close history unavailable`);
+        const reusedPoints = applyYahooDailyMetricSnapshotsToPoints(
+          previousSeries.points,
+          yahooDailyMetricsBySymbol.get(company.symbol) || []
+        );
+        const reusedLatestPoint = reusedPoints[reusedPoints.length - 1] || null;
         return {
           id: toCompanyId(company.symbol),
           symbol: company.symbol,
@@ -4795,10 +5040,11 @@ async function main(): Promise<void> {
           marketCap: company.marketCap,
           peg:
             yahooLatestPeg ??
+            sanitizeSignedRatio(reusedLatestPoint?.peg) ??
             previousSeries.peg ??
             null,
           forwardStartDate: previousSeries.forwardStartDate || previousSeries.points[0]?.date || "",
-          points: previousSeries.points,
+          points: reusedPoints,
           quarterlyEps: previousSeries.quarterlyEps || [],
           quarterlyNetIncome: previousSeries.quarterlyNetIncome || [],
         };
@@ -4810,6 +5056,15 @@ async function main(): Promise<void> {
     }
 
     const lastCloseDate = closePoints[closePoints.length - 1]?.date || "";
+    if (lastCloseDate) {
+      upsertYahooDailyMetricSnapshot(
+        yahooDailyMetricsBySymbol,
+        company.symbol,
+        createYahooDailyMetricSnapshot(lastCloseDate, yahooLatestPayload)
+      );
+    }
+    const yahooDailySnapshots = yahooDailyMetricsBySymbol.get(company.symbol) || [];
+
     if (
       FORWARD_PE_PROXY_FROM_TTM_SYMBOLS.has(company.symbol) &&
       mergedLongForwardSeries.length < MIN_FORWARD_ANCHORS_FOR_HISTORY
@@ -4848,14 +5103,23 @@ async function main(): Promise<void> {
     const { points, usedFallback, forwardStartDate } = buildValuationSeries(closePoints, ratioPayload);
     const quarterlyEps = alignQuarterlyEpsToValuationBasis(quarterlyEpsRaw, points);
     const pointsWithLatestActualTtm = overrideRecentPeTtmWithLatestActualTtmEps(points, quarterlyEps);
+    const finalPoints = applyLatestRatioOverrideToLastPoint(pointsWithLatestActualTtm, preferredLatestRatioOverride);
+    const pointsWithYahooDailyMetrics = applyYahooDailyMetricSnapshotsToPoints(finalPoints, yahooDailySnapshots);
     if (usedFallback) {
       fallbackAnchorCount += 1;
     }
 
-    if (pointsWithLatestActualTtm.length < 24) {
+    if (pointsWithYahooDailyMetrics.length < 24) {
       if (previousSeries) {
         reusedPreviousCount += 1;
-        console.warn(`[company] reuse ${company.symbol}: insufficient points (${pointsWithLatestActualTtm.length})`);
+        console.warn(
+          `[company] reuse ${company.symbol}: insufficient points (${pointsWithYahooDailyMetrics.length})`
+        );
+        const reusedPoints = applyYahooDailyMetricSnapshotsToPoints(
+          previousSeries.points,
+          yahooDailyMetricsBySymbol.get(company.symbol) || []
+        );
+        const reusedLatestPoint = reusedPoints[reusedPoints.length - 1] || null;
         return {
           id: toCompanyId(company.symbol),
           symbol: company.symbol,
@@ -4865,19 +5129,24 @@ async function main(): Promise<void> {
           marketCap: company.marketCap,
           peg:
             yahooLatestPeg ??
+            sanitizeSignedRatio(reusedLatestPoint?.peg) ??
             previousSeries.peg ??
             null,
           forwardStartDate: previousSeries.forwardStartDate || previousSeries.points[0]?.date || "",
-          points: previousSeries.points,
+          points: reusedPoints,
           quarterlyEps: previousSeries.quarterlyEps || [],
           quarterlyNetIncome: previousSeries.quarterlyNetIncome || [],
         };
       }
 
       skippedCount += 1;
-      console.warn(`[company] skip ${company.symbol}: insufficient points (${pointsWithLatestActualTtm.length})`);
+      console.warn(
+        `[company] skip ${company.symbol}: insufficient points (${pointsWithYahooDailyMetrics.length})`
+      );
       return null;
     }
+
+    const latestPointWithYahooDailyMetrics = pointsWithYahooDailyMetrics[pointsWithYahooDailyMetrics.length - 1] || null;
 
     return {
       id: toCompanyId(company.symbol),
@@ -4886,9 +5155,12 @@ async function main(): Promise<void> {
       description: `${company.displayName} (${company.symbol})`,
       rank: company.rank,
       marketCap: company.marketCap,
-      peg: yahooLatestPeg,
-      forwardStartDate: forwardStartDate || pointsWithLatestActualTtm[pointsWithLatestActualTtm.length - 1]?.date || "",
-      points: pointsWithLatestActualTtm,
+      peg:
+        sanitizeSignedRatio(latestPointWithYahooDailyMetrics?.peg) ??
+        yahooLatestPeg,
+      forwardStartDate:
+        forwardStartDate || pointsWithYahooDailyMetrics[pointsWithYahooDailyMetrics.length - 1]?.date || "",
+      points: pointsWithYahooDailyMetrics,
       quarterlyEps,
       quarterlyNetIncome,
     };
@@ -4935,7 +5207,8 @@ async function main(): Promise<void> {
       "companiesmarketcap-pb-ratio",
       "stockanalysis-quarterly-ratios",
       "stockanalysis-statistics-ratios-latest-fallback",
-      "yahoo-key-statistics-latest-peg",
+      "yahoo-key-statistics-latest-metrics",
+      "yahoo-daily-metric-history-store",
       "stockanalysis-quarterly-income-eps",
       "stockanalysis-quarterly-income-net-income",
       "stockanalysis-forecast-quarterly-eps",
@@ -4954,8 +5227,14 @@ async function main(): Promise<void> {
 
   await mkdir(OUTPUT_DIR, { recursive: true });
   await writeFile(OUTPUT_FILE, `${JSON.stringify(dataset)}\n`, "utf8");
+  await writeFile(
+    YAHOO_DAILY_METRICS_FILE,
+    `${JSON.stringify(serializeYahooDailyMetricSnapshots(yahooDailyMetricsBySymbol))}\n`,
+    "utf8"
+  );
 
   console.log(`[company] snapshot written: ${OUTPUT_FILE}`);
+  console.log(`[company] yahoo daily metrics written: ${YAHOO_DAILY_METRICS_FILE}`);
   console.log(`[company] generatedAt: ${dataset.generatedAt}`);
   console.log(`[company] series count: ${indices.length}`);
   console.log(`[company] fallback anchors: ${fallbackAnchorCount}`);

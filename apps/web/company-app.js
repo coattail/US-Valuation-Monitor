@@ -484,7 +484,6 @@ function stripGrowthOnlyFieldsFromPoints(points) {
     .map((point) => {
       const nextPoint = { ...point };
       delete nextPoint.close;
-      delete nextPoint.peg;
       return nextPoint;
     });
 }
