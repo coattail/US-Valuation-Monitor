@@ -1940,6 +1940,44 @@ function applyYahooDailyMetricSnapshotsToPoints(
   return changed ? nextPoints : valuationPoints;
 }
 
+function preserveRecordedYahooDailyPoints(
+  generatedPoints: SnapshotPoint[],
+  previousPoints: SnapshotPoint[],
+  snapshots: YahooDailyMetricSnapshot[]
+): SnapshotPoint[] {
+  if (!Array.isArray(generatedPoints) || !generatedPoints.length) {
+    return generatedPoints;
+  }
+  if (!Array.isArray(previousPoints) || !previousPoints.length || !Array.isArray(snapshots) || !snapshots.length) {
+    return generatedPoints;
+  }
+
+  const recordedDates = new Set(
+    snapshots
+      .map((item) => normalizeYahooDailyMetricSnapshot(item)?.date || "")
+      .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+  );
+  if (!recordedDates.size) return generatedPoints;
+
+  const byDate = new Map<string, SnapshotPoint>();
+  for (const point of generatedPoints) {
+    const date = String(point?.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    byDate.set(date, point);
+  }
+
+  let changed = false;
+  for (const point of previousPoints) {
+    const date = String(point?.date || "");
+    if (!recordedDates.has(date) || byDate.has(date)) continue;
+    byDate.set(date, point);
+    changed = true;
+  }
+
+  if (!changed) return generatedPoints;
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function mergeRatioPayloadList(payloads: RatioPayload[]): RatioPayload | null {
   const normalized = payloads.filter(
     (item) =>
@@ -5104,7 +5142,15 @@ async function main(): Promise<void> {
     const quarterlyEps = alignQuarterlyEpsToValuationBasis(quarterlyEpsRaw, points);
     const pointsWithLatestActualTtm = overrideRecentPeTtmWithLatestActualTtmEps(points, quarterlyEps);
     const finalPoints = applyLatestRatioOverrideToLastPoint(pointsWithLatestActualTtm, preferredLatestRatioOverride);
-    const pointsWithYahooDailyMetrics = applyYahooDailyMetricSnapshotsToPoints(finalPoints, yahooDailySnapshots);
+    const pointsWithPreservedYahooDates = preserveRecordedYahooDailyPoints(
+      finalPoints,
+      previousSeries?.points || [],
+      yahooDailySnapshots
+    );
+    const pointsWithYahooDailyMetrics = applyYahooDailyMetricSnapshotsToPoints(
+      pointsWithPreservedYahooDates,
+      yahooDailySnapshots
+    );
     if (usedFallback) {
       fallbackAnchorCount += 1;
     }
