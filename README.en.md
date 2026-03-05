@@ -60,6 +60,7 @@ This project follows a **multi-source merge with reliability guardrails** strate
 ### Important implementation notes
 - S&P 500 forward PE includes a pinned bootstrap series from MacroMicro in `data/bootstrap/sp500-forward-pe-macromicro.csv`.
 - Forward PE availability is tracked per index via `forwardStartDate` and enforced in API responses.
+- Latest index snapshots include an anti-spike deviation guard to reduce one-day source-regime jumps.
 - TTM PE reconstruction between sparse anchors is **close-aware**, not pure long-span linear interpolation:
   - within valid anchor ranges, daily valuation path is reconstructed against actual trading-day close movements
   - this preserves realistic day-to-day fluctuation instead of producing unnaturally smooth declines

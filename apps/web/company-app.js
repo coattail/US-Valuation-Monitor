@@ -280,6 +280,12 @@ function formatAxisDate(value) {
   return Number.isNaN(parsed.getTime()) ? String(value) : formatDate(parsed);
 }
 
+function axisValueFromDate(dateText) {
+  if (typeof dateText !== "string") return dateText;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return dateText;
+  return parseDate(dateText).getTime();
+}
+
 function subtractYears(dateText, years) {
   const d = parseDate(dateText);
   d.setUTCFullYear(d.getUTCFullYear() - years);
@@ -1460,7 +1466,12 @@ function renderDetailChart(indexMeta, rows) {
       },
       xAxis: {
         type: "time",
-        axisLabel: { color: "#8aa5b8" },
+        axisLabel: {
+          color: "#8aa5b8",
+          formatter(value) {
+            return formatAxisDate(value);
+          },
+        },
       },
       dataZoom: [
         {
@@ -1537,7 +1548,7 @@ function renderDetailChart(indexMeta, rows) {
           labelLayout: {
             moveOverlap: "shiftY",
           },
-          data: rows.map((row) => [row.date, metricCfg.percentage ? row.value * 100 : row.value]),
+          data: rows.map((row) => [axisValueFromDate(row.date), metricCfg.percentage ? row.value * 100 : row.value]),
         },
       ],
     },
@@ -1573,7 +1584,13 @@ function renderDetailPercentileChart(rows) {
       },
       xAxis: {
         type: "time",
-        axisLabel: { color: "#9ab3d3", fontSize: 11 },
+        axisLabel: {
+          color: "#9ab3d3",
+          fontSize: 11,
+          formatter(value) {
+            return formatAxisDate(value);
+          },
+        },
       },
       dataZoom: [
         {
@@ -1646,7 +1663,7 @@ function renderDetailPercentileChart(rows) {
           labelLayout: {
             moveOverlap: "shiftY",
           },
-          data: rows.map((row) => [row.date, row.percentile_full * 100]),
+          data: rows.map((row) => [axisValueFromDate(row.date), row.percentile_full * 100]),
         },
       ],
     },
@@ -2050,7 +2067,7 @@ async function renderCompareCharts() {
 
       const data = item.rows.map((row) => {
         const raw = metricCfg.percentage ? row.value * 100 : row.value;
-        return [row.date, raw];
+        return [axisValueFromDate(row.date), raw];
       });
 
       lineSeries.push({
@@ -2102,7 +2119,12 @@ async function renderCompareCharts() {
         },
         xAxis: {
           type: "time",
-          axisLabel: { color: "#8aa5b8" },
+          axisLabel: {
+            color: "#8aa5b8",
+            formatter(value) {
+              return formatAxisDate(value);
+            },
+          },
         },
         dataZoom: [
           {

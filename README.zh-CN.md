@@ -60,6 +60,7 @@ us-valuation-monitor/
 ### 关键实现说明
 - 标普500前瞻市盈率（Forward PE）包含 MacroMicro 引导序列，文件为 `data/bootstrap/sp500-forward-pe-macromicro.csv`。
 - 每个指数的前瞻估值起始可用日由 `forwardStartDate` 标记，API 会在查询时严格处理。
+- 指数最新快照值有“防跳变阈值”校验，避免单日源口径切换造成异常尖刺。
 - TTM PE 在锚点区间内不是“长区间纯线性插值”，而是**结合交易日收盘路径重建**：
   - 在有效锚点之间按每日价格波动推导估值路径
   - 避免出现不符合市场节奏的“过度平滑下滑线条”

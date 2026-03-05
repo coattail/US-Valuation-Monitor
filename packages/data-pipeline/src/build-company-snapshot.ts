@@ -299,6 +299,16 @@ function decodeHtml(raw: string): string {
     .replace(/&nbsp;/g, " ");
 }
 
+function stripScriptsAndStyles(raw: string): string {
+  return String(raw || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ");
+}
+
+function escapeForRegex(raw: string): string {
+  return String(raw || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function sanitizeSignedRatio(value: unknown): number | null {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
@@ -1500,9 +1510,50 @@ function countPegAnchors(payload: RatioPayload | null): number {
   return payload.anchors.filter((item) => sanitizeSignedRatio(item.peg)).length;
 }
 
+function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | null {
+  const plain = decodeHtml(stripTags(stripScriptsAndStyles(rawText)))
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!plain) return null;
+
+  const pickByLabels = (labels: string[]): number | null => {
+    for (const label of labels) {
+      const regex = new RegExp(`${escapeForRegex(label)}\\s*([0-9]+(?:\\.[0-9]+)?)`, "i");
+      const match = plain.match(regex);
+      if (!match) continue;
+      const value = sanitizeSignedRatio(match[1]);
+      if (value !== null) return value;
+    }
+    return null;
+  };
+
+  const peTtm = pickByLabels(["Trailing P/E"]);
+  const peForward = pickByLabels(["Forward P/E"]);
+  const pb = pickByLabels(["Price/Book"]);
+  const peg = pickByLabels([
+    "PEG Ratio (5 yr expected)",
+    "PEG Ratio (5yr expected)",
+  ]);
+
+  if (!peTtm && !peForward && !pb && !peg) return null;
+
+  return {
+    anchors: [],
+    latest: {
+      pe_ttm: peTtm,
+      pe_forward: peForward,
+      pb,
+      peg,
+    },
+    source: "yahoo-key-statistics-valuation-measures",
+  };
+}
+
 function parseYahooKeyStatisticsRatioPayload(rawText: string): RatioPayload | null {
   const text = String(rawText || "");
   if (!text) return null;
+  const valuationMeasuresPayload = parseYahooValuationMeasuresFromHtml(text);
   const normalizedText = text.includes('\\"') ? text.replace(/\\"/g, '"') : text;
   const haystacks = [text, normalizedText];
 
@@ -1527,20 +1578,23 @@ function parseYahooKeyStatisticsRatioPayload(rawText: string): RatioPayload | nu
   const pb = pickRawNumberByKeys(["priceToBook", "priceToBookRatio"]);
   const peg = pickRawNumberByKeys(["pegRatio", "peg"]);
 
-  if (!peTtm && !peForward && !pb && !peg) {
-    return null;
-  }
+  const rawPayload =
+    peTtm || peForward || pb || peg
+      ? {
+          anchors: [],
+          latest: {
+            pe_ttm: peTtm,
+            pe_forward: peForward,
+            pb,
+            peg,
+          },
+          source: "yahoo-key-statistics-latest-raw",
+        }
+      : null;
 
-  return {
-    anchors: [],
-    latest: {
-      pe_ttm: peTtm,
-      pe_forward: peForward,
-      pb,
-      peg,
-    },
-    source: "yahoo-key-statistics-latest",
-  };
+  return mergeRatioPayloadList(
+    [valuationMeasuresPayload, rawPayload].filter(Boolean) as RatioPayload[]
+  );
 }
 
 function parseYahooQuoteSummaryRatioPayload(rawText: string): RatioPayload | null {
@@ -1570,18 +1624,18 @@ function parseYahooQuoteSummaryRatioPayload(rawText: string): RatioPayload | nul
   };
 
   const peTtm = pickRaw(
+    summaryDetail.trailingPE,
     defaultKeyStatistics.trailingPE,
-    defaultKeyStatistics.trailingPe,
-    summaryDetail.trailingPE
+    defaultKeyStatistics.trailingPe
   );
   const peForward = pickRaw(
+    summaryDetail.forwardPE,
     defaultKeyStatistics.forwardPE,
     defaultKeyStatistics.forwardPe,
     financialData.forwardPE,
-    financialData.forwardPe,
-    summaryDetail.forwardPE
+    financialData.forwardPe
   );
-  const pb = pickRaw(defaultKeyStatistics.priceToBook, financialData.priceToBook, summaryDetail.priceToBook);
+  const pb = pickRaw(summaryDetail.priceToBook, defaultKeyStatistics.priceToBook, financialData.priceToBook);
   const peg = pickRaw(defaultKeyStatistics.pegRatio, defaultKeyStatistics.peg);
 
   if (!peTtm && !peForward && !pb && !peg) return null;
@@ -1950,7 +2004,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
   }
 
   const quoteLatestPayload = mergeRatioPayloadList(
-    [trailingPePayload, forwardPePayload, quoteSummaryPayload, quoteApiPayload, keyStatisticsPayload].filter(
+    [keyStatisticsPayload, trailingPePayload, forwardPePayload, quoteSummaryPayload, quoteApiPayload].filter(
       Boolean
     ) as RatioPayload[]
   );

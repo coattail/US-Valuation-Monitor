@@ -227,6 +227,8 @@ const RECENT_OVERRIDE_INDEX_IDS = new Set(["russell2000"]);
 const FORWARD_LOCKED_INDEX_IDS = new Set(["nasdaq100"]);
 const SIBLIS_FULL_HISTORY_INDEX_IDS = new Set(["nasdaq100"]);
 const TRENDONIFY_TRAILING_PRIMARY_INDEX_IDS = new Set(["nasdaq100"]);
+const LATEST_SNAPSHOT_MAX_DEVIATION_RATIO = 0.05;
+const LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO = 0.08;
 
 const CURATED_WSJ_TTM_REFERENCES: Partial<Record<string, Array<{ date: string; value: number }>>> = {
   nasdaq100: [{ date: "2026-02-20", value: 31.62 }],
@@ -1146,6 +1148,32 @@ function interpolateMonthlyMetric(
 
   const ratio = (targetTs - left.ts) / span;
   return left.value + (right.value - left.value) * ratio;
+}
+
+function isLatestSnapshotDeviationAcceptable(
+  series: MonthlyMetricPoint[] | undefined,
+  targetDate: string,
+  candidateValue: number | undefined,
+  isReasonableValue: (value: number | undefined) => value is number,
+  options: {
+    maxDeviationRatio?: number;
+    maxInterpolationSpanDays?: number;
+    maxForwardFillDays?: number;
+  } = {}
+): boolean {
+  if (!isReasonableValue(candidateValue)) return false;
+  if (!series?.length) return true;
+
+  const baseline = interpolateMonthlyMetric(
+    targetDate,
+    series,
+    options.maxInterpolationSpanDays ?? 240,
+    options.maxForwardFillDays ?? 60
+  );
+  if (!isReasonableValue(baseline)) return true;
+
+  const deviationRatio = Math.abs(Number(candidateValue) - Number(baseline)) / Math.max(1e-6, Number(baseline));
+  return deviationRatio <= (options.maxDeviationRatio ?? LATEST_SNAPSHOT_MAX_DEVIATION_RATIO);
 }
 
 function interpolateSeriesValueAtTs(series: MonthlyMetricPoint[], targetTs: number): number | undefined {
@@ -2097,10 +2125,13 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let trendonifyTrailingCount = 0;
   let trendonifyForwardCount = 0;
   let wsjSnapshotCount = 0;
+  let wsjSnapshotSkippedCount = 0;
   let wsjCuratedTtmCount = 0;
   let stockAnalysisSnapshotCount = 0;
+  let stockAnalysisSnapshotSkippedCount = 0;
   let siblisTrailingCount = 0;
   let siblisForwardCount = 0;
+  let siblisSnapshotSkippedCount = 0;
   let macroMicroForwardCount = 0;
   let ndxForwardBootstrapCount = 0;
   let ndxTtmFactsetBootstrapCount = 0;
@@ -2303,7 +2334,14 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       }
 
       if (!SIBLIS_FULL_HISTORY_INDEX_IDS.has(meta.id)) {
-        if (isReasonablePe(siblisLatestTrailingSnapshot)) {
+        if (
+          isLatestSnapshotDeviationAcceptable(
+            trailingSeries,
+            latestCloseDate,
+            siblisLatestTrailingSnapshot,
+            isReasonablePe
+          )
+        ) {
           trailingSeries = upsertSeriesValueAtDate(
             trailingSeries,
             latestCloseDate,
@@ -2312,11 +2350,20 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           siblisTrailingCount += 1;
           anchorPe = Number(siblisLatestTrailingSnapshot);
           resolvedFrom = "siblis";
+        } else if (isReasonablePe(siblisLatestTrailingSnapshot)) {
+          siblisSnapshotSkippedCount += 1;
         }
         if (
           isReasonableForwardPe(siblisLatestForwardSnapshot) &&
           !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
-          !hasPinnedForwardSeries
+          !hasPinnedForwardSeries &&
+          isLatestSnapshotDeviationAcceptable(
+            forwardSeries,
+            latestCloseDate,
+            siblisLatestForwardSnapshot,
+            isReasonableForwardPe,
+            { maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO }
+          )
         ) {
           forwardSeries = upsertSeriesValueAtDate(
             forwardSeries,
@@ -2324,6 +2371,12 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
             Number(siblisLatestForwardSnapshot)
           );
           siblisForwardCount += 1;
+        } else if (
+          isReasonableForwardPe(siblisLatestForwardSnapshot) &&
+          !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
+          !hasPinnedForwardSeries
+        ) {
+          siblisSnapshotSkippedCount += 1;
         }
       }
 
@@ -2333,19 +2386,36 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         let appliedWsjSnapshot = false;
         const wsjTrailing = isReasonablePe(wsjLatest.trailing) ? Number(wsjLatest.trailing) : undefined;
         const wsjForward = isReasonableForwardPe(wsjLatest.forward) ? Number(wsjLatest.forward) : undefined;
+        const canApplyWsjTrailing = isLatestSnapshotDeviationAcceptable(
+          trailingSeries,
+          effectiveEnd,
+          wsjTrailing,
+          isReasonablePe
+        );
+        const canApplyWsjForward = isLatestSnapshotDeviationAcceptable(
+          forwardSeries,
+          effectiveEnd,
+          wsjForward,
+          isReasonableForwardPe,
+          { maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO }
+        );
 
-        if (isReasonablePe(wsjTrailing)) {
+        if (canApplyWsjTrailing) {
           trailingSeries = upsertSeriesValueAtDate(trailingSeries, effectiveEnd, wsjTrailing);
           anchorPe = wsjTrailing;
           resolvedFrom = "wsj";
           appliedWsjSnapshot = true;
+        } else if (isReasonablePe(wsjTrailing)) {
+          wsjSnapshotSkippedCount += 1;
         }
 
-        if (isPlausibleForwardPair(wsjTrailing, wsjForward)) {
+        if (isPlausibleForwardPair(wsjTrailing, wsjForward) && canApplyWsjForward) {
           if (!FORWARD_LOCKED_INDEX_IDS.has(meta.id) && !hasPinnedForwardSeries) {
             forwardSeries = upsertSeriesValueAtDate(forwardSeries, effectiveEnd, Number(wsjForward));
             appliedWsjSnapshot = true;
           }
+        } else if (isPlausibleForwardPair(wsjTrailing, wsjForward)) {
+          wsjSnapshotSkippedCount += 1;
         }
         if (appliedWsjSnapshot) {
           wsjSnapshotCount += 1;
@@ -2419,23 +2489,50 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           }
         }
 
-        if (isReasonablePe(stockTrailing) && !(meta.id === "nasdaq100" && ndxCuratedTtmApplied)) {
+        const canApplyStockTrailing = isLatestSnapshotDeviationAcceptable(
+          trailingSeries,
+          effectiveEnd,
+          stockTrailing,
+          isReasonablePe
+        );
+
+        if (
+          isReasonablePe(stockTrailing) &&
+          !(meta.id === "nasdaq100" && ndxCuratedTtmApplied) &&
+          canApplyStockTrailing
+        ) {
           trailingSeries = upsertSeriesValueAtDate(trailingSeries, effectiveEnd, Number(stockTrailing));
           anchorPe = Number(stockTrailing);
           resolvedFrom = "stockanalysis";
           appliedStockAnalysisSnapshot = true;
+        } else if (isReasonablePe(stockTrailing) && !(meta.id === "nasdaq100" && ndxCuratedTtmApplied)) {
+          stockAnalysisSnapshotSkippedCount += 1;
         }
 
         const trailingForPair = isReasonablePe(stockTrailing)
           ? Number(stockTrailing)
           : trailingSeries?.[trailingSeries.length - 1]?.value;
+        const canApplyStockForward = isLatestSnapshotDeviationAcceptable(
+          forwardSeries,
+          effectiveEnd,
+          stockForward,
+          isReasonableForwardPe,
+          { maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO }
+        );
         if (
+          !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
+          !hasPinnedForwardSeries &&
+          isPlausibleForwardPair(trailingForPair, stockForward) &&
+          canApplyStockForward
+        ) {
+          forwardSeries = upsertSeriesValueAtDate(forwardSeries, effectiveEnd, Number(stockForward));
+          appliedStockAnalysisSnapshot = true;
+        } else if (
           !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
           !hasPinnedForwardSeries &&
           isPlausibleForwardPair(trailingForPair, stockForward)
         ) {
-          forwardSeries = upsertSeriesValueAtDate(forwardSeries, effectiveEnd, Number(stockForward));
-          appliedStockAnalysisSnapshot = true;
+          stockAnalysisSnapshotSkippedCount += 1;
         }
 
         if (appliedStockAnalysisSnapshot) {
@@ -2632,17 +2729,26 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (wsjSnapshotCount > 0) {
     source += `+wsj-pe-${wsjSnapshotCount}`;
   }
+  if (wsjSnapshotSkippedCount > 0) {
+    source += `+wsj-snap-skipped-${wsjSnapshotSkippedCount}`;
+  }
   if (wsjCuratedTtmCount > 0) {
     source += `+wsj-curated-ttm-${wsjCuratedTtmCount}`;
   }
   if (stockAnalysisSnapshotCount > 0) {
     source += `+stockanalysis-snap-${stockAnalysisSnapshotCount}`;
   }
+  if (stockAnalysisSnapshotSkippedCount > 0) {
+    source += `+stockanalysis-snap-skipped-${stockAnalysisSnapshotSkippedCount}`;
+  }
   if (siblisTrailingCount > 0) {
     source += `+siblis-pe-${siblisTrailingCount}`;
   }
   if (siblisForwardCount > 0) {
     source += `+siblis-fpe-${siblisForwardCount}`;
+  }
+  if (siblisSnapshotSkippedCount > 0) {
+    source += `+siblis-snap-skipped-${siblisSnapshotSkippedCount}`;
   }
   if (macroMicroForwardCount > 0) {
     source += `+macromicro-fpe-${macroMicroForwardCount}`;
