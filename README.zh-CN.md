@@ -159,8 +159,10 @@ npm run start:api
 - `.github/workflows/daily-data-refresh.yml`
 
 当前策略：
-- 定时触发（`cron: 15 13 * * *`）+ 手动触发
+- 定时触发（`cron: 30 6 * * *`，美股收盘后）+ 手动触发
 - 执行 `npm run build:data`
+- 指数估值沿用既有历史同源链路（不引入 Yahoo，降低短期口径波动）
+- 企业估值时序按 Yahoo 可用最新交易日截断并同步写入历史
 - 仅在标准化数据文件有变化时提交并推送（含企业快照与分公司时序文件）
 
 手动运行步骤：
@@ -207,6 +209,14 @@ curl -sS "http://127.0.0.1:9040/api/series?indexId=sp500&metric=pe_ttm"
   - 核对参数是否在支持列表中
 - 某段估值看起来异常平滑：
   - 检查该区间锚点覆盖和源数据可用性；当前管线会在有效锚点区间使用收盘路径进行重建
+- 企业卡片 `PE(TTM)` / `PE(FWD)` 与 Yahoo 页面不一致：
+  - 最新覆盖优先使用 Yahoo timeseries（`trailingPeRatio` / `forwardPeRatio`）+ quote API，尽量对齐 Yahoo Valuation Measures 口径
+  - 检查 `data/standardized/company-yahoo-daily-metrics.json` 是否持续有数据写入（可结合 `yahoo-market-latest-date-*` 与 `yahoo-latest-override-*` 源标签核对日期和覆盖率）
+  - 默认对全部公司启用 Yahoo 最新值覆盖（`YAHOO_LATEST_OVERRIDE_SYMBOLS=*`）；如个别标的口径特殊，可用 `YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS=SYM1,SYM2` 排除
+  - 中国大陆网络通常会被 Yahoo 拒绝页拦截，建议在可访问 Yahoo 的环境（如 GitHub Actions）执行 `npm run build:data:company`
+- 指数/企业最新日期落后：
+  - 指数链路默认不使用 Yahoo，日期取决于指数既有数据源的可用日
+  - 企业链路可结合 `yahoo-market-latest-date-*` 与 `yahoo-latest-override-*` 检查是否已对齐到 Yahoo 最新交易日
 
 ## 12）后续方向
 

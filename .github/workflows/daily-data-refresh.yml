@@ -2,7 +2,8 @@ name: Daily Data Refresh
 
 on:
   schedule:
-    - cron: "15 13 * * *"
+    # Run once per day after US market close (about 01:30 EST / 02:30 EDT).
+    - cron: "30 6 * * *"
   workflow_dispatch:
 
 permissions:

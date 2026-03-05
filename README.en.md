@@ -159,8 +159,10 @@ Workflow file:
 - `.github/workflows/daily-data-refresh.yml`
 
 Current behavior:
-- Runs on schedule (`cron: 15 13 * * *`) and manual dispatch
+- Runs on schedule (`cron: 30 6 * * *`, after US market close) and manual dispatch
 - Executes `npm run build:data`
+- Index valuation keeps the historical non-Yahoo source chain to avoid short-term source-regime shocks
+- Company valuation series are capped to Yahoo's latest available trading day and appended into history
 - Commits and pushes standardized dataset outputs **only when changed** (including company snapshot and split series files)
 
 To trigger manually:
@@ -207,6 +209,14 @@ curl -sS "http://127.0.0.1:9040/api/series?indexId=sp500&metric=pe_ttm"
   - check request parameters against supported index IDs and metrics
 - Unexpectedly flat valuation segments:
   - verify source anchor coverage and rebuild dataset; the pipeline uses close-aware reconstruction inside valid ranges
+- Company `PE(TTM)` / `PE(FWD)` differs from Yahoo:
+  - latest override now prioritizes Yahoo timeseries (`trailingPeRatio` / `forwardPeRatio`) plus quote API to stay close to Yahoo Valuation Measures
+  - check whether `data/standardized/company-yahoo-daily-metrics.json` is being appended (use `yahoo-market-latest-date-*` and `yahoo-latest-override-*` source tags to verify date alignment and coverage)
+  - latest Yahoo override is enabled for all symbols by default (`YAHOO_LATEST_OVERRIDE_SYMBOLS=*`); exclude special cases with `YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS=SYM1,SYM2`
+  - Yahoo is often blocked from mainland China; run `npm run build:data:company` in a Yahoo-reachable environment (for example GitHub Actions)
+- Index/company latest date is behind:
+  - index pipeline intentionally does not use Yahoo; recency follows the index source chain availability
+  - for company pipeline, use `yahoo-market-latest-date-*` and `yahoo-latest-override-*` tags to verify alignment
 
 ## 12) Roadmap
 

@@ -145,6 +145,11 @@ interface YahooDailyMetricSnapshot {
   capturedAt?: string;
 }
 
+interface YahooRatioPayloadResult {
+  payload: RatioPayload | null;
+  quoteLatestPayload: RatioPayload | null;
+}
+
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const ROOT_DIR = path.resolve(path.dirname(CURRENT_FILE), "../../..");
 const OUTPUT_DIR = path.join(ROOT_DIR, "data", "standardized");
@@ -214,7 +219,13 @@ const YCHARTS_CALC_PB = "price_to_book_value";
 const YCHARTS_CALC_FORWARD_PE = "forward_pe_ratio";
 const YCHARTS_CALC_FORWARD_PE_1Y = "forward_pe_ratio_1y";
 const YAHOO_LATEST_OVERRIDE_SYMBOLS = new Set(
-  String(process.env.YAHOO_LATEST_OVERRIDE_SYMBOLS || "TSM,TM")
+  String(process.env.YAHOO_LATEST_OVERRIDE_SYMBOLS || "*")
+    .split(/[,\s]+/)
+    .map((item) => String(item || "").trim().toUpperCase())
+    .filter(Boolean)
+);
+const YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS = new Set(
+  String(process.env.YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS || "")
     .split(/[,\s]+/)
     .map((item) => String(item || "").trim().toUpperCase())
     .filter(Boolean)
@@ -231,6 +242,16 @@ function parseSymbolFilterFromEnv(): string[] {
   if (!raw) return [];
 
   return [...new Set(raw.split(/[,\s]+/).map((item) => item.trim().toUpperCase()).filter(Boolean))];
+}
+
+function shouldUseYahooLatestOverrideForSymbol(symbol: string): boolean {
+  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+  if (!normalizedSymbol) return false;
+  if (YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS.has(normalizedSymbol)) return false;
+  return (
+    YAHOO_LATEST_OVERRIDE_SYMBOLS.has("*") ||
+    YAHOO_LATEST_OVERRIDE_SYMBOLS.has(normalizedSymbol)
+  );
 }
 
 function normalizeTickerSymbol(symbol: string): string {
@@ -373,6 +394,8 @@ function isRejectedPayload(text: string): boolean {
   if (!raw) return true;
   if (raw.includes("exceeded the daily hits limit")) return true;
   if (raw.includes("too many requests")) return true;
+  if (raw.includes("sad-panda-201402200631.png")) return true;
+  if (raw.includes("no longer be accessible from mainland china")) return true;
   if (raw.includes("enable javascript and cookies to continue")) return true;
   if (raw.includes("<title>just a moment")) return true;
   if (raw.includes("just a moment") && raw.includes("cf-chl")) return true;
@@ -758,6 +781,16 @@ function mergeCloseSeries(base: ClosePoint[], overlay: ClosePoint[]): ClosePoint
     byDate.set(item.date, item);
   }
   return [...byDate.values()].sort((a, b) => a.ts - b.ts);
+}
+
+function capCloseSeriesByDate(points: ClosePoint[], maxDate = ""): ClosePoint[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(maxDate || ""))) return points;
+  return (points || []).filter((point) => String(point?.date || "") <= maxDate);
+}
+
+function capSnapshotSeriesByDate(points: SnapshotPoint[], maxDate = ""): SnapshotPoint[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(maxDate || ""))) return points;
+  return (points || []).filter((point) => String(point?.date || "") <= maxDate);
 }
 
 function businessDaysBetween(startDate: string, endDate: string): string[] {
@@ -1215,6 +1248,44 @@ async function fetchCloseHistory(symbol: string, slug: string): Promise<ClosePoi
   return densifyCloseSeriesWithRecentDailyVol(selected);
 }
 
+async function fetchYahooMarketLatestDate(): Promise<string | null> {
+  const configuredSymbol = String(process.env.YAHOO_REFERENCE_SYMBOL || "").trim().toUpperCase();
+  const symbolCandidates = [
+    configuredSymbol,
+    "SPY",
+    "^GSPC",
+    "QQQ",
+    "^IXIC",
+  ].filter(Boolean);
+
+  let bestDate = "";
+  for (const symbol of symbolCandidates) {
+    const encoded = encodeURIComponent(symbol);
+    const urls = [
+      `https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?range=15d&interval=1d&events=history&includeAdjustedClose=true`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?range=15d&interval=1d&events=history&includeAdjustedClose=true`,
+    ];
+
+    for (const url of urls) {
+      try {
+        const json = await fetchText(url, 1, 18000);
+        const points = parseYahooChartClose(json);
+        const latestDate = points[points.length - 1]?.date || "";
+        if (latestDate && latestDate > bestDate) {
+          bestDate = latestDate;
+        }
+      } catch {
+        // continue trying next endpoint/symbol
+      }
+    }
+  }
+
+  if (!bestDate) return null;
+  const maxAcceptableDate = addDays(new Date().toISOString().slice(0, 10), 1);
+  if (bestDate > maxAcceptableDate) return null;
+  return bestDate;
+}
+
 function parseCompaniesMarketCapRatioSeries(html: string): MetricPoint[] {
   const text = String(html || "");
   const arrayMatches = [...text.matchAll(/data\s*=\s*(\[\{[\s\S]*?\}\]);/g)];
@@ -1472,6 +1543,92 @@ function parseYahooKeyStatisticsRatioPayload(rawText: string): RatioPayload | nu
   };
 }
 
+function parseYahooQuoteSummaryRatioPayload(rawText: string): RatioPayload | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const result = (
+    ((parsed.quoteSummary as Record<string, unknown> | undefined)?.result as unknown[]) || []
+  ).find((item) => item && typeof item === "object") as Record<string, unknown> | undefined;
+  if (!result) return null;
+
+  const defaultKeyStatistics = (result.defaultKeyStatistics as Record<string, unknown> | undefined) || {};
+  const financialData = (result.financialData as Record<string, unknown> | undefined) || {};
+  const summaryDetail = (result.summaryDetail as Record<string, unknown> | undefined) || {};
+
+  const pickRaw = (...sources: unknown[]): number | null => {
+    for (const source of sources) {
+      if (!source || typeof source !== "object") continue;
+      const value = sanitizeSignedRatio((source as { raw?: unknown }).raw);
+      if (value !== null) return value;
+    }
+    return null;
+  };
+
+  const peTtm = pickRaw(
+    defaultKeyStatistics.trailingPE,
+    defaultKeyStatistics.trailingPe,
+    summaryDetail.trailingPE
+  );
+  const peForward = pickRaw(
+    defaultKeyStatistics.forwardPE,
+    defaultKeyStatistics.forwardPe,
+    financialData.forwardPE,
+    financialData.forwardPe,
+    summaryDetail.forwardPE
+  );
+  const pb = pickRaw(defaultKeyStatistics.priceToBook, financialData.priceToBook, summaryDetail.priceToBook);
+  const peg = pickRaw(defaultKeyStatistics.pegRatio, defaultKeyStatistics.peg);
+
+  if (!peTtm && !peForward && !pb && !peg) return null;
+
+  return {
+    anchors: [],
+    latest: {
+      pe_ttm: peTtm,
+      pe_forward: peForward,
+      pb,
+      peg,
+    },
+    source: "yahoo-quote-summary-latest",
+  };
+}
+
+function parseYahooQuoteApiRatioPayload(rawText: string): RatioPayload | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const result = (((parsed.quoteResponse as Record<string, unknown> | undefined)?.result as unknown[]) || []).find(
+    (item) => item && typeof item === "object"
+  ) as Record<string, unknown> | undefined;
+  if (!result) return null;
+
+  const peTtm = sanitizeSignedRatio(result.trailingPE);
+  const peForward = sanitizeSignedRatio(result.forwardPE);
+  const pb = sanitizeSignedRatio(result.priceToBook);
+  const peg = sanitizeSignedRatio(result.pegRatio);
+  if (!peTtm && !peForward && !pb && !peg) return null;
+
+  return {
+    anchors: [],
+    latest: {
+      pe_ttm: peTtm,
+      pe_forward: peForward,
+      pb,
+      peg,
+    },
+    source: "yahoo-quote-api-latest",
+  };
+}
+
 function parseYahooTrailingPegTimeseriesPayload(rawText: string): RatioPayload | null {
   let parsed: Record<string, unknown>;
   try {
@@ -1579,23 +1736,78 @@ function parseYahooTrailingPeTimeseriesPayload(rawText: string): RatioPayload | 
   };
 }
 
-async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<RatioPayload | null> {
+function parseYahooForwardPeTimeseriesPayload(rawText: string): RatioPayload | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const resultList = (((parsed.timeseries as Record<string, unknown> | undefined)?.result as unknown[]) || []).filter(
+    (item) => item && typeof item === "object"
+  ) as Array<Record<string, unknown>>;
+  if (!resultList.length) return null;
+
+  const sourceRows = resultList
+    .map((item) => (Array.isArray(item.forwardPeRatio) ? item.forwardPeRatio : []))
+    .find((rows) => rows.length) as Array<Record<string, unknown>> | undefined;
+  if (!sourceRows || !sourceRows.length) return null;
+
+  const byDate = new Map<string, RatioAnchor>();
+  let latestForwardPe: number | null = null;
+  let latestDate = "";
+  for (const row of sourceRows) {
+    if (!row || typeof row !== "object") continue;
+    const asOfDate = String(row.asOfDate || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) continue;
+
+    const rawValue = (row.reportedValue as Record<string, unknown> | undefined)?.raw;
+    const peForward = sanitizeSignedRatio(rawValue);
+    if (peForward === null) continue;
+
+    byDate.set(asOfDate, {
+      date: asOfDate,
+      pe_ttm: null,
+      pe_forward: peForward,
+      pb: null,
+      peg: null,
+    });
+
+    if (!latestDate || asOfDate >= latestDate) {
+      latestDate = asOfDate;
+      latestForwardPe = peForward;
+    }
+  }
+
+  if (!byDate.size && latestForwardPe === null) return null;
+
+  return {
+    anchors: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    latest: {
+      pe_ttm: null,
+      pe_forward: latestForwardPe,
+      pb: null,
+      peg: null,
+    },
+    source: "yahoo-forward-pe-timeseries",
+  };
+}
+
+async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<YahooRatioPayloadResult> {
   const candidates = [...new Set([symbol, symbol.replace(/\./g, "-"), symbol.replace(/-/g, ".")])]
     .map((item) => String(item || "").trim().toUpperCase())
     .filter(Boolean);
   const period1 = Math.floor(toTs(HISTORY_START_DATE) / 1000);
   const period2 = Math.floor(Date.now() / 1000) + 86400 * 30;
+  let quoteSummaryPayload: RatioPayload | null = null;
+  let quoteApiPayload: RatioPayload | null = null;
   let trailingPePayload: RatioPayload | null = null;
+  let forwardPePayload: RatioPayload | null = null;
   let trailingPegPayload: RatioPayload | null = null;
 
-  for (const candidate of candidates) {
-    const fetchTimeseriesPayload = async (
-      type: "trailingPeRatio" | "trailingPegRatio"
-    ): Promise<RatioPayload | null> => {
-      const timeseriesUrl =
-        `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/` +
-        `${encodeURIComponent(candidate)}?type=${type}&period1=${period1}&period2=${period2}`;
-
+  const fetchYahooPayloadText = async (url: string): Promise<string | null> => {
+    try {
       const { stdout } = await execFileAsync(
         "curl",
         [
@@ -1608,21 +1820,74 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Rati
           "Mozilla/5.0",
           "-H",
           "accept-language: en-US,en;q=0.9",
-          timeseriesUrl,
+          url,
         ],
         { maxBuffer: 24 * 1024 * 1024 }
       );
       const text = String(stdout || "").trim();
-      if (!text || isRejectedPayload(text)) {
-        return null;
+      if (!text || isRejectedPayload(text)) return null;
+      return text;
+    } catch {
+      return null;
+    }
+  };
+
+  for (const candidate of candidates) {
+    if (!quoteSummaryPayload) {
+      const quoteSummaryUrls = [
+        `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(candidate)}?modules=defaultKeyStatistics,financialData,summaryDetail`,
+        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(candidate)}?modules=defaultKeyStatistics,financialData,summaryDetail`,
+      ];
+
+      for (const url of quoteSummaryUrls) {
+        const text = await fetchYahooPayloadText(url);
+        if (!text) continue;
+        const payload = parseYahooQuoteSummaryRatioPayload(text);
+        if (payload) {
+          quoteSummaryPayload = payload;
+          break;
+        }
       }
-      return type === "trailingPeRatio"
-        ? parseYahooTrailingPeTimeseriesPayload(text)
-        : parseYahooTrailingPegTimeseriesPayload(text);
+    }
+
+    if (!quoteApiPayload) {
+      const quoteApiUrls = [
+        `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(candidate)}`,
+        `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(candidate)}`,
+      ];
+      for (const url of quoteApiUrls) {
+        const text = await fetchYahooPayloadText(url);
+        if (!text) continue;
+        const payload = parseYahooQuoteApiRatioPayload(text);
+        if (payload) {
+          quoteApiPayload = payload;
+          break;
+        }
+      }
+    }
+
+    const fetchTimeseriesPayload = async (
+      type: "trailingPeRatio" | "forwardPeRatio" | "trailingPegRatio"
+    ): Promise<RatioPayload | null> => {
+      const timeseriesUrl =
+        `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/` +
+        `${encodeURIComponent(candidate)}?type=${type}&period1=${period1}&period2=${period2}`;
+
+      const text = await fetchYahooPayloadText(timeseriesUrl);
+      if (!text) return null;
+      if (type === "trailingPeRatio") return parseYahooTrailingPeTimeseriesPayload(text);
+      if (type === "forwardPeRatio") return parseYahooForwardPeTimeseriesPayload(text);
+      return parseYahooTrailingPegTimeseriesPayload(text);
     };
 
     try {
       trailingPePayload = trailingPePayload || (await fetchTimeseriesPayload("trailingPeRatio"));
+    } catch {
+      // continue
+    }
+
+    try {
+      forwardPePayload = forwardPePayload || (await fetchTimeseriesPayload("forwardPeRatio"));
     } catch {
       // continue
     }
@@ -1684,9 +1949,25 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Rati
     }
   }
 
-  return mergeRatioPayloadList(
-    [keyStatisticsPayload, trailingPePayload, trailingPegPayload].filter(Boolean) as RatioPayload[]
+  const quoteLatestPayload = mergeRatioPayloadList(
+    [trailingPePayload, forwardPePayload, quoteSummaryPayload, quoteApiPayload, keyStatisticsPayload].filter(
+      Boolean
+    ) as RatioPayload[]
   );
+  const payload = mergeRatioPayloadList(
+    [
+      quoteSummaryPayload,
+      quoteApiPayload,
+      keyStatisticsPayload,
+      trailingPePayload,
+      forwardPePayload,
+      trailingPegPayload,
+    ].filter(Boolean) as RatioPayload[]
+  );
+  return {
+    payload,
+    quoteLatestPayload,
+  };
 }
 
 function applyLatestRatioOverrideAtLastDate(
@@ -1943,7 +2224,8 @@ function applyYahooDailyMetricSnapshotsToPoints(
 function preserveRecordedYahooDailyPoints(
   generatedPoints: SnapshotPoint[],
   previousPoints: SnapshotPoint[],
-  snapshots: YahooDailyMetricSnapshot[]
+  snapshots: YahooDailyMetricSnapshot[],
+  maxDate = ""
 ): SnapshotPoint[] {
   if (!Array.isArray(generatedPoints) || !generatedPoints.length) {
     return generatedPoints;
@@ -1955,7 +2237,11 @@ function preserveRecordedYahooDailyPoints(
   const recordedDates = new Set(
     snapshots
       .map((item) => normalizeYahooDailyMetricSnapshot(item)?.date || "")
-      .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+      .filter(
+        (date) =>
+          /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+          (!maxDate || date <= maxDate)
+      )
   );
   if (!recordedDates.size) return generatedPoints;
 
@@ -1969,9 +2255,10 @@ function preserveRecordedYahooDailyPoints(
   let changed = false;
   for (const point of previousPoints) {
     const date = String(point?.date || "");
-    if (!recordedDates.has(date) || byDate.has(date)) continue;
-    byDate.set(date, point);
-    changed = true;
+    if ((!maxDate || date <= maxDate) && recordedDates.has(date) && !byDate.has(date)) {
+      byDate.set(date, point);
+      changed = true;
+    }
   }
 
   if (!changed) return generatedPoints;
@@ -4964,11 +5251,23 @@ async function main(): Promise<void> {
     );
   }
 
+  let yahooMarketLatestDate = "";
+  try {
+    const resolved = await fetchYahooMarketLatestDate();
+    yahooMarketLatestDate = resolved || "";
+  } catch {
+    yahooMarketLatestDate = "";
+  }
+  console.log(`[company] yahoo market latest date: ${yahooMarketLatestDate || "unavailable"}`);
+
   console.log(`[company] parsed ${companies.length} companies, building series...`);
 
   let fallbackAnchorCount = 0;
   let skippedCount = 0;
   let reusedPreviousCount = 0;
+  let yahooLatestOverrideTargetCount = 0;
+  let yahooLatestOverrideAppliedCount = 0;
+  let yahooLatestOverrideMissingCount = 0;
 
   const built = await mapLimit(companies, CONCURRENCY, async (company, index) => {
     console.log(`[company] ${String(index + 1).padStart(3, "0")}/${companies.length} ${company.symbol}`);
@@ -4977,10 +5276,11 @@ async function main(): Promise<void> {
     if (symbolFilterSet && !symbolFilterSet.has(company.symbol)) {
       if (previousSeries) {
         reusedPreviousCount += 1;
-        const reusedPoints = applyYahooDailyMetricSnapshotsToPoints(
+        const reusedPointsRaw = applyYahooDailyMetricSnapshotsToPoints(
           previousSeries.points,
           yahooDailyMetricsBySymbol.get(company.symbol) || []
         );
+        const reusedPoints = capSnapshotSeriesByDate(reusedPointsRaw, yahooMarketLatestDate);
         const reusedLatestPoint = reusedPoints[reusedPoints.length - 1] || null;
         return {
           id: toCompanyId(company.symbol),
@@ -5005,12 +5305,15 @@ async function main(): Promise<void> {
       return null;
     }
 
-    const shouldUseYahooLatestOverride = YAHOO_LATEST_OVERRIDE_SYMBOLS.has(company.symbol);
+    const shouldUseYahooLatestOverride = shouldUseYahooLatestOverrideForSymbol(company.symbol);
+    if (shouldUseYahooLatestOverride) {
+      yahooLatestOverrideTargetCount += 1;
+    }
     const [
       closePointsRaw,
       stockQuarterlyPayload,
       stockStatisticsPayload,
-      yahooLatestPayload,
+      yahooFetchResult,
       longPeSeries,
       longPbSeries,
       ychartsSeries,
@@ -5023,9 +5326,22 @@ async function main(): Promise<void> {
       fetchCompaniesMarketCapMetricSeries(company.slug, "pb-ratio"),
       fetchYchartsSeriesBundle(company.symbol),
     ]);
-    const yahooLatestPeg = sanitizeSignedRatio(yahooLatestPayload?.latest.peg ?? null);
+    const yahooLatestPayload = yahooFetchResult?.payload || null;
+    const yahooQuoteLatestPayload = yahooFetchResult?.quoteLatestPayload || null;
+    const yahooLatestPeg = sanitizeSignedRatio(
+      yahooQuoteLatestPayload?.latest.peg ?? yahooLatestPayload?.latest.peg ?? null
+    );
+    const yahooLatestPeTtm = sanitizeSignedRatio(yahooQuoteLatestPayload?.latest.pe_ttm ?? null);
+    const yahooLatestPeForward = sanitizeSignedRatio(yahooQuoteLatestPayload?.latest.pe_forward ?? null);
+    if (shouldUseYahooLatestOverride) {
+      if (yahooLatestPeTtm || yahooLatestPeForward) {
+        yahooLatestOverrideAppliedCount += 1;
+      } else {
+        yahooLatestOverrideMissingCount += 1;
+      }
+    }
     const preferredLatestRatioOverride = shouldUseYahooLatestOverride
-      ? yahooLatestPayload
+      ? yahooQuoteLatestPayload
       : null;
 
     const stockPayload = mergeRatioPayloadList(
@@ -5041,6 +5357,7 @@ async function main(): Promise<void> {
           : ychartsClosePoints;
       closePoints = densifyCloseSeriesWithRecentDailyVol(closePoints);
     }
+    closePoints = capCloseSeriesByDate(closePoints, yahooMarketLatestDate);
 
     const mergedLongPeSeries = mergeMetricSeriesWithPreference(ychartsSeries?.pe_ttm || [], longPeSeries);
     const mergedLongPbSeries = mergeMetricSeriesWithPreference(ychartsSeries?.pb || [], longPbSeries);
@@ -5064,10 +5381,11 @@ async function main(): Promise<void> {
       if (previousSeries) {
         reusedPreviousCount += 1;
         console.warn(`[company] reuse ${company.symbol}: close history unavailable`);
-        const reusedPoints = applyYahooDailyMetricSnapshotsToPoints(
+        const reusedPointsRaw = applyYahooDailyMetricSnapshotsToPoints(
           previousSeries.points,
           yahooDailyMetricsBySymbol.get(company.symbol) || []
         );
+        const reusedPoints = capSnapshotSeriesByDate(reusedPointsRaw, yahooMarketLatestDate);
         const reusedLatestPoint = reusedPoints[reusedPoints.length - 1] || null;
         return {
           id: toCompanyId(company.symbol),
@@ -5098,7 +5416,7 @@ async function main(): Promise<void> {
       upsertYahooDailyMetricSnapshot(
         yahooDailyMetricsBySymbol,
         company.symbol,
-        createYahooDailyMetricSnapshot(lastCloseDate, yahooLatestPayload)
+        createYahooDailyMetricSnapshot(lastCloseDate, yahooQuoteLatestPayload)
       );
     }
     const yahooDailySnapshots = yahooDailyMetricsBySymbol.get(company.symbol) || [];
@@ -5109,8 +5427,10 @@ async function main(): Promise<void> {
     ) {
       const proxySeries = deriveForwardPeProxySeriesFromTtmPe(
         mergedLongPeSeries,
-        yahooLatestPayload?.latest.pe_ttm ?? stockPayload?.latest.pe_ttm,
-        yahooLatestPayload?.latest.pe_forward ?? stockPayload?.latest.pe_forward,
+        yahooQuoteLatestPayload?.latest.pe_ttm ?? yahooLatestPayload?.latest.pe_ttm ?? stockPayload?.latest.pe_ttm,
+        yahooQuoteLatestPayload?.latest.pe_forward ??
+          yahooLatestPayload?.latest.pe_forward ??
+          stockPayload?.latest.pe_forward,
         lastCloseDate,
         8
       );
@@ -5136,7 +5456,7 @@ async function main(): Promise<void> {
       company.symbol
     );
     if (shouldUseYahooLatestOverride) {
-      ratioPayload = applyLatestRatioOverrideAtLastDate(ratioPayload, yahooLatestPayload, lastCloseDate);
+      ratioPayload = applyLatestRatioOverrideAtLastDate(ratioPayload, yahooQuoteLatestPayload, lastCloseDate);
     }
     const { points, usedFallback, forwardStartDate } = buildValuationSeries(closePoints, ratioPayload);
     const quarterlyEps = alignQuarterlyEpsToValuationBasis(quarterlyEpsRaw, points);
@@ -5145,11 +5465,16 @@ async function main(): Promise<void> {
     const pointsWithPreservedYahooDates = preserveRecordedYahooDailyPoints(
       finalPoints,
       previousSeries?.points || [],
-      yahooDailySnapshots
+      yahooDailySnapshots,
+      yahooMarketLatestDate
     );
-    const pointsWithYahooDailyMetrics = applyYahooDailyMetricSnapshotsToPoints(
+    const pointsWithYahooDailyMetricsRaw = applyYahooDailyMetricSnapshotsToPoints(
       pointsWithPreservedYahooDates,
       yahooDailySnapshots
+    );
+    const pointsWithYahooDailyMetrics = capSnapshotSeriesByDate(
+      pointsWithYahooDailyMetricsRaw,
+      yahooMarketLatestDate
     );
     if (usedFallback) {
       fallbackAnchorCount += 1;
@@ -5161,10 +5486,11 @@ async function main(): Promise<void> {
         console.warn(
           `[company] reuse ${company.symbol}: insufficient points (${pointsWithYahooDailyMetrics.length})`
         );
-        const reusedPoints = applyYahooDailyMetricSnapshotsToPoints(
+        const reusedPointsRaw = applyYahooDailyMetricSnapshotsToPoints(
           previousSeries.points,
           yahooDailyMetricsBySymbol.get(company.symbol) || []
         );
+        const reusedPoints = capSnapshotSeriesByDate(reusedPointsRaw, yahooMarketLatestDate);
         const reusedLatestPoint = reusedPoints[reusedPoints.length - 1] || null;
         return {
           id: toCompanyId(company.symbol),
@@ -5255,6 +5581,10 @@ async function main(): Promise<void> {
       "stockanalysis-statistics-ratios-latest-fallback",
       "yahoo-key-statistics-latest-metrics",
       "yahoo-daily-metric-history-store",
+      `yahoo-market-latest-date-${yahooMarketLatestDate || "unavailable"}`,
+      `yahoo-latest-override-target-${yahooLatestOverrideTargetCount}`,
+      `yahoo-latest-override-applied-${yahooLatestOverrideAppliedCount}`,
+      `yahoo-latest-override-missing-${yahooLatestOverrideMissingCount}`,
       "stockanalysis-quarterly-income-eps",
       "stockanalysis-quarterly-income-net-income",
       "stockanalysis-forecast-quarterly-eps",
@@ -5286,6 +5616,10 @@ async function main(): Promise<void> {
   console.log(`[company] fallback anchors: ${fallbackAnchorCount}`);
   console.log(`[company] reused previous: ${reusedPreviousCount}`);
   console.log(`[company] skipped: ${skippedCount}`);
+  console.log(
+    `[company] yahoo latest override: target=${yahooLatestOverrideTargetCount} ` +
+      `applied=${yahooLatestOverrideAppliedCount} missing=${yahooLatestOverrideMissingCount}`
+  );
 }
 
 main().catch((error) => {

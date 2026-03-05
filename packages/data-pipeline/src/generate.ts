@@ -1427,40 +1427,6 @@ async function fetchFinvizForwardPe(symbol: string): Promise<number | undefined>
   return value;
 }
 
-async function fetchYahooForwardPe(symbol: string): Promise<number | undefined> {
-  const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${symbol.toUpperCase()}?modules=defaultKeyStatistics,financialData`;
-  const body = await curlGet(url, 25000, {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-    Accept: "application/json,text/plain,*/*",
-  });
-
-  if (!body || /^Edge:\s*Too\s*Many\s*Requests/i.test(body.trim())) return undefined;
-
-  const payload = JSON.parse(body) as {
-    quoteSummary?: {
-      result?: Array<{
-        defaultKeyStatistics?: {
-          forwardPE?: {
-            raw?: number;
-          };
-        };
-        financialData?: {
-          forwardPE?: {
-            raw?: number;
-          };
-        };
-      }>;
-    };
-  };
-  const result = payload?.quoteSummary?.result?.[0];
-  const value =
-    result?.defaultKeyStatistics?.forwardPE?.raw ??
-    result?.financialData?.forwardPE?.raw;
-
-  if (!Number.isFinite(value) || Number(value) <= 0) return undefined;
-  return Number(value);
-}
-
 async function fetchGuruFocusEtfPe(symbol: string): Promise<number | undefined> {
   const url = `https://www.gurufocus.com/etf/${symbol.toUpperCase()}/summary`;
   const html = await curlGet(url, 25000, {
@@ -2141,7 +2107,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let multplTrailingCount = 0;
   let stockAnalysisForwardCount = 0;
   let finvizForwardCount = 0;
-  let yahooForwardCount = 0;
   let historyForwardFallbackCount = 0;
   let localPinnedForwardCount = 0;
   let cachedMultplSp500Series: MonthlyMetricPoint[] | undefined;
@@ -2448,14 +2413,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
         if (!isReasonableForwardPe(stockForward)) {
           try {
-            stockForward = await fetchYahooForwardPe(meta.symbol);
-          } catch {
-            // ignore
-          }
-        }
-
-        if (!isReasonableForwardPe(stockForward)) {
-          try {
             stockForward = await fetchFinvizForwardPe(meta.symbol);
           } catch {
             // ignore
@@ -2556,18 +2513,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           if (isReasonableForwardPe(finvizForward)) {
             anchorForwardPe = Number(finvizForward);
             finvizForwardCount += 1;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      if (!anchorForwardPe) {
-        try {
-          const yahooForward = await fetchYahooForwardPe(meta.symbol);
-          if (isReasonableForwardPe(yahooForward)) {
-            anchorForwardPe = Number(yahooForward);
-            yahooForwardCount += 1;
           }
         } catch {
           // ignore
@@ -2716,9 +2661,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   }
   if (finvizForwardCount > 0) {
     source += `+finviz-fpe-${finvizForwardCount}`;
-  }
-  if (yahooForwardCount > 0) {
-    source += `+yahoo-fpe-${yahooForwardCount}`;
   }
   if (historyForwardFallbackCount > 0) {
     source += `+history-fpe-${historyForwardFallbackCount}`;
