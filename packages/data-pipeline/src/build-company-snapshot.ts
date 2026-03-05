@@ -1511,30 +1511,64 @@ function countPegAnchors(payload: RatioPayload | null): number {
 }
 
 function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | null {
-  const plain = decodeHtml(stripTags(stripScriptsAndStyles(rawText)))
+  const raw = String(rawText || "");
+  if (!raw.trim()) return null;
+
+  const normalizedPlain = decodeHtml(stripTags(stripScriptsAndStyles(raw)))
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!plain) return null;
 
-  const pickByLabels = (labels: string[]): number | null => {
-    for (const label of labels) {
-      const regex = new RegExp(`${escapeForRegex(label)}\\s*([0-9]+(?:\\.[0-9]+)?)`, "i");
-      const match = plain.match(regex);
-      if (!match) continue;
-      const value = sanitizeSignedRatio(match[1]);
-      if (value !== null) return value;
+  const candidates = [
+    raw,
+    raw.replace(/\\"/g, '"'),
+    raw.replace(/\\\//g, "/"),
+    raw.replace(/\\"/g, '"').replace(/\\\//g, "/"),
+    normalizedPlain,
+  ].filter((item) => String(item || "").trim());
+
+  const parseLabelMetric = (
+    labels: string[],
+    minValue: number,
+    maxValue: number
+  ): number | null => {
+    let resolved: number | null = null;
+
+    for (const candidate of candidates) {
+      for (const label of labels) {
+        const escapedLabel = escapeForRegex(label);
+        const patterns = [
+          new RegExp(`${escapedLabel}[^0-9\\-]{0,120}(-?\\d+(?:\\.\\d+)?)`, "gi"),
+          new RegExp(`${escapedLabel}[\\s\\S]{0,220}?<td[^>]*>\\s*(-?\\d+(?:\\.\\d+)?)\\s*<`, "gi"),
+          new RegExp(`"label"\\s*:\\s*"${escapedLabel}"[\\s\\S]{0,220}?"raw"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`, "gi"),
+        ];
+
+        for (const pattern of patterns) {
+          for (const match of candidate.matchAll(pattern)) {
+            const value = sanitizeSignedRatio(match[1]);
+            if (value === null) continue;
+            if (value < minValue || value > maxValue) continue;
+            resolved = value;
+          }
+        }
+      }
     }
-    return null;
+
+    return resolved;
   };
 
-  const peTtm = pickByLabels(["Trailing P/E"]);
-  const peForward = pickByLabels(["Forward P/E"]);
-  const pb = pickByLabels(["Price/Book"]);
-  const peg = pickByLabels([
-    "PEG Ratio (5 yr expected)",
-    "PEG Ratio (5yr expected)",
-  ]);
+  const peTtm = parseLabelMetric(["Trailing P/E"], 2, 400);
+  const peForward = parseLabelMetric(["Forward P/E"], 2, 400);
+  const pb = parseLabelMetric(["Price/Book"], 0.01, 400);
+  const peg = parseLabelMetric(
+    [
+      "PEG Ratio (5 yr expected)",
+      "PEG Ratio (5yr expected)",
+      "PEG Ratio",
+    ],
+    -100,
+    100
+  );
 
   if (!peTtm && !peForward && !pb && !peg) return null;
 
