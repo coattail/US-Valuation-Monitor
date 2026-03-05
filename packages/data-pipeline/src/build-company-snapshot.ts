@@ -1564,7 +1564,6 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
     [
       "PEG Ratio (5 yr expected)",
       "PEG Ratio (5yr expected)",
-      "PEG Ratio",
     ],
     -100,
     100
