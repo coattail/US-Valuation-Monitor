@@ -198,6 +198,9 @@ const MAX_REASONABLE_DATA_DATE_OFFSET_DAYS = 14;
 const STOCK_LATEST_OUTLIER_FACTOR = 3.2;
 const STOCK_TTM_BASIS_MISMATCH_FACTOR = 3.5;
 const MIN_FORWARD_ANCHORS_FOR_HISTORY = 4;
+const FORWARD_PE_REBASE_TRIGGER_FACTOR = 1.15;
+const FORWARD_PE_REBASE_MAX_FACTOR = 4;
+const FORWARD_PE_REBASE_MIN_VALUE = 4;
 const ENABLE_DIRECT_FETCH_FALLBACK = process.env.ENABLE_DIRECT_FETCH_FALLBACK === "1";
 const STOCK_ANALYSIS_SOURCE_PRIORITY = ["fai", "nasdaq", "fmp", "spg"];
 const SEC_USER_AGENT = process.env.SEC_USER_AGENT || "us-valuation-monitor/1.0 contact@example.com";
@@ -2223,6 +2226,89 @@ function applyLatestRatioOverrideAtLastDate(
     .sort((a, b) => a.date.localeCompare(b.date));
   base.source = [base.source, latestOverride.source].filter(Boolean).join("+");
   return base;
+}
+
+function rebaseForwardPeHistoryByLatestYahoo(
+  valuationPoints: SnapshotPoint[],
+  latestOverride: RatioPayload | null
+): { points: SnapshotPoint[]; applied: boolean; factor: number | null } {
+  if (!Array.isArray(valuationPoints) || valuationPoints.length < 2 || !latestOverride) {
+    return { points: valuationPoints, applied: false, factor: null };
+  }
+
+  const overrideSource = String(latestOverride.source || "").trim();
+  const latestYahooForward = sanitizeYahooMetricValue("pe_forward", latestOverride.latest.pe_forward, overrideSource);
+  if (!latestYahooForward || latestYahooForward < FORWARD_PE_REBASE_MIN_VALUE) {
+    return { points: valuationPoints, applied: false, factor: null };
+  }
+
+  const lastIndex = valuationPoints.length - 1;
+  const latestPoint = valuationPoints[lastIndex];
+  const latestClose = sanitizeSignedRatio(latestPoint?.close);
+  if (!latestClose || latestClose <= 0) {
+    return { points: valuationPoints, applied: false, factor: null };
+  }
+
+  let previousIndex = -1;
+  for (let i = lastIndex - 1; i >= 0; i -= 1) {
+    const point = valuationPoints[i];
+    const forward = sanitizeSignedRatio(point?.pe_forward);
+    const close = sanitizeSignedRatio(point?.close);
+    if (!forward || forward < FORWARD_PE_REBASE_MIN_VALUE) continue;
+    if (!close || close <= 0) continue;
+    previousIndex = i;
+    break;
+  }
+  if (previousIndex < 0) return { points: valuationPoints, applied: false, factor: null };
+
+  const previousPoint = valuationPoints[previousIndex];
+  const previousForward = sanitizeSignedRatio(previousPoint.pe_forward);
+  const previousClose = sanitizeSignedRatio(previousPoint.close);
+  if (!previousForward || !previousClose || previousClose <= 0) {
+    return { points: valuationPoints, applied: false, factor: null };
+  }
+
+  const priceRatio = latestClose / previousClose;
+  if (!Number.isFinite(priceRatio) || priceRatio <= 0) {
+    return { points: valuationPoints, applied: false, factor: null };
+  }
+
+  const expectedLatestForward = previousForward * priceRatio;
+  if (!Number.isFinite(expectedLatestForward) || expectedLatestForward <= 0) {
+    return { points: valuationPoints, applied: false, factor: null };
+  }
+
+  const rebaseFactor = latestYahooForward / expectedLatestForward;
+  if (!Number.isFinite(rebaseFactor) || rebaseFactor <= 0) {
+    return { points: valuationPoints, applied: false, factor: null };
+  }
+
+  const deviation = Math.max(rebaseFactor, 1 / rebaseFactor);
+  if (deviation < FORWARD_PE_REBASE_TRIGGER_FACTOR || deviation > FORWARD_PE_REBASE_MAX_FACTOR) {
+    return { points: valuationPoints, applied: false, factor: null };
+  }
+
+  let changed = false;
+  const nextPoints = valuationPoints.map((point, index) => {
+    if (index >= lastIndex) return point;
+    const currentForward = sanitizeSignedRatio(point.pe_forward);
+    if (!currentForward) return point;
+    const nextForward = sanitizeSignedRatio(currentForward * rebaseFactor);
+    if (!nextForward) return point;
+    if (Math.abs(nextForward - currentForward) <= 1e-6) return point;
+
+    changed = true;
+    return {
+      ...point,
+      pe_forward: roundTo(clamp(nextForward, -METRIC_MAX.pe_forward, METRIC_MAX.pe_forward), 4),
+    };
+  });
+
+  return {
+    points: changed ? nextPoints : valuationPoints,
+    applied: changed,
+    factor: changed ? rebaseFactor : null,
+  };
 }
 
 function applyLatestRatioOverrideToLastPoint(
@@ -5455,6 +5541,7 @@ async function main(): Promise<void> {
   let yahooLatestOverrideTargetCount = 0;
   let yahooLatestOverrideAppliedCount = 0;
   let yahooLatestOverrideMissingCount = 0;
+  let forwardPeRebasedCount = 0;
 
   const built = await mapLimit(companies, CONCURRENCY, async (company, index) => {
     console.log(`[company] ${String(index + 1).padStart(3, "0")}/${companies.length} ${company.symbol}`);
@@ -5648,7 +5735,14 @@ async function main(): Promise<void> {
     const { points, usedFallback, forwardStartDate } = buildValuationSeries(closePoints, ratioPayload);
     const quarterlyEps = alignQuarterlyEpsToValuationBasis(quarterlyEpsRaw, points);
     const pointsWithLatestActualTtm = overrideRecentPeTtmWithLatestActualTtmEps(points, quarterlyEps);
-    const finalPoints = applyLatestRatioOverrideToLastPoint(pointsWithLatestActualTtm, preferredLatestRatioOverride);
+    const rebasedForward = rebaseForwardPeHistoryByLatestYahoo(
+      pointsWithLatestActualTtm,
+      preferredLatestRatioOverride
+    );
+    if (rebasedForward.applied) {
+      forwardPeRebasedCount += 1;
+    }
+    const finalPoints = applyLatestRatioOverrideToLastPoint(rebasedForward.points, preferredLatestRatioOverride);
     const pointsWithPreservedYahooDates = preserveRecordedYahooDailyPoints(
       finalPoints,
       previousSeries?.points || [],
@@ -5772,6 +5866,7 @@ async function main(): Promise<void> {
       `yahoo-latest-override-target-${yahooLatestOverrideTargetCount}`,
       `yahoo-latest-override-applied-${yahooLatestOverrideAppliedCount}`,
       `yahoo-latest-override-missing-${yahooLatestOverrideMissingCount}`,
+      `forward-pe-rebased-to-yahoo-latest-${forwardPeRebasedCount}`,
       "stockanalysis-quarterly-income-eps",
       "stockanalysis-quarterly-income-net-income",
       "stockanalysis-forecast-quarterly-eps",
@@ -5803,6 +5898,7 @@ async function main(): Promise<void> {
   console.log(`[company] fallback anchors: ${fallbackAnchorCount}`);
   console.log(`[company] reused previous: ${reusedPreviousCount}`);
   console.log(`[company] skipped: ${skippedCount}`);
+  console.log(`[company] forward pe rebased symbols: ${forwardPeRebasedCount}`);
   console.log(
     `[company] yahoo latest override: target=${yahooLatestOverrideTargetCount} ` +
       `applied=${yahooLatestOverrideAppliedCount} missing=${yahooLatestOverrideMissingCount}`
