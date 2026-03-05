@@ -2230,7 +2230,8 @@ function applyLatestRatioOverrideAtLastDate(
 
 function rebaseForwardPeHistoryByLatestYahoo(
   valuationPoints: SnapshotPoint[],
-  latestOverride: RatioPayload | null
+  latestOverride: RatioPayload | null,
+  snapshots: YahooDailyMetricSnapshot[] = []
 ): { points: SnapshotPoint[]; applied: boolean; factor: number | null } {
   if (!Array.isArray(valuationPoints) || valuationPoints.length < 2 || !latestOverride) {
     return { points: valuationPoints, applied: false, factor: null };
@@ -2246,6 +2247,9 @@ function rebaseForwardPeHistoryByLatestYahoo(
   const latestPoint = valuationPoints[lastIndex];
   const latestClose = sanitizeSignedRatio(latestPoint?.close);
   if (!latestClose || latestClose <= 0) {
+    return { points: valuationPoints, applied: false, factor: null };
+  }
+  if (!shouldRebaseForwardByYahooSnapshotTransition(snapshots, latestPoint.date)) {
     return { points: valuationPoints, applied: false, factor: null };
   }
 
@@ -2309,6 +2313,76 @@ function rebaseForwardPeHistoryByLatestYahoo(
     applied: changed,
     factor: changed ? rebaseFactor : null,
   };
+}
+
+function buildLatestRatioOverrideFromYahooDailySnapshot(
+  snapshots: YahooDailyMetricSnapshot[],
+  targetDate: string
+): RatioPayload | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate) || !Array.isArray(snapshots) || !snapshots.length) {
+    return null;
+  }
+
+  let matched: YahooDailyMetricSnapshot | null = null;
+  for (const item of snapshots) {
+    const normalized = normalizeYahooDailyMetricSnapshot(item);
+    if (!normalized || normalized.date !== targetDate) continue;
+    matched = normalized;
+  }
+  if (!matched) return null;
+
+  const latest = {
+    pe_ttm: sanitizeSignedRatio(matched.pe_ttm),
+    pe_forward: sanitizeSignedRatio(matched.pe_forward),
+    pb: sanitizeSignedRatio(matched.pb),
+    peg: sanitizeSignedRatio(matched.peg),
+  };
+  if (!latest.pe_ttm && !latest.pe_forward && !latest.pb && !latest.peg) {
+    return null;
+  }
+
+  return {
+    anchors: [
+      {
+        date: matched.date,
+        pe_ttm: latest.pe_ttm,
+        pe_forward: latest.pe_forward,
+        pb: latest.pb,
+        peg: latest.peg,
+      },
+    ],
+    latest,
+    source: String(matched.source || "yahoo-daily-snapshot"),
+  };
+}
+
+function shouldRebaseForwardByYahooSnapshotTransition(
+  snapshots: YahooDailyMetricSnapshot[],
+  latestDate: string
+): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(latestDate) || !Array.isArray(snapshots) || snapshots.length < 2) {
+    return false;
+  }
+
+  const normalized = snapshots
+    .map((item) => normalizeYahooDailyMetricSnapshot(item))
+    .filter((item): item is YahooDailyMetricSnapshot => !!item)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (normalized.length < 2) return false;
+
+  const latestIndex = normalized.findIndex((item) => item.date === latestDate);
+  if (latestIndex <= 0) return false;
+
+  const latestSnapshot = normalized[latestIndex];
+  if (sanitizeSignedRatio(latestSnapshot.pe_forward) === null) return false;
+
+  for (let i = latestIndex - 1; i >= 0; i -= 1) {
+    const previousSnapshot = normalized[i];
+    if (previousSnapshot.date >= latestDate) continue;
+    return sanitizeSignedRatio(previousSnapshot.pe_forward) === null;
+  }
+
+  return false;
 }
 
 function applyLatestRatioOverrideToLastPoint(
@@ -5607,16 +5681,6 @@ async function main(): Promise<void> {
     );
     const yahooLatestPeTtm = sanitizeSignedRatio(yahooQuoteLatestPayload?.latest.pe_ttm ?? null);
     const yahooLatestPeForward = sanitizeSignedRatio(yahooQuoteLatestPayload?.latest.pe_forward ?? null);
-    if (shouldUseYahooLatestOverride) {
-      if (yahooLatestPeTtm || yahooLatestPeForward) {
-        yahooLatestOverrideAppliedCount += 1;
-      } else {
-        yahooLatestOverrideMissingCount += 1;
-      }
-    }
-    const preferredLatestRatioOverride = shouldUseYahooLatestOverride
-      ? yahooQuoteLatestPayload
-      : null;
 
     const stockPayload = mergeRatioPayloadList(
       [stockQuarterlyPayload, stockStatisticsPayload].filter(Boolean) as RatioPayload[]
@@ -5694,6 +5758,22 @@ async function main(): Promise<void> {
       );
     }
     const yahooDailySnapshots = yahooDailyMetricsBySymbol.get(company.symbol) || [];
+    const snapshotLatestRatioOverride =
+      shouldUseYahooLatestOverride && lastCloseDate
+        ? buildLatestRatioOverrideFromYahooDailySnapshot(yahooDailySnapshots, lastCloseDate)
+        : null;
+    const preferredLatestRatioOverride = shouldUseYahooLatestOverride
+      ? yahooLatestPeTtm || yahooLatestPeForward
+        ? yahooQuoteLatestPayload
+        : snapshotLatestRatioOverride
+      : null;
+    if (shouldUseYahooLatestOverride) {
+      if (preferredLatestRatioOverride) {
+        yahooLatestOverrideAppliedCount += 1;
+      } else {
+        yahooLatestOverrideMissingCount += 1;
+      }
+    }
 
     if (
       FORWARD_PE_PROXY_FROM_TTM_SYMBOLS.has(company.symbol) &&
@@ -5730,14 +5810,15 @@ async function main(): Promise<void> {
       company.symbol
     );
     if (shouldUseYahooLatestOverride) {
-      ratioPayload = applyLatestRatioOverrideAtLastDate(ratioPayload, yahooQuoteLatestPayload, lastCloseDate);
+      ratioPayload = applyLatestRatioOverrideAtLastDate(ratioPayload, preferredLatestRatioOverride, lastCloseDate);
     }
     const { points, usedFallback, forwardStartDate } = buildValuationSeries(closePoints, ratioPayload);
     const quarterlyEps = alignQuarterlyEpsToValuationBasis(quarterlyEpsRaw, points);
     const pointsWithLatestActualTtm = overrideRecentPeTtmWithLatestActualTtmEps(points, quarterlyEps);
     const rebasedForward = rebaseForwardPeHistoryByLatestYahoo(
       pointsWithLatestActualTtm,
-      preferredLatestRatioOverride
+      preferredLatestRatioOverride,
+      yahooDailySnapshots
     );
     if (rebasedForward.applied) {
       forwardPeRebasedCount += 1;
