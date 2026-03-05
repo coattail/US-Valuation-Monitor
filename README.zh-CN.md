@@ -61,6 +61,10 @@ us-valuation-monitor/
 - 标普500前瞻市盈率（Forward PE）包含 MacroMicro 引导序列，文件为 `data/bootstrap/sp500-forward-pe-macromicro.csv`。
 - 每个指数的前瞻估值起始可用日由 `forwardStartDate` 标记，API 会在查询时严格处理。
 - 指数最新快照值有“防跳变阈值”校验，避免单日源口径切换造成异常尖刺。
+- 企业 `PE(FWD)` 最新值优先使用 Yahoo 可信来源；若当日 Yahoo 快照来源不可信，则该日 `pe_forward` 记为 `null`（不做人为补值）。
+- 当企业 `PE(FWD)` 出现“前一交易日不可用、最新交易日恢复可用”的口径切换时，会按**固定系数重基准**衔接历史：
+  - 系数 = `Yahoo最新FWD / (上一有效FWD × 最新收盘价/上一有效收盘价)`
+  - 用于把历史 `forward PE` 与 Yahoo 最新值在同一口径下衔接，避免源切换导致的突变断层。
 - TTM PE 在锚点区间内不是“长区间纯线性插值”，而是**结合交易日收盘路径重建**：
   - 在有效锚点之间按每日价格波动推导估值路径
   - 避免出现不符合市场节奏的“过度平滑下滑线条”
@@ -148,6 +152,7 @@ npm run start:api
 
 ### 任务与认证
 - `POST /api/jobs/daily-update`：手动触发一次完整日更
+- `POST /api/jobs/company-refresh`：手动触发企业估值重建（可传 symbols 做定向刷新）
 - `POST /api/auth/dev-login`：获取开发态 token
 - `POST /api/auth/wechat-login`：当前返回 `501`（待小程序 AppID 打通）
 
@@ -213,6 +218,7 @@ curl -sS "http://127.0.0.1:9040/api/series?indexId=sp500&metric=pe_ttm"
 - 企业卡片 `PE(TTM)` / `PE(FWD)` 与 Yahoo 页面不一致：
   - 最新覆盖优先使用 Yahoo timeseries（`trailingPeRatio` / `forwardPeRatio`）+ quote API，尽量对齐 Yahoo Valuation Measures 口径
   - 检查 `data/standardized/company-yahoo-daily-metrics.json` 是否持续有数据写入（可结合 `yahoo-market-latest-date-*` 与 `yahoo-latest-override-*` 源标签核对日期和覆盖率）
+  - 当出现源口径切换（前一天 `pe_forward` 缺失、最新日恢复）时，管线会按“价格变化修正后的固定系数”重基准历史 `PE(FWD)`，用于和 Yahoo 最新值连续衔接
   - 默认对全部公司启用 Yahoo 最新值覆盖（`YAHOO_LATEST_OVERRIDE_SYMBOLS=*`）；如个别标的口径特殊，可用 `YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS=SYM1,SYM2` 排除
   - 中国大陆网络通常会被 Yahoo 拒绝页拦截，建议在可访问 Yahoo 的环境（如 GitHub Actions）执行 `npm run build:data:company`
 - 指数/企业最新日期落后：

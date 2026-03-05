@@ -61,6 +61,10 @@ This project follows a **multi-source merge with reliability guardrails** strate
 - S&P 500 forward PE includes a pinned bootstrap series from MacroMicro in `data/bootstrap/sp500-forward-pe-macromicro.csv`.
 - Forward PE availability is tracked per index via `forwardStartDate` and enforced in API responses.
 - Latest index snapshots include an anti-spike deviation guard to reduce one-day source-regime jumps.
+- Company `PE(FWD)` latest values prefer Yahoo trusted sources; when a daily Yahoo snapshot is untrusted for `pe_forward`, that day is stored as `null` (no manual fill).
+- For source-regime transitions (previous trading day unavailable, latest day available), historical `forward PE` is rebased using a fixed factor that includes the latest-day price move:
+  - factor = `latestYahooForward / (previousForward × latestClose/previousClose)`
+  - this keeps historical forward PE and latest Yahoo forward PE connected under the same basis.
 - TTM PE reconstruction between sparse anchors is **close-aware**, not pure long-span linear interpolation:
   - within valid anchor ranges, daily valuation path is reconstructed against actual trading-day close movements
   - this preserves realistic day-to-day fluctuation instead of producing unnaturally smooth declines
@@ -148,6 +152,7 @@ Base URL: `http://127.0.0.1:9040`
 
 ### Jobs and auth
 - `POST /api/jobs/daily-update` — trigger one full refresh in API runtime
+- `POST /api/jobs/company-refresh` — trigger company rebuild (optionally with symbol filter)
 - `POST /api/auth/dev-login` — returns a development token
 - `POST /api/auth/wechat-login` — currently returns `501` placeholder until Mini Program AppID integration
 
@@ -213,6 +218,7 @@ curl -sS "http://127.0.0.1:9040/api/series?indexId=sp500&metric=pe_ttm"
 - Company `PE(TTM)` / `PE(FWD)` differs from Yahoo:
   - latest override now prioritizes Yahoo timeseries (`trailingPeRatio` / `forwardPeRatio`) plus quote API to stay close to Yahoo Valuation Measures
   - check whether `data/standardized/company-yahoo-daily-metrics.json` is being appended (use `yahoo-market-latest-date-*` and `yahoo-latest-override-*` source tags to verify date alignment and coverage)
+  - when a source transition happens (missing previous day, available latest day), the pipeline rebases historical `PE(FWD)` by a price-adjusted fixed factor to connect to Yahoo latest value
   - latest Yahoo override is enabled for all symbols by default (`YAHOO_LATEST_OVERRIDE_SYMBOLS=*`); exclude special cases with `YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS=SYM1,SYM2`
   - Yahoo is often blocked from mainland China; run `npm run build:data:company` in a Yahoo-reachable environment (for example GitHub Actions)
 - Index/company latest date is behind:
