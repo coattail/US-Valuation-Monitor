@@ -5297,6 +5297,108 @@ function buildTtmGrowthAnchorsFromQuarterlyEps(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function buildForwardEpsAnchorsFromQuarterlyEps(
+  quarterlyRows: QuarterlyEpsPoint[]
+): Array<{ date: string; eps: number }> {
+  if (!Array.isArray(quarterlyRows) || quarterlyRows.length < 4) return [];
+
+  const actualRows = normalizeQuarterlyEpsRows(quarterlyRows).filter((row) => row.source === "actual");
+  if (actualRows.length < 4) return [];
+
+  const anchors: Array<{ date: string; eps: number }> = [];
+  for (let i = 0; i + 3 < actualRows.length; i += 1) {
+    const window = actualRows.slice(i, i + 4);
+    if (window.some((row) => !Number.isFinite(row.eps))) continue;
+
+    let isContiguous = true;
+    for (let j = 1; j < window.length; j += 1) {
+      const prevTs = toTs(window[j - 1].date);
+      const currTs = toTs(window[j].date);
+      if (!prevTs || !currTs) {
+        isContiguous = false;
+        break;
+      }
+      const gapDays = (currTs - prevTs) / 86_400_000;
+      if (!Number.isFinite(gapDays) || gapDays < 40 || gapDays > 140) {
+        isContiguous = false;
+        break;
+      }
+    }
+    if (!isContiguous) continue;
+
+    const forwardEps = sanitizeEps(window.reduce((sum, item) => sum + item.eps, 0));
+    if (forwardEps === null || Math.abs(forwardEps) <= 1e-8) continue;
+
+    const firstWindowQuarter = window[0];
+    const firstAvailableDate = toIsoDateFromText(firstWindowQuarter.availableDate) || firstWindowQuarter.date;
+    const anchorDate = firstAvailableDate < firstWindowQuarter.date ? firstWindowQuarter.date : firstAvailableDate;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)) continue;
+
+    anchors.push({
+      date: anchorDate,
+      eps: roundTo(forwardEps, 6),
+    });
+  }
+
+  const byDate = new Map<string, number>();
+  for (const item of anchors) {
+    byDate.set(item.date, item.eps);
+  }
+
+  return [...byDate.entries()]
+    .map(([date, eps]) => ({ date, eps }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function backfillForwardPeWithActualNext4qEps(
+  valuationPoints: SnapshotPoint[],
+  quarterlyRows: QuarterlyEpsPoint[]
+): SnapshotPoint[] {
+  if (!Array.isArray(valuationPoints) || !valuationPoints.length) return valuationPoints;
+  if (!Array.isArray(quarterlyRows) || quarterlyRows.length < 4) return valuationPoints;
+
+  const anchors = buildForwardEpsAnchorsFromQuarterlyEps(quarterlyRows);
+  if (!anchors.length) return valuationPoints;
+
+  let anchorIndex = 0;
+  let latestForwardEps: number | null = null;
+  let changed = false;
+
+  const nextPoints = valuationPoints.map((point) => {
+    while (anchorIndex < anchors.length && anchors[anchorIndex].date <= point.date) {
+      latestForwardEps = anchors[anchorIndex].eps;
+      anchorIndex += 1;
+    }
+
+    if (sanitizeSignedRatio(point.pe_forward) !== null) return point;
+    if (!Number.isFinite(latestForwardEps as number) || Math.abs(Number(latestForwardEps)) <= 1e-8) return point;
+
+    const close = sanitizeSignedRatio(point.close);
+    if (close === null || close <= 0) return point;
+
+    const derivedForwardPe = sanitizeSignedRatio(close / Number(latestForwardEps));
+    if (derivedForwardPe === null || Math.abs(derivedForwardPe) > METRIC_MAX.pe_forward) return point;
+
+    changed = true;
+    return {
+      ...point,
+      pe_forward: roundTo(derivedForwardPe, 4),
+    };
+  });
+
+  return changed ? nextPoints : valuationPoints;
+}
+
+function resolveForwardStartDateFromPoints(points: SnapshotPoint[], fallbackDate = ""): string {
+  for (const point of points || []) {
+    const date = String(point?.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    if (sanitizeSignedRatio(point?.pe_forward) === null) continue;
+    return date;
+  }
+  return fallbackDate;
+}
+
 function enrichPegFromQuarterlyEpsGrowth(
   valuationPoints: SnapshotPoint[],
   quarterlyRows: QuarterlyEpsPoint[]
@@ -5481,6 +5583,7 @@ async function main(): Promise<void> {
   let yahooLatestOverrideTargetCount = 0;
   let yahooLatestOverrideAppliedCount = 0;
   let yahooLatestOverrideMissingCount = 0;
+  let forwardEpsFallbackCount = 0;
 
   const built = await mapLimit(companies, CONCURRENCY, async (company, index) => {
     console.log(`[company] ${String(index + 1).padStart(3, "0")}/${companies.length} ${company.symbol}`);
@@ -5689,7 +5792,11 @@ async function main(): Promise<void> {
     const { points, usedFallback, forwardStartDate } = buildValuationSeries(closePoints, ratioPayload);
     const quarterlyEps = alignQuarterlyEpsToValuationBasis(quarterlyEpsRaw, points);
     const pointsWithLatestActualTtm = overrideRecentPeTtmWithLatestActualTtmEps(points, quarterlyEps);
-    const finalPoints = applyLatestRatioOverrideToLastPoint(pointsWithLatestActualTtm, preferredLatestRatioOverride);
+    const pointsWithForwardEpsFallback = backfillForwardPeWithActualNext4qEps(pointsWithLatestActualTtm, quarterlyEps);
+    if (pointsWithForwardEpsFallback !== pointsWithLatestActualTtm) {
+      forwardEpsFallbackCount += 1;
+    }
+    const finalPoints = applyLatestRatioOverrideToLastPoint(pointsWithForwardEpsFallback, preferredLatestRatioOverride);
     const pointsWithPreservedYahooDates = preserveRecordedYahooDailyPoints(
       finalPoints,
       previousSeries?.points || [],
@@ -5747,6 +5854,10 @@ async function main(): Promise<void> {
     }
 
     const latestPointWithYahooDailyMetrics = pointsWithYahooDailyMetrics[pointsWithYahooDailyMetrics.length - 1] || null;
+    const resolvedForwardStartDate = resolveForwardStartDateFromPoints(
+      pointsWithYahooDailyMetrics,
+      forwardStartDate || pointsWithYahooDailyMetrics[pointsWithYahooDailyMetrics.length - 1]?.date || ""
+    );
 
     return {
       id: toCompanyId(company.symbol),
@@ -5758,8 +5869,7 @@ async function main(): Promise<void> {
       peg:
         sanitizeSignedRatio(latestPointWithYahooDailyMetrics?.peg) ??
         yahooLatestPeg,
-      forwardStartDate:
-        forwardStartDate || pointsWithYahooDailyMetrics[pointsWithYahooDailyMetrics.length - 1]?.date || "",
+      forwardStartDate: resolvedForwardStartDate,
       points: pointsWithYahooDailyMetrics,
       quarterlyEps,
       quarterlyNetIncome,
@@ -5813,6 +5923,7 @@ async function main(): Promise<void> {
       `yahoo-latest-override-target-${yahooLatestOverrideTargetCount}`,
       `yahoo-latest-override-applied-${yahooLatestOverrideAppliedCount}`,
       `yahoo-latest-override-missing-${yahooLatestOverrideMissingCount}`,
+      `forward-pe-realized-next4q-eps-fallback-${forwardEpsFallbackCount}`,
       "stockanalysis-quarterly-income-eps",
       "stockanalysis-quarterly-income-net-income",
       "stockanalysis-forecast-quarterly-eps",
@@ -5844,6 +5955,7 @@ async function main(): Promise<void> {
   console.log(`[company] fallback anchors: ${fallbackAnchorCount}`);
   console.log(`[company] reused previous: ${reusedPreviousCount}`);
   console.log(`[company] skipped: ${skippedCount}`);
+  console.log(`[company] forward eps fallback symbols: ${forwardEpsFallbackCount}`);
   console.log(
     `[company] yahoo latest override: target=${yahooLatestOverrideTargetCount} ` +
       `applied=${yahooLatestOverrideAppliedCount} missing=${yahooLatestOverrideMissingCount}`
