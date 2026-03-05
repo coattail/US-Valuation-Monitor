@@ -4062,13 +4062,6 @@ async function fetchQuarterlyFinancialSeries(
         lastCloseDate
       );
 
-      if (mergedEpsRows.length >= 4 && mergedNetIncomeRows.length >= 4) {
-        return {
-          quarterlyEps: mergedEpsRows,
-          quarterlyNetIncome: mergedNetIncomeRows,
-        };
-      }
-
       const score = mergedEpsRows.length + mergedNetIncomeRows.length;
       if (score > bestScore) {
         bestScore = score;
