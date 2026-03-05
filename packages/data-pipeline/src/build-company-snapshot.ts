@@ -198,6 +198,9 @@ const MAX_REASONABLE_DATA_DATE_OFFSET_DAYS = 14;
 const STOCK_LATEST_OUTLIER_FACTOR = 3.2;
 const STOCK_TTM_BASIS_MISMATCH_FACTOR = 3.5;
 const MIN_FORWARD_ANCHORS_FOR_HISTORY = 4;
+const YAHOO_FORWARD_OVERRIDE_MAX_JUMP_FACTOR = 1.18;
+const YAHOO_FORWARD_STABLE_NEIGHBOR_FACTOR = 1.12;
+const YAHOO_FORWARD_GUARD_MIN_VALUE = 4;
 const ENABLE_DIRECT_FETCH_FALLBACK = process.env.ENABLE_DIRECT_FETCH_FALLBACK === "1";
 const STOCK_ANALYSIS_SOURCE_PRIORITY = ["fai", "nasdaq", "fmp", "spg"];
 const SEC_USER_AGENT = process.env.SEC_USER_AGENT || "us-valuation-monitor/1.0 contact@example.com";
@@ -349,6 +352,47 @@ function roundTo(value: number, digits = 3): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function ratioDistance(leftRaw: unknown, rightRaw: unknown): number | null {
+  const left = sanitizeSignedRatio(leftRaw);
+  const right = sanitizeSignedRatio(rightRaw);
+  if (!left || !right) return null;
+  if (left <= 0 || right <= 0) return null;
+  return Math.max(left / right, right / left);
+}
+
+function isYahooForwardOverrideLikelyOutlier(
+  points: SnapshotPoint[],
+  index: number,
+  candidateRaw: unknown
+): boolean {
+  const candidate = sanitizeSignedRatio(candidateRaw);
+  if (!candidate || candidate < YAHOO_FORWARD_GUARD_MIN_VALUE) return false;
+  if (!Array.isArray(points) || index < 0 || index > points.length) return false;
+
+  let prev1: number | null = null;
+  let prev2: number | null = null;
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const value = sanitizeSignedRatio(points[i]?.pe_forward);
+    if (!value) continue;
+    if (prev1 === null) {
+      prev1 = value;
+      continue;
+    }
+    prev2 = value;
+    break;
+  }
+
+  if (prev1 === null || prev1 < YAHOO_FORWARD_GUARD_MIN_VALUE) return false;
+
+  const prevStabilityFactor = ratioDistance(prev1, prev2);
+  const isPrevStable = prev2 === null || (prevStabilityFactor !== null && prevStabilityFactor <= YAHOO_FORWARD_STABLE_NEIGHBOR_FACTOR);
+  if (!isPrevStable) return false;
+
+  const jumpFactor = ratioDistance(candidate, prev1);
+  if (jumpFactor === null) return false;
+  return jumpFactor >= YAHOO_FORWARD_OVERRIDE_MAX_JUMP_FACTOR;
 }
 
 function toTs(dateText: string): number {
@@ -2204,7 +2248,25 @@ function applyLatestRatioOverrideAtLastDate(
     current.pe_ttm = overrideLatest.pe_ttm;
     base.latest.pe_ttm = overrideLatest.pe_ttm;
   }
-  if (overrideLatest.pe_forward) {
+  const orderedByDate = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const currentIndexInSeries = orderedByDate.findIndex((item) => item.date === lastDate);
+  const forwardOverrideOutlier =
+    overrideLatest.pe_forward &&
+    isYahooForwardOverrideLikelyOutlier(
+      orderedByDate.map((item) => ({
+        date: item.date,
+        close: null,
+        pe_ttm: item.pe_ttm || 0,
+        pe_forward: item.pe_forward,
+        pb: item.pb || 0,
+        peg: item.peg,
+        us10y_yield: 0,
+      })),
+      currentIndexInSeries >= 0 ? currentIndexInSeries : orderedByDate.length,
+      overrideLatest.pe_forward
+    );
+
+  if (overrideLatest.pe_forward && !forwardOverrideOutlier) {
     current.pe_forward = overrideLatest.pe_forward;
     base.latest.pe_forward = overrideLatest.pe_forward;
   }
@@ -2236,11 +2298,15 @@ function applyLatestRatioOverrideToLastPoint(
   const overrideSource = String(latestOverride.source || "").trim();
   const overridePeTtm = sanitizeYahooMetricValue("pe_ttm", latestOverride.latest.pe_ttm, overrideSource);
   const overridePeForward = sanitizeYahooMetricValue("pe_forward", latestOverride.latest.pe_forward, overrideSource);
-  if (!overridePeTtm && !overridePeForward) {
+  const lastIndex = valuationPoints.length - 1;
+  const isForwardOutlier =
+    overridePeForward !== null &&
+    isYahooForwardOverrideLikelyOutlier(valuationPoints, lastIndex, overridePeForward);
+  const safeOverridePeForward = isForwardOutlier ? null : overridePeForward;
+  if (!overridePeTtm && !safeOverridePeForward) {
     return valuationPoints;
   }
 
-  const lastIndex = valuationPoints.length - 1;
   const currentLastPoint = valuationPoints[lastIndex];
   let nextLastPoint: SnapshotPoint | null = null;
 
@@ -2251,10 +2317,10 @@ function applyLatestRatioOverrideToLastPoint(
     };
   }
 
-  if (overridePeForward && overridePeForward !== sanitizeSignedRatio(currentLastPoint.pe_forward)) {
+  if (safeOverridePeForward && safeOverridePeForward !== sanitizeSignedRatio(currentLastPoint.pe_forward)) {
     nextLastPoint = {
       ...(nextLastPoint || currentLastPoint),
-      pe_forward: roundTo(overridePeForward, 4),
+      pe_forward: roundTo(safeOverridePeForward, 4),
     };
   }
 
@@ -2351,7 +2417,7 @@ function applyYahooDailyMetricSnapshotsToPoints(
   if (!byDate.size) return valuationPoints;
 
   let changed = false;
-  const nextPoints = valuationPoints.map((point) => {
+  const nextPoints = valuationPoints.map((point, index) => {
     const snapshot = byDate.get(point.date);
     if (!snapshot) return point;
 
@@ -2364,7 +2430,10 @@ function applyYahooDailyMetricSnapshotsToPoints(
       };
     }
 
-    if (snapshot.pe_forward && snapshot.pe_forward !== sanitizeSignedRatio(point.pe_forward)) {
+    const shouldSkipForwardSnapshot =
+      snapshot.pe_forward !== null &&
+      isYahooForwardOverrideLikelyOutlier(valuationPoints, index, snapshot.pe_forward);
+    if (!shouldSkipForwardSnapshot && snapshot.pe_forward && snapshot.pe_forward !== sanitizeSignedRatio(point.pe_forward)) {
       nextPoint = {
         ...(nextPoint || point),
         pe_forward: roundTo(snapshot.pe_forward, 4),
