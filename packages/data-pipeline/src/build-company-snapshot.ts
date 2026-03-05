@@ -1114,6 +1114,31 @@ function metricPointsToCloseSeries(points: MetricPoint[]): ClosePoint[] {
     .sort((a, b) => a.ts - b.ts);
 }
 
+function ratioAnchorsToMetricSeries(
+  payload: RatioPayload | null,
+  key: "pe_ttm" | "pe_forward" | "pb" | "peg"
+): MetricPoint[] {
+  if (!payload || !Array.isArray(payload.anchors) || !payload.anchors.length) return [];
+
+  const byDate = new Map<string, MetricPoint>();
+  for (const item of payload.anchors) {
+    const date = String(item?.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const value = sanitizeSignedRatio(item[key]);
+    if (value === null) continue;
+    const ts = toTs(date);
+    if (!Number.isFinite(ts) || ts <= 0) continue;
+
+    byDate.set(date, {
+      date,
+      ts,
+      value,
+    });
+  }
+
+  return [...byDate.values()].sort((a, b) => a.ts - b.ts);
+}
+
 function deriveForwardPeProxySeriesFromTtmPe(
   peSeries: MetricPoint[],
   latestPeTtmRaw: unknown,
@@ -2030,15 +2055,31 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
     const fetchTimeseriesPayload = async (
       type: "trailingPeRatio" | "forwardPeRatio" | "trailingPegRatio"
     ): Promise<RatioPayload | null> => {
-      const timeseriesUrl =
+      const timeseriesUrls = [
         `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/` +
-        `${encodeURIComponent(candidate)}?type=${type}&period1=${period1}&period2=${period2}`;
+          `${encodeURIComponent(candidate)}?type=${type}&period1=${period1}&period2=${period2}`,
+        `https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/` +
+          `${encodeURIComponent(candidate)}?type=${type}&period1=${period1}&period2=${period2}`,
+      ];
 
-      const text = await fetchYahooPayloadText(timeseriesUrl);
-      if (!text) return null;
-      if (type === "trailingPeRatio") return parseYahooTrailingPeTimeseriesPayload(text);
-      if (type === "forwardPeRatio") return parseYahooForwardPeTimeseriesPayload(text);
-      return parseYahooTrailingPegTimeseriesPayload(text);
+      for (const timeseriesUrl of timeseriesUrls) {
+        const text = await fetchYahooPayloadText(timeseriesUrl);
+        if (!text) continue;
+        if (type === "trailingPeRatio") {
+          const parsed = parseYahooTrailingPeTimeseriesPayload(text);
+          if (parsed) return parsed;
+          continue;
+        }
+        if (type === "forwardPeRatio") {
+          const parsed = parseYahooForwardPeTimeseriesPayload(text);
+          if (parsed) return parsed;
+          continue;
+        }
+        const parsed = parseYahooTrailingPegTimeseriesPayload(text);
+        if (parsed) return parsed;
+      }
+
+      return null;
     };
 
     try {
@@ -5535,18 +5576,33 @@ async function main(): Promise<void> {
     const mergedLongPbSeries = mergeMetricSeriesWithPreference(ychartsSeries?.pb || [], longPbSeries);
     // Forward PE source policy:
     // 1) Prefer stock-level ratios from StockAnalysis (quarterly anchors + latest),
-    // 2) Use YCharts forward series only as sparse-history fallback.
+    // 2) Use Yahoo forward-pe timeseries as historical supplement where available,
+    // 3) Use YCharts forward series as additional fallback.
     const stockForwardAnchorCount = countForwardAnchors(stockPayload);
+    const yahooForwardSeries = ratioAnchorsToMetricSeries(yahooLatestPayload, "pe_forward");
     const ychartsForwardSeries = ychartsSeries?.pe_forward || [];
+    const hasYahooForwardSupplement = yahooForwardSeries.length >= MIN_FORWARD_ANCHORS_FOR_HISTORY;
     const useYchartsForwardFallback =
       stockForwardAnchorCount < MIN_FORWARD_ANCHORS_FOR_HISTORY &&
       ychartsForwardSeries.length >= MIN_FORWARD_ANCHORS_FOR_HISTORY;
-    let mergedLongForwardSeries = useYchartsForwardFallback ? ychartsForwardSeries : [];
+    let mergedLongForwardSeries = hasYahooForwardSupplement
+      ? yahooForwardSeries
+      : useYchartsForwardFallback
+        ? ychartsForwardSeries
+        : [];
+
+    if (hasYahooForwardSupplement && ychartsForwardSeries.length >= MIN_FORWARD_ANCHORS_FOR_HISTORY) {
+      mergedLongForwardSeries = mergeMetricSeriesWithPreference(mergedLongForwardSeries, ychartsForwardSeries);
+    }
 
     const sourceHints = {
       pe: (ychartsSeries?.pe_ttm || []).length ? "ycharts-pe-ratio" : "companiesmarketcap-pe-ratio",
       pb: (ychartsSeries?.pb || []).length ? "ycharts-price-to-book-value" : "companiesmarketcap-pb-ratio",
-      forward: useYchartsForwardFallback ? "ycharts-forward-pe-ratio-fallback" : "stockanalysis-forward-ratios-primary",
+      forward: hasYahooForwardSupplement
+        ? "yahoo-forward-pe-timeseries-supplement"
+        : useYchartsForwardFallback
+          ? "ycharts-forward-pe-ratio-fallback"
+          : "stockanalysis-forward-ratios-primary",
     };
 
     if (!closePoints.length) {
