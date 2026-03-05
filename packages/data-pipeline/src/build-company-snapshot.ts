@@ -36,6 +36,7 @@ interface RatioPayload {
   };
   source: string;
 }
+type RatioMetricKey = keyof RatioPayload["latest"];
 
 interface MetricPoint {
   date: string;
@@ -236,6 +237,31 @@ const FORWARD_PE_PROXY_FROM_TTM_SYMBOLS = new Set(
     .map((item) => String(item || "").trim().toUpperCase())
     .filter(Boolean)
 );
+const YAHOO_TRUSTED_SOURCE_TAGS_BY_METRIC: Record<RatioMetricKey, string[]> = {
+  pe_ttm: [
+    "yahoo-trailing-pe-timeseries",
+    "yahoo-key-statistics-valuation-measures",
+    "yahoo-quote-summary-latest",
+    "yahoo-quote-api-latest",
+  ],
+  pe_forward: [
+    "yahoo-forward-pe-timeseries",
+    "yahoo-key-statistics-valuation-measures",
+    "yahoo-quote-summary-latest",
+    "yahoo-quote-api-latest",
+  ],
+  pb: [
+    "yahoo-key-statistics-valuation-measures",
+    "yahoo-quote-summary-latest",
+    "yahoo-quote-api-latest",
+  ],
+  peg: [
+    "yahoo-trailing-peg-timeseries",
+    "yahoo-key-statistics-valuation-measures",
+    "yahoo-quote-summary-latest",
+    "yahoo-quote-api-latest",
+  ],
+};
 
 function parseSymbolFilterFromEnv(): string[] {
   const raw = String(process.env.COMPANY_SYMBOLS || process.env.COMPANY_SYMBOL || "").trim();
@@ -252,6 +278,57 @@ function shouldUseYahooLatestOverrideForSymbol(symbol: string): boolean {
     YAHOO_LATEST_OVERRIDE_SYMBOLS.has("*") ||
     YAHOO_LATEST_OVERRIDE_SYMBOLS.has(normalizedSymbol)
   );
+}
+
+function hasAnyYahooSourceTag(source: string, tags: string[]): boolean {
+  const normalizedSource = String(source || "").toLowerCase();
+  if (!normalizedSource) return false;
+  return tags.some((tag) => normalizedSource.includes(tag.toLowerCase()));
+}
+
+function isTrustedYahooMetricSource(metric: RatioMetricKey, source: string): boolean {
+  const tags = YAHOO_TRUSTED_SOURCE_TAGS_BY_METRIC[metric] || [];
+  return hasAnyYahooSourceTag(source, tags);
+}
+
+function sanitizeYahooMetricValue(metric: RatioMetricKey, value: unknown, source: string): number | null {
+  const normalizedValue = sanitizeSignedRatio(value);
+  if (normalizedValue === null) return null;
+  if (!isTrustedYahooMetricSource(metric, source)) return null;
+  return normalizedValue;
+}
+
+function sanitizeYahooRatioPayloadMetrics(payload: RatioPayload | null): RatioPayload | null {
+  if (!payload) return null;
+  const source = String(payload.source || "").trim();
+  if (!source) return null;
+
+  const latest: RatioPayload["latest"] = {
+    pe_ttm: sanitizeYahooMetricValue("pe_ttm", payload.latest.pe_ttm, source),
+    pe_forward: sanitizeYahooMetricValue("pe_forward", payload.latest.pe_forward, source),
+    pb: sanitizeYahooMetricValue("pb", payload.latest.pb, source),
+    peg: sanitizeYahooMetricValue("peg", payload.latest.peg, source),
+  };
+
+  const anchors = payload.anchors
+    .map((item) => ({
+      date: item.date,
+      pe_ttm: sanitizeYahooMetricValue("pe_ttm", item.pe_ttm, source),
+      pe_forward: sanitizeYahooMetricValue("pe_forward", item.pe_forward, source),
+      pb: sanitizeYahooMetricValue("pb", item.pb, source),
+      peg: sanitizeYahooMetricValue("peg", item.peg, source),
+    }))
+    .filter((item) => item.pe_ttm || item.pe_forward || item.pb || item.peg);
+
+  if (!anchors.length && !latest.pe_ttm && !latest.pe_forward && !latest.pb && !latest.peg) {
+    return null;
+  }
+
+  return {
+    anchors,
+    latest,
+    source,
+  };
 }
 
 function normalizeTickerSymbol(symbol: string): string {
@@ -1607,19 +1684,16 @@ function parseYahooKeyStatisticsRatioPayload(rawText: string): RatioPayload | nu
   };
 
   const peTtm = pickRawNumberByKeys(["trailingPE", "trailingPe"]);
-  const peForward = pickRawNumberByKeys(["forwardPE", "forwardPe"]);
-  const pb = pickRawNumberByKeys(["priceToBook", "priceToBookRatio"]);
-  const peg = pickRawNumberByKeys(["pegRatio", "peg"]);
 
   const rawPayload =
-    peTtm || peForward || pb || peg
+    peTtm
       ? {
           anchors: [],
           latest: {
             pe_ttm: peTtm,
-            pe_forward: peForward,
-            pb,
-            peg,
+            pe_forward: null,
+            pb: null,
+            peg: null,
           },
           source: "yahoo-key-statistics-latest-raw",
         }
@@ -2036,6 +2110,13 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
     }
   }
 
+  quoteSummaryPayload = sanitizeYahooRatioPayloadMetrics(quoteSummaryPayload);
+  quoteApiPayload = sanitizeYahooRatioPayloadMetrics(quoteApiPayload);
+  trailingPePayload = sanitizeYahooRatioPayloadMetrics(trailingPePayload);
+  forwardPePayload = sanitizeYahooRatioPayloadMetrics(forwardPePayload);
+  trailingPegPayload = sanitizeYahooRatioPayloadMetrics(trailingPegPayload);
+  keyStatisticsPayload = sanitizeYahooRatioPayloadMetrics(keyStatisticsPayload);
+
   const quoteLatestPayload = mergeRatioPayloadList(
     [keyStatisticsPayload, trailingPePayload, forwardPePayload, quoteSummaryPayload, quoteApiPayload].filter(
       Boolean
@@ -2065,12 +2146,13 @@ function applyLatestRatioOverrideAtLastDate(
   if (!payload && !latestOverride) return null;
   if (!lastDate || !latestOverride) return payload;
 
+  const overrideSource = String(latestOverride.source || "").trim();
   const overrideLatest = {
-    pe_ttm: sanitizeSignedRatio(latestOverride.latest.pe_ttm),
-    pe_forward: sanitizeSignedRatio(latestOverride.latest.pe_forward),
+    pe_ttm: sanitizeYahooMetricValue("pe_ttm", latestOverride.latest.pe_ttm, overrideSource),
+    pe_forward: sanitizeYahooMetricValue("pe_forward", latestOverride.latest.pe_forward, overrideSource),
     // Yahoo PB may have mixed share-class/ADR basis on certain tickers; keep existing PB source for stability.
     pb: null,
-    peg: sanitizeSignedRatio(latestOverride.latest.peg),
+    peg: sanitizeYahooMetricValue("peg", latestOverride.latest.peg, overrideSource),
   };
 
   if (!overrideLatest.pe_ttm && !overrideLatest.pe_forward && !overrideLatest.pb && !overrideLatest.peg) {
@@ -2151,8 +2233,9 @@ function applyLatestRatioOverrideToLastPoint(
     return valuationPoints;
   }
 
-  const overridePeTtm = sanitizeSignedRatio(latestOverride.latest.pe_ttm);
-  const overridePeForward = sanitizeSignedRatio(latestOverride.latest.pe_forward);
+  const overrideSource = String(latestOverride.source || "").trim();
+  const overridePeTtm = sanitizeYahooMetricValue("pe_ttm", latestOverride.latest.pe_ttm, overrideSource);
+  const overridePeForward = sanitizeYahooMetricValue("pe_forward", latestOverride.latest.pe_forward, overrideSource);
   if (!overridePeTtm && !overridePeForward) {
     return valuationPoints;
   }
@@ -2190,10 +2273,11 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
   const date = String(item.date || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
 
-  const peTtm = sanitizeSignedRatio(item.pe_ttm);
-  const peForward = sanitizeSignedRatio(item.pe_forward);
-  const pb = sanitizeSignedRatio(item.pb);
-  const peg = sanitizeSignedRatio(item.peg);
+  const source = String(item.source || "").trim();
+  const peTtm = sanitizeYahooMetricValue("pe_ttm", item.pe_ttm, source);
+  const peForward = sanitizeYahooMetricValue("pe_forward", item.pe_forward, source);
+  const pb = sanitizeYahooMetricValue("pb", item.pb, source);
+  const peg = sanitizeYahooMetricValue("peg", item.peg, source);
   if (!peTtm && !peForward && !pb && !peg) return null;
 
   return {
@@ -2202,7 +2286,7 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
     pe_forward: peForward,
     pb,
     peg,
-    source: String(item.source || "").trim(),
+    source,
     capturedAt: String(item.capturedAt || "").trim(),
   };
 }
@@ -2210,10 +2294,11 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
 function createYahooDailyMetricSnapshot(date: string, payload: RatioPayload | null): YahooDailyMetricSnapshot | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !payload) return null;
 
-  const peTtm = sanitizeSignedRatio(payload.latest.pe_ttm);
-  const peForward = sanitizeSignedRatio(payload.latest.pe_forward);
-  const pb = sanitizeSignedRatio(payload.latest.pb);
-  const peg = sanitizeSignedRatio(payload.latest.peg);
+  const source = String(payload.source || "").trim();
+  const peTtm = sanitizeYahooMetricValue("pe_ttm", payload.latest.pe_ttm, source);
+  const peForward = sanitizeYahooMetricValue("pe_forward", payload.latest.pe_forward, source);
+  const pb = sanitizeYahooMetricValue("pb", payload.latest.pb, source);
+  const peg = sanitizeYahooMetricValue("peg", payload.latest.peg, source);
   if (!peTtm && !peForward && !pb && !peg) return null;
 
   return {
@@ -2222,7 +2307,7 @@ function createYahooDailyMetricSnapshot(date: string, payload: RatioPayload | nu
     pe_forward: peForward,
     pb,
     peg,
-    source: String(payload.source || "").trim(),
+    source,
     capturedAt: new Date().toISOString(),
   };
 }
