@@ -10,7 +10,7 @@ A production-oriented valuation monitoring project for:
 - Web + WeChat Mini Program + lightweight API
 - automated multi-source daily data refresh
 
-**Docs:** [中文文档](./README.zh-CN.md) | [English Documentation](./README.en.md)
+**Docs:** [中文文档](./README.zh-CN.md) | [English Documentation](./README.en.md) | [Investor README](./README.investor.md)
 
 ## Highlights
 
