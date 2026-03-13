@@ -78,7 +78,7 @@ This project follows a **multi-source merge with reliability guardrails** strate
 ## 5) Quick Start
 
 ```bash
-git clone https://github.com/Sunny-1991/us-valuation-monitor.git
+git clone https://github.com/coattail/US-Valuation-Monitor.git
 cd us-valuation-monitor
 npm run build:data
 npm run start:web
@@ -88,9 +88,9 @@ Open Web app:
 - `http://127.0.0.1:9030/apps/web/`
 
 GitHub-hosted Web (GitHub Pages):
-- `https://sunny-1991.github.io/us-valuation-monitor/`
-- Direct index board: `https://sunny-1991.github.io/us-valuation-monitor/apps/web/index.html`
-- Direct company board: `https://sunny-1991.github.io/us-valuation-monitor/apps/web/companies.html`
+- `https://coattail.github.io/US-Valuation-Monitor/`
+- Direct index board: `https://coattail.github.io/US-Valuation-Monitor/apps/web/index.html`
+- Direct company board: `https://coattail.github.io/US-Valuation-Monitor/apps/web/companies.html`
 
 Optional API server:
 

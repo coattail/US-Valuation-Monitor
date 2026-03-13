@@ -87,9 +87,9 @@
 
 ## 8. 演示入口
 
-- 在线 Web：<https://sunny-1991.github.io/us-valuation-monitor/>
-- 指数页：<https://sunny-1991.github.io/us-valuation-monitor/apps/web/index.html>
-- 企业页：<https://sunny-1991.github.io/us-valuation-monitor/apps/web/companies.html>
+- 在线 Web：<https://coattail.github.io/US-Valuation-Monitor/>
+- 指数页：<https://coattail.github.io/US-Valuation-Monitor/apps/web/index.html>
+- 企业页：<https://coattail.github.io/US-Valuation-Monitor/apps/web/companies.html>
 
 ---
 
@@ -104,4 +104,3 @@
 - 12 个月产品里程碑计划
 
 > 如需，我可以继续把本文件扩展为“路演 Deck 文案版（10-12 页）”。
-

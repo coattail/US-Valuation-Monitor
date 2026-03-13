@@ -78,7 +78,7 @@ us-valuation-monitor/
 ## 5）快速开始
 
 ```bash
-git clone https://github.com/Sunny-1991/us-valuation-monitor.git
+git clone https://github.com/coattail/US-Valuation-Monitor.git
 cd us-valuation-monitor
 npm run build:data
 npm run start:web
@@ -88,9 +88,9 @@ npm run start:web
 - `http://127.0.0.1:9030/apps/web/`
 
 GitHub 线上访问（GitHub Pages）：
-- `https://sunny-1991.github.io/us-valuation-monitor/`
-- 指数估值页：`https://sunny-1991.github.io/us-valuation-monitor/apps/web/index.html`
-- 企业估值页：`https://sunny-1991.github.io/us-valuation-monitor/apps/web/companies.html`
+- `https://coattail.github.io/US-Valuation-Monitor/`
+- 指数估值页：`https://coattail.github.io/US-Valuation-Monitor/apps/web/index.html`
+- 企业估值页：`https://coattail.github.io/US-Valuation-Monitor/apps/web/companies.html`
 
 可选启动 API：
 

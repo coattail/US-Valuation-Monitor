@@ -1,7 +1,7 @@
 # US Valuation Monitor
 
-[![Daily Data Refresh](https://img.shields.io/github/actions/workflow/status/Sunny-1991/us-valuation-monitor/daily-data-refresh.yml?branch=main&label=Daily%20Data%20Refresh)](https://github.com/Sunny-1991/us-valuation-monitor/actions/workflows/daily-data-refresh.yml)
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-blue)](https://sunny-1991.github.io/us-valuation-monitor/)
+[![Daily Data Refresh](https://img.shields.io/github/actions/workflow/status/coattail/US-Valuation-Monitor/daily-data-refresh.yml?branch=main&label=Daily%20Data%20Refresh)](https://github.com/coattail/US-Valuation-Monitor/actions/workflows/daily-data-refresh.yml)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-blue)](https://coattail.github.io/US-Valuation-Monitor/)
 [![Node](https://img.shields.io/badge/Node.js-v25-brightgreen)](https://nodejs.org/)
 
 A production-oriented valuation monitoring project for:
@@ -32,7 +32,7 @@ A production-oriented valuation monitoring project for:
 ### 1) Build dataset
 
 ```bash
-git clone https://github.com/Sunny-1991/us-valuation-monitor.git
+git clone https://github.com/coattail/US-Valuation-Monitor.git
 cd us-valuation-monitor
 npm run build:data
 ```
@@ -55,9 +55,9 @@ Base URL: `http://127.0.0.1:9040`
 
 ## Online Preview
 
-- Home: [https://sunny-1991.github.io/us-valuation-monitor/](https://sunny-1991.github.io/us-valuation-monitor/)
-- Index board: [https://sunny-1991.github.io/us-valuation-monitor/apps/web/index.html](https://sunny-1991.github.io/us-valuation-monitor/apps/web/index.html)
-- Company board: [https://sunny-1991.github.io/us-valuation-monitor/apps/web/companies.html](https://sunny-1991.github.io/us-valuation-monitor/apps/web/companies.html)
+- Home: [https://coattail.github.io/US-Valuation-Monitor/](https://coattail.github.io/US-Valuation-Monitor/)
+- Index board: [https://coattail.github.io/US-Valuation-Monitor/apps/web/index.html](https://coattail.github.io/US-Valuation-Monitor/apps/web/index.html)
+- Company board: [https://coattail.github.io/US-Valuation-Monitor/apps/web/companies.html](https://coattail.github.io/US-Valuation-Monitor/apps/web/companies.html)
 
 ## Repository Structure
 
