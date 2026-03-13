@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -10,6 +10,7 @@ import type { RawValuationPoint, ValuationDataset } from "../../core/src/types.t
 const execFileAsync = promisify(execFile);
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const DATA_PIPELINE_ROOT = path.resolve(path.dirname(CURRENT_FILE), "../../..");
+const OUTPUT_DIR = path.join(DATA_PIPELINE_ROOT, "data", "standardized");
 const SP500_FORWARD_PE_MM_CSV = path.join(
   DATA_PIPELINE_ROOT,
   "data",
@@ -330,9 +331,49 @@ interface LatestPeSnapshot {
   forward?: number;
 }
 
+interface IndexRatioAnchor {
+  date: string;
+  pe_ttm: number | null;
+  pe_forward: number | null;
+  pb: number | null;
+}
+
+interface IndexRatioPayload {
+  anchors: IndexRatioAnchor[];
+  latest: {
+    pe_ttm: number | null;
+    pe_forward: number | null;
+    pb: number | null;
+  };
+  source: string;
+}
+
+interface IndexYahooDailyMetricSnapshot {
+  date: string;
+  pe_ttm: number | null;
+  pe_forward: number | null;
+  pb: number | null;
+  source?: string;
+  capturedAt?: string;
+}
+
+interface IndexYahooRatioPayloadResult {
+  payload: IndexRatioPayload | null;
+  quoteLatestPayload: IndexRatioPayload | null;
+  trailingPePayload: IndexRatioPayload | null;
+  forwardPePayload: IndexRatioPayload | null;
+}
+
 type PeMetricKey = "pe_ttm" | "pe_forward";
+type IndexRatioMetricKey = keyof IndexRatioPayload["latest"];
 
 class ReliableSourceError extends Error {}
+
+const INDEX_YAHOO_HISTORY_START_DATE = "1990-01-01";
+const YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE = 0.01;
+const INDEX_YAHOO_LATEST_TTM_MAX_DEVIATION_RATIO = 0.06;
+const INDEX_YAHOO_LATEST_FORWARD_MAX_DEVIATION_RATIO = 0.06;
+const INDEX_YAHOO_RECENT_REPAIR_LOOKBACK_POINTS = 45;
 
 function parseDate(dateText: string): Date {
   return new Date(`${dateText}T00:00:00Z`);
@@ -342,6 +383,56 @@ function formatDate(input: Date): string {
   return input.toISOString().slice(0, 10);
 }
 
+function shiftIsoDate(dateText: string, days: number): string {
+  const base = parseDate(dateText);
+  return formatDate(new Date(base.getTime() + days * 86_400_000));
+}
+
+function getLastCompletedUsMarketDate(now = new Date()): string {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    weekday: "short",
+  });
+  const parts = formatter.formatToParts(now);
+  const get = (type: string): string => parts.find((part) => part.type === type)?.value || "";
+
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+  const hour = Number(get("hour"));
+  const minute = Number(get("minute"));
+  const weekdayName = get("weekday");
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return shiftIsoDate(formatDate(now), -1);
+  }
+
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  const weekday = weekdayMap[weekdayName] ?? new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const etDate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const minutesSinceMidnight = (Number.isFinite(hour) ? hour : 0) * 60 + (Number.isFinite(minute) ? minute : 0);
+  const marketClosed = minutesSinceMidnight >= 16 * 60;
+
+  if (weekday === 0) return shiftIsoDate(etDate, -2);
+  if (weekday === 6) return shiftIsoDate(etDate, -1);
+  if (weekday === 1) return marketClosed ? etDate : shiftIsoDate(etDate, -3);
+  return marketClosed ? etDate : shiftIsoDate(etDate, -1);
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -349,6 +440,875 @@ function clamp(value: number, min: number, max: number): number {
 function roundTo(value: number, digits = 4): number {
   const ratio = 10 ** digits;
   return Math.round(value * ratio) / ratio;
+}
+
+function sanitizeSignedRatio(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (Math.abs(n) < 1e-8) return null;
+  return n;
+}
+
+function isRejectedPayload(text: string): boolean {
+  const raw = String(text || "").trim().toLowerCase();
+  if (!raw) return true;
+  if (raw.includes("exceeded the daily hits limit")) return true;
+  if (raw.includes("too many requests")) return true;
+  if (raw.includes("sad-panda-201402200631.png")) return true;
+  if (raw.includes("no longer be accessible from mainland china")) return true;
+  if (raw.includes("enable javascript and cookies to continue")) return true;
+  if (raw.includes("<title>just a moment")) return true;
+  if (raw.includes("just a moment") && raw.includes("cf-chl")) return true;
+  return false;
+}
+
+function getIndexRatioAnchorMetricValue(anchor: IndexRatioAnchor, metric: IndexRatioMetricKey): number | null {
+  return sanitizeSignedRatio(anchor[metric]);
+}
+
+function getIndexSnapshotMetricValue(
+  snapshot: IndexYahooDailyMetricSnapshot,
+  metric: IndexRatioMetricKey
+): number | null {
+  return sanitizeSignedRatio(snapshot[metric]);
+}
+
+function setIndexSnapshotMetricValue(
+  snapshot: IndexYahooDailyMetricSnapshot,
+  metric: IndexRatioMetricKey,
+  value: number | null
+): void {
+  snapshot[metric] = sanitizeSignedRatio(value);
+}
+
+function mergeIndexRatioPayloads(payloads: IndexRatioPayload[]): IndexRatioPayload | null {
+  if (!payloads.length) return null;
+
+  const mergedByDate = new Map<string, IndexRatioAnchor>();
+  for (const payload of payloads) {
+    for (const anchor of payload.anchors || []) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor.date)) continue;
+      const current = mergedByDate.get(anchor.date) || {
+        date: anchor.date,
+        pe_ttm: null,
+        pe_forward: null,
+        pb: null,
+      };
+      mergedByDate.set(anchor.date, {
+        date: anchor.date,
+        pe_ttm: current.pe_ttm ?? sanitizeSignedRatio(anchor.pe_ttm),
+        pe_forward: current.pe_forward ?? sanitizeSignedRatio(anchor.pe_forward),
+        pb: current.pb ?? sanitizeSignedRatio(anchor.pb),
+      });
+    }
+  }
+
+  const latest = {
+    pe_ttm: null,
+    pe_forward: null,
+    pb: null,
+  } as IndexRatioPayload["latest"];
+
+  for (const payload of payloads) {
+    latest.pe_ttm ??= sanitizeSignedRatio(payload.latest.pe_ttm);
+    latest.pe_forward ??= sanitizeSignedRatio(payload.latest.pe_forward);
+    latest.pb ??= sanitizeSignedRatio(payload.latest.pb);
+  }
+
+  return {
+    anchors: [...mergedByDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    latest,
+    source: payloads
+      .map((payload) => String(payload.source || "").trim())
+      .filter(Boolean)
+      .join("+"),
+  };
+}
+
+function parseYahooQuoteSummaryIndexPayload(rawText: string): IndexRatioPayload | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const result = (
+    ((parsed.quoteSummary as Record<string, unknown> | undefined)?.result as unknown[]) || []
+  ).find((item) => item && typeof item === "object") as Record<string, unknown> | undefined;
+  if (!result) return null;
+
+  const defaultKeyStatistics = (result.defaultKeyStatistics as Record<string, unknown> | undefined) || {};
+  const financialData = (result.financialData as Record<string, unknown> | undefined) || {};
+  const summaryDetail = (result.summaryDetail as Record<string, unknown> | undefined) || {};
+
+  const pickRaw = (...sources: unknown[]): number | null => {
+    for (const source of sources) {
+      if (!source || typeof source !== "object") continue;
+      const value = sanitizeSignedRatio((source as { raw?: unknown }).raw);
+      if (value !== null) return value;
+    }
+    return null;
+  };
+
+  const peTtm = pickRaw(
+    summaryDetail.trailingPE,
+    defaultKeyStatistics.trailingPE,
+    defaultKeyStatistics.trailingPe
+  );
+  const peForward = pickRaw(
+    summaryDetail.forwardPE,
+    defaultKeyStatistics.forwardPE,
+    defaultKeyStatistics.forwardPe,
+    financialData.forwardPE,
+    financialData.forwardPe
+  );
+  const pb = pickRaw(summaryDetail.priceToBook, defaultKeyStatistics.priceToBook, financialData.priceToBook);
+  if (!peTtm && !peForward && !pb) return null;
+
+  return {
+    anchors: [],
+    latest: {
+      pe_ttm: peTtm,
+      pe_forward: peForward,
+      pb,
+    },
+    source: "yahoo-quote-summary-latest",
+  };
+}
+
+function parseYahooQuoteApiIndexPayload(rawText: string): IndexRatioPayload | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const result = (((parsed.quoteResponse as Record<string, unknown> | undefined)?.result as unknown[]) || []).find(
+    (item) => item && typeof item === "object"
+  ) as Record<string, unknown> | undefined;
+  if (!result) return null;
+
+  const peTtm = sanitizeSignedRatio(result.trailingPE);
+  const peForward = sanitizeSignedRatio(result.forwardPE);
+  const pb = sanitizeSignedRatio(result.priceToBook);
+  if (!peTtm && !peForward && !pb) return null;
+
+  return {
+    anchors: [],
+    latest: {
+      pe_ttm: peTtm,
+      pe_forward: peForward,
+      pb,
+    },
+    source: "yahoo-quote-api-latest",
+  };
+}
+
+function parseYahooMetricTimeseriesPayload(
+  rawText: string,
+  type: "trailingPeRatio" | "forwardPeRatio"
+): IndexRatioPayload | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const resultList = (((parsed.timeseries as Record<string, unknown> | undefined)?.result as unknown[]) || []).filter(
+    (item) => item && typeof item === "object"
+  ) as Array<Record<string, unknown>>;
+  if (!resultList.length) return null;
+
+  const key = type === "trailingPeRatio" ? "trailingPeRatio" : "forwardPeRatio";
+  const sourceRows = resultList
+    .map((item) => (Array.isArray(item[key]) ? item[key] : []))
+    .find((rows) => rows.length) as Array<Record<string, unknown>> | undefined;
+  if (!sourceRows?.length) return null;
+
+  const byDate = new Map<string, IndexRatioAnchor>();
+  let latestValue: number | null = null;
+  let latestDate = "";
+
+  for (const row of sourceRows) {
+    const asOfDate = String(row?.asOfDate || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) continue;
+    const rawValue = (row.reportedValue as Record<string, unknown> | undefined)?.raw;
+    const value = sanitizeSignedRatio(rawValue);
+    if (value === null) continue;
+
+    byDate.set(asOfDate, {
+      date: asOfDate,
+      pe_ttm: type === "trailingPeRatio" ? value : null,
+      pe_forward: type === "forwardPeRatio" ? value : null,
+      pb: null,
+    });
+
+    if (!latestDate || asOfDate >= latestDate) {
+      latestDate = asOfDate;
+      latestValue = value;
+    }
+  }
+
+  if (!byDate.size && latestValue === null) return null;
+
+  return {
+    anchors: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    latest: {
+      pe_ttm: type === "trailingPeRatio" ? latestValue : null,
+      pe_forward: type === "forwardPeRatio" ? latestValue : null,
+      pb: null,
+    },
+    source: type === "trailingPeRatio" ? "yahoo-trailing-pe-timeseries" : "yahoo-forward-pe-timeseries",
+  };
+}
+
+async function fetchYahooIndexRatioPayload(symbol: string): Promise<IndexYahooRatioPayloadResult> {
+  const candidates = [...new Set([symbol, symbol.replace(/\./g, "-"), symbol.replace(/-/g, ".")])]
+    .map((item) => String(item || "").trim().toUpperCase())
+    .filter(Boolean);
+  const period1 = Math.floor(parseDate(INDEX_YAHOO_HISTORY_START_DATE).getTime() / 1000);
+  const period2 = Math.floor(Date.now() / 1000) + 86400 * 30;
+
+  let quoteSummaryPayload: IndexRatioPayload | null = null;
+  let quoteApiPayload: IndexRatioPayload | null = null;
+  let trailingPePayload: IndexRatioPayload | null = null;
+  let forwardPePayload: IndexRatioPayload | null = null;
+
+  const fetchYahooPayloadText = async (url: string): Promise<string | null> => {
+    try {
+      const text = await curlGet(url, 25_000, {
+        "user-agent": "Mozilla/5.0",
+        "accept-language": "en-US,en;q=0.9",
+      });
+      if (!text || isRejectedPayload(text)) return null;
+      return text;
+    } catch {
+      return null;
+    }
+  };
+
+  for (const candidate of candidates) {
+    if (!quoteSummaryPayload) {
+      const quoteSummaryUrls = [
+        `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(candidate)}?modules=defaultKeyStatistics,financialData,summaryDetail`,
+        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(candidate)}?modules=defaultKeyStatistics,financialData,summaryDetail`,
+      ];
+
+      for (const url of quoteSummaryUrls) {
+        const text = await fetchYahooPayloadText(url);
+        if (!text) continue;
+        const payload = parseYahooQuoteSummaryIndexPayload(text);
+        if (payload) {
+          quoteSummaryPayload = payload;
+          break;
+        }
+      }
+    }
+
+    if (!quoteApiPayload) {
+      const quoteApiUrls = [
+        `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(candidate)}`,
+        `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(candidate)}`,
+      ];
+      for (const url of quoteApiUrls) {
+        const text = await fetchYahooPayloadText(url);
+        if (!text) continue;
+        const payload = parseYahooQuoteApiIndexPayload(text);
+        if (payload) {
+          quoteApiPayload = payload;
+          break;
+        }
+      }
+    }
+
+    const fetchTimeseriesPayload = async (
+      type: "trailingPeRatio" | "forwardPeRatio"
+    ): Promise<IndexRatioPayload | null> => {
+      const timeseriesUrl =
+        `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/` +
+        `${encodeURIComponent(candidate)}?type=${type}&period1=${period1}&period2=${period2}`;
+      const text = await fetchYahooPayloadText(timeseriesUrl);
+      return text ? parseYahooMetricTimeseriesPayload(text, type) : null;
+    };
+
+    trailingPePayload = trailingPePayload || (await fetchTimeseriesPayload("trailingPeRatio"));
+    forwardPePayload = forwardPePayload || (await fetchTimeseriesPayload("forwardPeRatio"));
+  }
+
+  const quoteLatestPayload = mergeIndexRatioPayloads(
+    [trailingPePayload, forwardPePayload, quoteSummaryPayload, quoteApiPayload].filter(Boolean) as IndexRatioPayload[]
+  );
+  const payload = mergeIndexRatioPayloads(
+    [quoteSummaryPayload, quoteApiPayload, trailingPePayload, forwardPePayload].filter(Boolean) as IndexRatioPayload[]
+  );
+
+  return {
+    payload,
+    quoteLatestPayload,
+    trailingPePayload,
+    forwardPePayload,
+  };
+}
+
+function normalizeIndexYahooDailyMetricSnapshot(raw: unknown): IndexYahooDailyMetricSnapshot | null {
+  if (!raw || typeof raw !== "object") return null;
+  const item = raw as Record<string, unknown>;
+  const date = String(item.date || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+
+  const peTtm = sanitizeSignedRatio(item.pe_ttm);
+  const peForward = sanitizeSignedRatio(item.pe_forward);
+  const pb = sanitizeSignedRatio(item.pb);
+  if (!peTtm && !peForward && !pb) return null;
+
+  return {
+    date,
+    pe_ttm: peTtm,
+    pe_forward: peForward,
+    pb,
+    source: String(item.source || "").trim(),
+    capturedAt: String(item.capturedAt || "").trim(),
+  };
+}
+
+function createIndexYahooDailyMetricSnapshot(
+  date: string,
+  payload: IndexRatioPayload | null
+): IndexYahooDailyMetricSnapshot | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !payload) return null;
+
+  const source = String(payload.source || "").trim();
+  const peTtm = sanitizeSignedRatio(payload.latest.pe_ttm);
+  const peForward = sanitizeSignedRatio(payload.latest.pe_forward);
+  const pb = sanitizeSignedRatio(payload.latest.pb);
+  if (!peTtm && !peForward && !pb) return null;
+
+  return {
+    date,
+    pe_ttm: peTtm,
+    pe_forward: peForward,
+    pb,
+    source,
+    capturedAt: new Date().toISOString(),
+  };
+}
+
+function isMetricCompatibleWithReference(
+  candidateValue: number | null,
+  referenceValue: number | null,
+  maxDeviationRatio: number
+): boolean {
+  if (candidateValue === null) return false;
+  if (referenceValue === null) return true;
+  if (!Number.isFinite(candidateValue) || !Number.isFinite(referenceValue)) return false;
+  const deviationRatio = Math.abs(candidateValue - referenceValue) / Math.max(1e-6, Math.abs(referenceValue));
+  return deviationRatio <= maxDeviationRatio;
+}
+
+function createComparableIndexYahooDailyMetricSnapshot(
+  date: string,
+  payload: IndexRatioPayload | null,
+  referencePoint: RawValuationPoint | undefined
+): IndexYahooDailyMetricSnapshot | null {
+  const snapshot = createIndexYahooDailyMetricSnapshot(date, payload);
+  if (!snapshot) return null;
+
+  const referencePeTtm = sanitizeSignedRatio(referencePoint?.pe_ttm);
+  const referencePeForward = sanitizeSignedRatio(referencePoint?.pe_forward);
+
+  const peTtm = isMetricCompatibleWithReference(
+    sanitizeSignedRatio(snapshot.pe_ttm),
+    referencePeTtm,
+    INDEX_YAHOO_LATEST_TTM_MAX_DEVIATION_RATIO
+  )
+    ? sanitizeSignedRatio(snapshot.pe_ttm)
+    : null;
+  const peForward = isMetricCompatibleWithReference(
+    sanitizeSignedRatio(snapshot.pe_forward),
+    referencePeForward,
+    INDEX_YAHOO_LATEST_FORWARD_MAX_DEVIATION_RATIO
+  )
+    ? sanitizeSignedRatio(snapshot.pe_forward)
+    : null;
+
+  if (!peTtm && !peForward) return null;
+
+  return {
+    ...snapshot,
+    pe_ttm: peTtm,
+    pe_forward: peForward,
+    pb: null,
+  };
+}
+
+function isExplicitIndexYahooLatestMetricSource(source: string): boolean {
+  const normalized = String(source || "").trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes("yahoo-quote-summary-latest") ||
+    normalized.includes("yahoo-quote-api-latest") ||
+    normalized.includes("yahoo-yfinance-latest")
+  );
+}
+
+async function loadIndexYahooDailyMetricSnapshotsBySymbol(): Promise<Map<string, IndexYahooDailyMetricSnapshot[]>> {
+  const bySymbol = new Map<string, IndexYahooDailyMetricSnapshot[]>();
+
+  try {
+    const raw = await readFile(INDEX_YAHOO_DAILY_METRICS_FILE, "utf8");
+    const parsed = JSON.parse(raw) as {
+      symbols?: Record<string, unknown>;
+    };
+    const source = parsed?.symbols && typeof parsed.symbols === "object" ? parsed.symbols : {};
+
+    for (const [rawSymbol, rawRows] of Object.entries(source)) {
+      const symbol = String(rawSymbol || "").trim().toUpperCase();
+      if (!symbol || !Array.isArray(rawRows)) continue;
+
+      const byDate = new Map<string, IndexYahooDailyMetricSnapshot>();
+      for (const row of rawRows) {
+        const normalized = normalizeIndexYahooDailyMetricSnapshot(row);
+        if (!normalized) continue;
+        byDate.set(normalized.date, normalized);
+      }
+
+      if (!byDate.size) continue;
+      bySymbol.set(
+        symbol,
+        [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+      );
+    }
+  } catch {
+    // no previous index yahoo daily metric store yet
+  }
+
+  return bySymbol;
+}
+
+function serializeIndexYahooDailyMetricSnapshots(
+  bySymbol: Map<string, IndexYahooDailyMetricSnapshot[]>
+): { generatedAt: string; symbols: Record<string, IndexYahooDailyMetricSnapshot[]> } {
+  const symbols = [...bySymbol.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .reduce<Record<string, IndexYahooDailyMetricSnapshot[]>>((acc, [symbol, rows]) => {
+      const normalizedRows = rows
+        .map((item) => normalizeIndexYahooDailyMetricSnapshot(item))
+        .filter((item): item is IndexYahooDailyMetricSnapshot => !!item)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (!normalizedRows.length) return acc;
+      acc[symbol] = normalizedRows;
+      return acc;
+    }, {});
+
+  return {
+    generatedAt: new Date().toISOString(),
+    symbols,
+  };
+}
+
+function upsertIndexYahooDailyMetricSnapshot(
+  bySymbol: Map<string, IndexYahooDailyMetricSnapshot[]>,
+  symbol: string,
+  snapshot: IndexYahooDailyMetricSnapshot | null
+): void {
+  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+  if (!normalizedSymbol || !snapshot) return;
+
+  const nextByDate = new Map<string, IndexYahooDailyMetricSnapshot>();
+  for (const item of bySymbol.get(normalizedSymbol) || []) {
+    const normalized = normalizeIndexYahooDailyMetricSnapshot(item);
+    if (!normalized) continue;
+    nextByDate.set(normalized.date, normalized);
+  }
+
+  const existing = nextByDate.get(snapshot.date);
+  nextByDate.set(snapshot.date, {
+    date: snapshot.date,
+    pe_ttm: sanitizeSignedRatio(snapshot.pe_ttm),
+    pe_forward: sanitizeSignedRatio(snapshot.pe_forward),
+    pb: sanitizeSignedRatio(snapshot.pb),
+    source: String(snapshot.source || existing?.source || "").trim(),
+    capturedAt: String(snapshot.capturedAt || existing?.capturedAt || new Date().toISOString()).trim(),
+  });
+  bySymbol.set(
+    normalizedSymbol,
+    [...nextByDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+  );
+}
+
+function reconcileIndexYahooDailyMetricSnapshot(
+  bySymbol: Map<string, IndexYahooDailyMetricSnapshot[]>,
+  symbol: string,
+  date: string,
+  snapshot: IndexYahooDailyMetricSnapshot | null
+): void {
+  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+  if (!normalizedSymbol || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+
+  const nextByDate = new Map<string, IndexYahooDailyMetricSnapshot>();
+  for (const item of bySymbol.get(normalizedSymbol) || []) {
+    const normalized = normalizeIndexYahooDailyMetricSnapshot(item);
+    if (!normalized) continue;
+    if (normalized.date === date) continue;
+    nextByDate.set(normalized.date, normalized);
+  }
+
+  if (snapshot) {
+    nextByDate.set(date, {
+      date,
+      pe_ttm: sanitizeSignedRatio(snapshot.pe_ttm),
+      pe_forward: sanitizeSignedRatio(snapshot.pe_forward),
+      pb: sanitizeSignedRatio(snapshot.pb),
+      source: String(snapshot.source || "").trim(),
+      capturedAt: String(snapshot.capturedAt || new Date().toISOString()).trim(),
+    });
+  }
+
+  const rows = [...nextByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  if (rows.length) {
+    bySymbol.set(normalizedSymbol, rows);
+  } else {
+    bySymbol.delete(normalizedSymbol);
+  }
+}
+
+function alignDateToCloseAtOrBefore(closes: ClosePoint[], date: string): string {
+  const aligned = findCloseAtOrBeforeDate(closes, date);
+  return aligned?.date || "";
+}
+
+function upsertIndexYahooAnchorsIntoStore(
+  bySymbol: Map<string, IndexYahooDailyMetricSnapshot[]>,
+  symbol: string,
+  closes: ClosePoint[],
+  payload: IndexRatioPayload | null,
+  metric: IndexRatioMetricKey
+): number {
+  if (!payload?.anchors?.length) return 0;
+
+  let added = 0;
+  for (const anchor of payload.anchors) {
+    const value = getIndexRatioAnchorMetricValue(anchor, metric);
+    if (value === null) continue;
+    const alignedDate = alignDateToCloseAtOrBefore(closes, anchor.date);
+    if (!alignedDate) continue;
+
+    upsertIndexYahooDailyMetricSnapshot(bySymbol, symbol, {
+      date: alignedDate,
+      pe_ttm: metric === "pe_ttm" ? value : null,
+      pe_forward: metric === "pe_forward" ? value : null,
+      pb: metric === "pb" ? value : null,
+      source: String(payload.source || "").trim(),
+      capturedAt: new Date().toISOString(),
+    });
+    added += 1;
+  }
+
+  return added;
+}
+
+function buildEffectiveIndexYahooDailyMetricSnapshots(
+  closePoints: ClosePoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[]
+): IndexYahooDailyMetricSnapshot[] {
+  if (!closePoints.length || !snapshots.length) return [];
+
+  const metrics: IndexRatioMetricKey[] = ["pe_ttm", "pe_forward", "pb"];
+  const normalized = snapshots
+    .map((item) => normalizeIndexYahooDailyMetricSnapshot(item))
+    .filter((item): item is IndexYahooDailyMetricSnapshot => !!item)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!normalized.length) return [];
+
+  const previousAcceptedByMetric = new Map<IndexRatioMetricKey, { date: string; value: number }>();
+  const accepted: IndexYahooDailyMetricSnapshot[] = [];
+
+  for (const snapshot of normalized) {
+    const nextSnapshot: IndexYahooDailyMetricSnapshot = {
+      ...snapshot,
+      pe_ttm: null,
+      pe_forward: null,
+      pb: null,
+    };
+    let keepSnapshot = false;
+
+    for (const metric of metrics) {
+      const currentValue = getIndexSnapshotMetricValue(snapshot, metric);
+      if (currentValue === null) continue;
+
+      const previous = previousAcceptedByMetric.get(metric);
+      let shouldKeep = !previous;
+
+      if (previous) {
+        const previousClose = findCloseAtOrBeforeDate(closePoints, previous.date)?.close;
+        const currentClose = findCloseAtOrBeforeDate(closePoints, snapshot.date)?.close;
+        const explicitLatestSource = isExplicitIndexYahooLatestMetricSource(String(snapshot.source || ""));
+
+        if (
+          Number.isFinite(previousClose) &&
+          Number(previousClose) > 0 &&
+          Number.isFinite(currentClose) &&
+          Number(currentClose) > 0
+        ) {
+          if (explicitLatestSource) {
+            const rawChange =
+              previous.value * currentValue <= 0 ||
+              Math.abs(previous.value) < 1e-8 ||
+              Math.abs(currentValue) < 1e-8
+                ? Number.POSITIVE_INFINITY
+                : Math.max(Math.abs(currentValue / previous.value), Math.abs(previous.value / currentValue));
+            const priceRatio = Number(currentClose) / Number(previousClose);
+            const priceMove =
+              !Number.isFinite(priceRatio) || priceRatio <= 0
+                ? Number.POSITIVE_INFINITY
+                : Math.max(priceRatio, 1 / priceRatio);
+
+            shouldKeep = !(
+              rawChange <= 1 + YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE &&
+              priceMove > 1 + YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE
+            );
+          } else {
+            const expectedCarriedValue = previous.value * (Number(currentClose) / Number(previousClose));
+            const deviation =
+              previous.value * currentValue <= 0 ||
+              Math.abs(expectedCarriedValue) < 1e-8 ||
+              Math.abs(currentValue) < 1e-8
+                ? Number.POSITIVE_INFINITY
+                : Math.max(
+                    Math.abs(currentValue / expectedCarriedValue),
+                    Math.abs(expectedCarriedValue / currentValue)
+                  );
+
+            shouldKeep = deviation > 1 + YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE;
+          }
+        }
+      }
+
+      if (!shouldKeep) continue;
+
+      setIndexSnapshotMetricValue(nextSnapshot, metric, currentValue);
+      previousAcceptedByMetric.set(metric, { date: snapshot.date, value: currentValue });
+      keepSnapshot = true;
+    }
+
+    if (keepSnapshot) {
+      accepted.push(nextSnapshot);
+    }
+  }
+
+  return accepted;
+}
+
+function applyYahooSnapshotCarryToMetric(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  metric: IndexRatioMetricKey,
+  options: { minValue: number; maxValue: number; backfillLookbackPoints?: number }
+): RawValuationPoint[] {
+  if (!points.length || !closes.length || !snapshots.length) return points;
+
+  const closeByDate = new Map<string, number>();
+  for (const close of closes) {
+    if (Number.isFinite(close.close) && close.close > 0) {
+      closeByDate.set(close.date, close.close);
+    }
+  }
+
+  const snapshotsByDate = new Map<string, number>();
+  let earliestSnapshotDate = "";
+  for (const item of snapshots) {
+    const normalized = normalizeIndexYahooDailyMetricSnapshot(item);
+    const metricValue = normalized ? getIndexSnapshotMetricValue(normalized, metric) : null;
+    if (!normalized || metricValue === null) continue;
+    snapshotsByDate.set(normalized.date, metricValue);
+    if (!earliestSnapshotDate || normalized.date < earliestSnapshotDate) {
+      earliestSnapshotDate = normalized.date;
+    }
+  }
+  if (!snapshotsByDate.size || !earliestSnapshotDate) return points;
+
+  const pointIndexByDate = new Map<string, number>();
+  for (let i = 0; i < points.length; i += 1) {
+    pointIndexByDate.set(points[i].date, i);
+  }
+
+  const explicitSnapshotDates = [...snapshotsByDate.keys()].sort((a, b) => a.localeCompare(b));
+  const overrides = new Map<string, number>();
+  const backfillLookbackPoints = Math.max(0, Math.floor(options.backfillLookbackPoints ?? 0));
+
+  if (backfillLookbackPoints > 0) {
+    for (let snapshotIndex = 0; snapshotIndex < explicitSnapshotDates.length; snapshotIndex += 1) {
+      const snapshotDate = explicitSnapshotDates[snapshotIndex];
+      const anchorValue = snapshotsByDate.get(snapshotDate);
+      const anchorPointIndex = pointIndexByDate.get(snapshotDate);
+      const anchorClose = closeByDate.get(snapshotDate);
+      if (
+        !Number.isFinite(anchorValue) ||
+        anchorPointIndex === undefined ||
+        !Number.isFinite(anchorClose) ||
+        Number(anchorClose) <= 0
+      ) {
+        continue;
+      }
+
+      const previousSnapshotDate = snapshotIndex > 0 ? explicitSnapshotDates[snapshotIndex - 1] : "";
+      const minIndexFromPreviousSnapshot = previousSnapshotDate
+        ? (pointIndexByDate.get(previousSnapshotDate) ?? -1) + 1
+        : 0;
+      const repairStartIndex = Math.max(minIndexFromPreviousSnapshot, anchorPointIndex - backfillLookbackPoints);
+
+      for (let i = anchorPointIndex - 1; i >= repairStartIndex; i -= 1) {
+        const date = points[i].date;
+        const currentClose = closeByDate.get(date);
+        if (!Number.isFinite(currentClose) || Number(currentClose) <= 0) continue;
+        const value = (Number(anchorValue) * Number(currentClose)) / Number(anchorClose);
+        if (Number.isFinite(value) && value > 0) {
+          overrides.set(date, roundTo(clamp(value, options.minValue, options.maxValue), 4));
+        }
+      }
+    }
+  }
+
+  let activeValue: number | null = null;
+  let activeClose: number | null = null;
+
+  return points.map((point) => {
+    const backfilledValue = overrides.get(point.date);
+    if (point.date < earliestSnapshotDate && !Number.isFinite(backfilledValue)) {
+      return point;
+    }
+
+    const currentClose = closeByDate.get(point.date);
+    if (!Number.isFinite(currentClose) || Number(currentClose) <= 0) {
+      return point;
+    }
+
+    const explicitValue = snapshotsByDate.get(point.date);
+    let nextValue: number | null = null;
+
+    if (Number.isFinite(explicitValue)) {
+      nextValue = Number(explicitValue);
+      activeValue = nextValue;
+      activeClose = Number(currentClose);
+    } else if (
+      activeValue !== null &&
+      activeClose !== null &&
+      Number.isFinite(activeValue) &&
+      Number.isFinite(activeClose) &&
+      activeClose > 0
+    ) {
+      nextValue = activeValue * (Number(currentClose) / activeClose);
+      activeValue = nextValue;
+      activeClose = Number(currentClose);
+    }
+
+    if (nextValue === null || !Number.isFinite(nextValue) || nextValue <= 0) {
+      if (!Number.isFinite(backfilledValue)) {
+        return point;
+      }
+      return {
+        ...point,
+        [metric]: backfilledValue,
+      };
+    }
+
+    return {
+      ...point,
+      [metric]: roundTo(clamp(nextValue, options.minValue, options.maxValue), 4),
+    };
+  });
+}
+
+function applyRecentCloseCarryWindowToMetric(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  metric: IndexRatioMetricKey,
+  options: { minValue: number; maxValue: number; lookbackPoints: number }
+): RawValuationPoint[] {
+  if (!points.length || !closes.length) return points;
+
+  const lookbackPoints = Math.max(0, Math.floor(options.lookbackPoints));
+  if (lookbackPoints < 2) return points;
+
+  const startIndexFloor = Math.max(0, points.length - lookbackPoints - 1);
+  const closeByDate = new Map<string, number>();
+  for (const close of closes) {
+    if (Number.isFinite(close.close) && close.close > 0) {
+      closeByDate.set(close.date, close.close);
+    }
+  }
+
+  const explicitSnapshotDates = new Set(
+    snapshots
+      .filter((snapshot) => {
+        const metricValue = getIndexSnapshotMetricValue(snapshot, metric);
+        return (
+          isExplicitIndexYahooLatestMetricSource(snapshot.source) &&
+          Number.isFinite(metricValue) &&
+          closeByDate.has(snapshot.date)
+        );
+      })
+      .map((snapshot) => snapshot.date)
+  );
+
+  let anchorIndex = -1;
+  let anchorValue: number | null = null;
+  let anchorClose: number | null = null;
+  for (let i = startIndexFloor; i < points.length; i += 1) {
+    const metricValue = sanitizeSignedRatio(points[i][metric]);
+    const closeValue = closeByDate.get(points[i].date);
+    if (Number.isFinite(metricValue) && Number.isFinite(closeValue) && Number(closeValue) > 0) {
+      anchorIndex = i;
+      anchorValue = Number(metricValue);
+      anchorClose = Number(closeValue);
+      break;
+    }
+  }
+
+  if (anchorIndex < 0 || anchorValue === null || anchorClose === null) {
+    return points;
+  }
+
+  return points.map((point, index) => {
+    if (index < anchorIndex) return point;
+
+    const currentClose = closeByDate.get(point.date);
+    if (!Number.isFinite(currentClose) || Number(currentClose) <= 0) {
+      return point;
+    }
+
+    const explicitValue = explicitSnapshotDates.has(point.date) ? sanitizeSignedRatio(point[metric]) : null;
+    if (index === anchorIndex || Number.isFinite(explicitValue)) {
+      anchorValue = Number(explicitValue ?? point[metric]);
+      anchorClose = Number(currentClose);
+      if (!Number.isFinite(anchorValue) || anchorValue <= 0) {
+        return point;
+      }
+      return {
+        ...point,
+        [metric]: roundTo(clamp(anchorValue, options.minValue, options.maxValue), 4),
+      };
+    }
+
+    if (!Number.isFinite(anchorValue) || !Number.isFinite(anchorClose) || Number(anchorClose) <= 0) {
+      return point;
+    }
+
+    const carriedValue = Number(anchorValue) * (Number(currentClose) / Number(anchorClose));
+    if (!Number.isFinite(carriedValue) || carriedValue <= 0) {
+      return point;
+    }
+
+    return {
+      ...point,
+      [metric]: roundTo(clamp(carriedValue, options.minValue, options.maxValue), 4),
+    };
+  });
 }
 
 function errorMessage(error: unknown): string {
@@ -435,6 +1395,92 @@ async function curlGet(url: string, timeoutMs = 25000, extraHeaders: Record<stri
           : "";
       throw new Error(`${fallbackMessage}${stderr ? ` | ${stderr.trim()}` : ""}`);
     }
+  }
+}
+
+async function fetchYahooIndexLatestPayloads(symbols: string[]): Promise<Map<string, IndexRatioPayload>> {
+  const uniqueSymbols = [...new Set(symbols.map((item) => String(item || "").trim().toUpperCase()).filter(Boolean))];
+  if (!uniqueSymbols.length) return new Map<string, IndexRatioPayload>();
+
+  const pythonScript = `
+import json
+import math
+import sys
+import warnings
+
+warnings.filterwarnings("ignore")
+
+try:
+    import yfinance as yf
+except Exception:
+    print(json.dumps({"symbols": {}}))
+    raise SystemExit(0)
+
+def sanitize(value):
+    try:
+        num = float(value)
+    except Exception:
+        return None
+    if not math.isfinite(num) or abs(num) < 1e-8:
+        return None
+    return num
+
+symbols = {}
+for raw_symbol in sys.argv[1:]:
+    symbol = str(raw_symbol or "").strip().upper()
+    if not symbol:
+        continue
+    try:
+        info = yf.Ticker(symbol).info or {}
+    except Exception:
+        info = {}
+
+    latest = {
+        "pe_ttm": sanitize(info.get("trailingPE")),
+        "pe_forward": sanitize(info.get("forwardPE")),
+        "pb": sanitize(info.get("priceToBook")),
+    }
+    if latest["pe_ttm"] is None and latest["pe_forward"] is None and latest["pb"] is None:
+        continue
+    symbols[symbol] = latest
+
+print(json.dumps({"symbols": symbols}))
+`;
+
+  try {
+    const { stdout } = await execFileAsync("python3", ["-c", pythonScript, ...uniqueSymbols], {
+      maxBuffer: 8 * 1024 * 1024,
+      env: { ...process.env, PYTHONWARNINGS: "ignore" },
+    });
+    const parsed = JSON.parse(String(stdout || "{}")) as {
+      symbols?: Record<string, { pe_ttm?: unknown; pe_forward?: unknown; pb?: unknown }>;
+    };
+    const rawSymbols = parsed?.symbols && typeof parsed.symbols === "object" ? parsed.symbols : {};
+    const payloads = new Map<string, IndexRatioPayload>();
+
+    for (const [rawSymbol, rawLatest] of Object.entries(rawSymbols)) {
+      const symbol = String(rawSymbol || "").trim().toUpperCase();
+      if (!symbol || !rawLatest || typeof rawLatest !== "object") continue;
+
+      const peTtm = sanitizeSignedRatio(rawLatest.pe_ttm);
+      const peForward = sanitizeSignedRatio(rawLatest.pe_forward);
+      const pb = sanitizeSignedRatio(rawLatest.pb);
+      if (!peTtm && !peForward && !pb) continue;
+
+      payloads.set(symbol, {
+        anchors: [],
+        latest: {
+          pe_ttm: peTtm,
+          pe_forward: peForward,
+          pb,
+        },
+        source: "yahoo-yfinance-latest",
+      });
+    }
+
+    return payloads;
+  } catch {
+    return new Map<string, IndexRatioPayload>();
   }
 }
 
@@ -1754,11 +2800,11 @@ function buildCloseAnchoredOverride(
     minValue: number;
     maxValue: number;
     maxAnchorLagDays: number;
-    segmentMode?: "denom_progress" | "daily_return_path";
+    segmentMode?: "anchor_carry" | "denom_progress" | "daily_return_path";
   }
 ): number[] | undefined {
   const anchors = sanitizeMonthlySeries(rawAnchorSeries, options.minValue, options.maxValue);
-  if (anchors.length < 2 || !points.length || !closes.length) return undefined;
+  if (!anchors.length || !points.length || !closes.length) return undefined;
 
   const dayMs = 24 * 60 * 60 * 1000;
   const closeByDate = new Map<string, number>();
@@ -1787,14 +2833,14 @@ function buildCloseAnchoredOverride(
     });
   }
 
-  if (enriched.length < 2) return undefined;
+  if (!enriched.length) return undefined;
 
   const byDate = new Map<string, { date: string; ts: number; value: number; close: number; denom: number }>();
   for (const item of enriched) {
     byDate.set(item.date, item);
   }
   const tradeAnchors = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-  if (tradeAnchors.length < 2) return undefined;
+  if (!tradeAnchors.length) return undefined;
 
   const indexByDate = new Map<string, number>();
   for (let i = 0; i < points.length; i += 1) {
@@ -1802,7 +2848,7 @@ function buildCloseAnchoredOverride(
   }
 
   const result = new Array<number>(points.length);
-  const segmentMode = options.segmentMode ?? "denom_progress";
+  const segmentMode = options.segmentMode ?? "anchor_carry";
 
   for (let segment = 0; segment + 1 < tradeAnchors.length; segment += 1) {
     const left = tradeAnchors[segment];
@@ -1818,59 +2864,44 @@ function buildCloseAnchoredOverride(
     if (!Number.isFinite(leftDenom) || !Number.isFinite(rightDenom) || leftDenom <= 0 || rightDenom <= 0) continue;
 
     const span = rightIndex - leftIndex;
-    const stepLogReturns = new Array<number>(span + 1).fill(0);
-    const weights = new Array<number>(span + 1).fill(0);
-    let totalWeight = 0;
-    let sumLogReturns = 0;
+    if (segmentMode === "anchor_carry") {
+      for (let i = leftIndex; i < rightIndex; i += 1) {
+        const close = closeByDate.get(points[i].date);
+        if (!Number.isFinite(close) || Number(close) <= 0) continue;
 
-    for (let i = leftIndex + 1; i <= rightIndex; i += 1) {
-      const prevClose = closeByDate.get(points[i - 1].date);
-      const currentClose = closeByDate.get(points[i].date);
-      if (
-        !Number.isFinite(prevClose) ||
-        !Number.isFinite(currentClose) ||
-        Number(prevClose) <= 0 ||
-        Number(currentClose) <= 0
-      ) {
-        continue;
+        const value = (Number(left.value) * Number(close)) / Number(left.close);
+        if (Number.isFinite(value) && value > 0) {
+          result[i] = clamp(value, options.minValue, options.maxValue);
+        }
       }
-      const stepLogRet = Math.log(Number(currentClose) / Number(prevClose));
-      stepLogReturns[i - leftIndex] = stepLogRet;
-      sumLogReturns += stepLogRet;
-      const weight = Math.max(Math.abs(stepLogRet), 1e-6);
-      weights[i - leftIndex] = weight;
-      totalWeight += weight;
+
+      result[rightIndex] = clamp(Number(right.value), options.minValue, options.maxValue);
+      continue;
     }
 
     if (segmentMode === "daily_return_path") {
+      const stepLogReturns = new Array<number>(span + 1).fill(0);
+      let sumLogReturns = 0;
+
+      for (let i = leftIndex + 1; i <= rightIndex; i += 1) {
+        const prevClose = closeByDate.get(points[i - 1].date);
+        const currentClose = closeByDate.get(points[i].date);
+        if (
+          !Number.isFinite(prevClose) ||
+          !Number.isFinite(currentClose) ||
+          Number(prevClose) <= 0 ||
+          Number(currentClose) <= 0
+        ) {
+          continue;
+        }
+        const stepLogRet = Math.log(Number(currentClose) / Number(prevClose));
+        stepLogReturns[i - leftIndex] = stepLogRet;
+        sumLogReturns += stepLogRet;
+      }
+
       const targetLogChange = Math.log(right.value / left.value);
       const residual = targetLogChange - sumLogReturns;
-      const adjustments = new Array<number>(span + 1).fill(0);
-      const candidateOffsets: number[] = [];
-      let candidateWeight = 0;
-
-      for (let offset = 1; offset <= span; offset += 1) {
-        const step = stepLogReturns[offset];
-        if (
-          (residual >= 0 && step >= 0) ||
-          (residual < 0 && step <= 0)
-        ) {
-          candidateOffsets.push(offset);
-          candidateWeight += Math.max(Math.abs(step), 1e-6);
-        }
-      }
-
-      if (candidateOffsets.length && candidateWeight > 0) {
-        for (const offset of candidateOffsets) {
-          const weight = Math.max(Math.abs(stepLogReturns[offset]), 1e-6);
-          adjustments[offset] = (residual * weight) / candidateWeight;
-        }
-      } else {
-        const drift = residual / Math.max(1, span);
-        for (let offset = 1; offset <= span; offset += 1) {
-          adjustments[offset] = drift;
-        }
-      }
+      const drift = residual / Math.max(1, span);
 
       let value = Number(left.value);
       if (Number.isFinite(value) && value > 0) {
@@ -1878,7 +2909,7 @@ function buildCloseAnchoredOverride(
       }
 
       for (let offset = 1; offset <= span; offset += 1) {
-        const step = stepLogReturns[offset] + adjustments[offset];
+        const step = stepLogReturns[offset] + drift;
         value *= Math.exp(step);
         if (Number.isFinite(value) && value > 0) {
           result[leftIndex + offset] = clamp(value, options.minValue, options.maxValue);
@@ -1889,17 +2920,12 @@ function buildCloseAnchoredOverride(
 
     const logLeftDenom = Math.log(leftDenom);
     const logRightDenom = Math.log(rightDenom);
-    let cumulativeWeight = 0;
 
     for (let i = leftIndex; i <= rightIndex; i += 1) {
       const close = closeByDate.get(points[i].date);
       if (!Number.isFinite(close) || Number(close) <= 0) continue;
 
-      if (i > leftIndex) cumulativeWeight += weights[i - leftIndex];
-      const progress =
-        totalWeight > 1e-9
-          ? clamp(cumulativeWeight / totalWeight, 0, 1)
-          : clamp((i - leftIndex) / Math.max(1, span), 0, 1);
+      const progress = clamp((i - leftIndex) / Math.max(1, span), 0, 1);
       const logDenom = logLeftDenom + (logRightDenom - logLeftDenom) * progress;
       const denom = Math.exp(logDenom);
       if (!Number.isFinite(denom) || denom <= 0) continue;
@@ -1907,6 +2933,22 @@ function buildCloseAnchoredOverride(
       const value = Number(close) / denom;
       if (Number.isFinite(value) && value > 0) {
         result[i] = clamp(value, options.minValue, options.maxValue);
+      }
+    }
+  }
+
+  if (segmentMode === "anchor_carry") {
+    const lastAnchor = tradeAnchors[tradeAnchors.length - 1];
+    const lastAnchorIndex = indexByDate.get(lastAnchor.date);
+    if (lastAnchorIndex !== undefined) {
+      for (let i = lastAnchorIndex; i < points.length; i += 1) {
+        const close = closeByDate.get(points[i].date);
+        if (!Number.isFinite(close) || Number(close) <= 0) continue;
+
+        const value = (Number(lastAnchor.value) * Number(close)) / Number(lastAnchor.close);
+        if (Number.isFinite(value) && value > 0) {
+          result[i] = clamp(value, options.minValue, options.maxValue);
+        }
       }
     }
   }
@@ -1944,14 +2986,14 @@ function applyCloseAnchoredOverrides(
     minValue: minTtm,
     maxValue: maxTtm,
     maxAnchorLagDays,
-    segmentMode: "daily_return_path",
+    segmentMode: "anchor_carry",
   });
 
   const forwardOverride = buildCloseAnchoredOverride(points, closes, forwardSeries, {
     minValue: minForward,
     maxValue: maxForward,
     maxAnchorLagDays,
-    segmentMode: "denom_progress",
+    segmentMode: "anchor_carry",
   });
 
   if (!trailingOverride?.length && !forwardOverride?.length) return points;
@@ -2093,7 +3135,7 @@ function buildForwardStartMap(
 }
 
 export async function generateDataset(endDate?: string, options: GenerateDatasetOptions = {}): Promise<ValuationDataset> {
-  const effectiveEnd = endDate || new Date().toISOString().slice(0, 10);
+  const effectiveEnd = endDate || getLastCompletedUsMarketDate();
   const historyFallbackMap = buildHistoryFallbackMap(options.previousDataset, effectiveEnd);
   const latestForwardMap = buildLatestForwardMap(options.previousDataset, effectiveEnd);
   const historyForwardStartMap = buildForwardStartMap(options.previousDataset, effectiveEnd);
@@ -2140,6 +3182,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let finvizForwardCount = 0;
   let historyForwardFallbackCount = 0;
   let localPinnedForwardCount = 0;
+  let yahooHistoricalAnchorCount = 0;
   let cachedMultplSp500Series: MonthlyMetricPoint[] | undefined;
   const fetchErrors: string[] = [];
 
@@ -2443,7 +3486,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
               ndxCuratedTtmApplied = true;
             }
           } else if (isReasonablePe(curatedRef.value)) {
-            trailingSeries = upsertSeriesValueAtDate(trailingSeries, latestCloseDate, curatedRef.value);
             trailingSeries = upsertSeriesValueAtDate(trailingSeries, curatedRef.date, curatedRef.value);
             anchorPe = curatedRef.value;
             resolvedFrom = "wsj-curated";
@@ -2771,13 +3813,20 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (historyForwardFallbackCount > 0) {
     source += `+history-fpe-${historyForwardFallbackCount}`;
   }
+  if (yahooHistoricalAnchorCount > 0) {
+    source += `+yahoo-historical-anchor-${yahooHistoricalAnchorCount}`;
+  }
   source += `+${yieldSource}`;
 
-  return {
+  const dataset = {
     generatedAt: new Date().toISOString(),
     source,
     indices,
   };
+
+  await mkdir(OUTPUT_DIR, { recursive: true });
+
+  return dataset;
 }
 
 export function validateDataset(dataset: ValuationDataset): void {

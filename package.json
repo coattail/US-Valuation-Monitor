@@ -12,6 +12,8 @@
     "build:data:index": "node packages/data-pipeline/src/build-snapshot.ts && node packages/data-pipeline/src/split-index-dataset.ts",
     "build:data:company": "node packages/data-pipeline/src/build-company-snapshot.ts && node packages/data-pipeline/src/split-company-dataset.ts",
     "build:data": "npm run build:data:index && npm run build:data:company",
+    "refresh:data:local": "bash scripts/refresh-local-data.sh",
+    "install:local-refresh": "bash scripts/install-local-refresh-launchd.sh",
     "start:api": "node cloudfunctions/server.ts",
     "start:web": "python3 -m http.server 9030",
     "test": "node --test packages/core/tests/*.test.ts cloudfunctions/tests/*.test.ts",

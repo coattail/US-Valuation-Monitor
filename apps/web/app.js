@@ -15,6 +15,7 @@ const SERIES_PATH_CANDIDATES = [
   "../../data/standardized/index-series",
   "./index-series",
 ];
+const ECHARTS_LOCAL_URL = new URL("./vendor/echarts.min.js", import.meta.url).href;
 
 const STORAGE_KEYS = {
   watchlist: "usvm-watchlist",
@@ -58,6 +59,34 @@ const SECTOR_ATTENTION_ORDER = [
   "sector_materials",
 ];
 const DEFAULT_COMPARE_INDEX_IDS = ["sp500", "dow30", "nasdaq100"];
+let echartsLoaderPromise = null;
+
+function ensureEchartsLoaded() {
+  if (window.echarts) return Promise.resolve(window.echarts);
+  if (echartsLoaderPromise) return echartsLoaderPromise;
+
+  echartsLoaderPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = ECHARTS_LOCAL_URL;
+    script.async = true;
+    script.dataset.usvmEcharts = "local";
+    script.onload = () => {
+      if (window.echarts) {
+        resolve(window.echarts);
+        return;
+      }
+      echartsLoaderPromise = null;
+      reject(new Error("本地图表库加载成功，但 echarts 未挂载"));
+    };
+    script.onerror = () => {
+      echartsLoaderPromise = null;
+      reject(new Error("本地图表库加载失败"));
+    };
+    document.head.append(script);
+  });
+
+  return echartsLoaderPromise;
+}
 
 const TRADING_DAYS_PER_YEAR = 252;
 
@@ -861,6 +890,8 @@ function renderSnapshotGrid(rows) {
 
 function ensureChart(name, element) {
   if (!element) return null;
+  const echartsLib = window.echarts;
+  if (!echartsLib) return null;
 
   const width = element.clientWidth;
   const height = element.clientHeight;
@@ -869,7 +900,7 @@ function ensureChart(name, element) {
   if (!canRender) return null;
 
   if (!charts[name]) {
-    charts[name] = echarts.init(element);
+    charts[name] = echartsLib.init(element);
     window.addEventListener("resize", () => charts[name]?.resize());
   }
 
@@ -1468,6 +1499,9 @@ async function renderDetail() {
   if (renderToken !== state.runtime.detailRenderToken) return;
 
   try {
+    await ensureEchartsLoaded();
+    if (renderToken !== state.runtime.detailRenderToken) return;
+
     const fullRows = getMetricSeries(indexId, metric);
     const rangedRows = filterRowsByRange(fullRows, state.detail.range);
     const viewRows = recomputeRangeRollingStats(rangedRows);
@@ -1801,6 +1835,9 @@ async function renderCompareCharts() {
   if (renderToken !== state.runtime.compareRenderToken) return;
 
   try {
+    await ensureEchartsLoaded();
+    if (renderToken !== state.runtime.compareRenderToken) return;
+
     const metricCfg = METRIC_CONFIG[state.compare.metric];
     syncCompareDateInputBounds();
 

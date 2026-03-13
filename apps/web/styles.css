@@ -1,6 +1,6 @@
 :root {
-  --font-sans: "Manrope", "Noto Sans SC", "PingFang SC", sans-serif;
-  --font-serif: "Source Serif 4", Georgia, serif;
+  --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-serif: "Songti SC", "STSong", Georgia, serif;
   --radius-panel: 24px;
   --radius-soft: 16px;
   --radius-control: 12px;
