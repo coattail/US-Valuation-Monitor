@@ -246,8 +246,10 @@ const WSJ_PEYIELD_URLS = [
 const WSJ_ROW_KEYWORDS: Record<string, string[]> = {
   sp500: ["s&p500", "sp500"],
   nasdaq100: ["nasdaq100", "nasdaq-100"],
+  dow30: ["dowjonesindustrialaverage", "dowindustrialaverage", "djia"],
   russell2000: ["russell2000"],
 };
+const WSJ_PRIORITY_INDEX_IDS = new Set(Object.keys(WSJ_ROW_KEYWORDS));
 
 const NASDAQ100_FORWARD_MM_BOOTSTRAP: Array<{ date: string; value: number }> = [
   { date: "2000-01-31", value: 95.92 },
@@ -329,6 +331,7 @@ interface GenerateDatasetOptions {
 interface LatestPeSnapshot {
   trailing?: number;
   forward?: number;
+  asOfDate?: string;
 }
 
 interface IndexRatioAnchor {
@@ -1526,6 +1529,22 @@ function mmddyyyyToIsoDate(dateText: string): string | undefined {
   return date.toISOString().slice(0, 10);
 }
 
+function mmddyyToIsoDate(dateText: string): string | undefined {
+  const match = String(dateText || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+  if (!match) return undefined;
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  const twoDigitYear = Number(match[3]);
+  if (!Number.isFinite(month) || month < 1 || month > 12) return undefined;
+  if (!Number.isFinite(day) || day < 1 || day > 31) return undefined;
+  if (!Number.isFinite(twoDigitYear) || twoDigitYear < 0 || twoDigitYear > 99) return undefined;
+
+  const year = twoDigitYear >= 70 ? 1900 + twoDigitYear : 2000 + twoDigitYear;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString().slice(0, 10);
+}
+
 function stripHtmlText(raw: string): string {
   return String(raw || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -1577,6 +1596,58 @@ function parseWsjRowPeValues(cells: string[]): LatestPeSnapshot | undefined {
   };
 }
 
+function parseWsjSnapshotAsOfDate(raw: string): string | undefined {
+  const text = stripHtmlText(raw);
+  if (!text) return undefined;
+
+  const verboseMatch = text.match(
+    /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})\b/i
+  );
+  if (verboseMatch) {
+    const isoDate = monthDayYearToIsoDate(verboseMatch[1], verboseMatch[2], verboseMatch[3]);
+    if (isoDate) return isoDate;
+  }
+
+  const shortMatch = text.match(/\b(\d{1,2}\/\d{1,2}\/\d{2})\b/);
+  if (shortMatch) {
+    const isoDate = mmddyyToIsoDate(shortMatch[1]);
+    if (isoDate) return isoDate;
+  }
+
+  return undefined;
+}
+
+function parseWsjSnapshotAsOfDateFromLine(raw: string): string | undefined {
+  const text = String(raw || "").trim();
+  if (!text) return undefined;
+
+  const verboseMatch = text.match(
+    /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})\b/i
+  );
+  if (verboseMatch) {
+    return monthDayYearToIsoDate(verboseMatch[1], verboseMatch[2], verboseMatch[3]);
+  }
+
+  const shortMatch = text.match(/\b(\d{1,2}\/\d{1,2}\/\d{2})\b/);
+  if (shortMatch) {
+    return mmddyyToIsoDate(shortMatch[1]);
+  }
+
+  return undefined;
+}
+
+function attachWsjSnapshotDate(
+  snapshots: Map<string, LatestPeSnapshot>,
+  asOfDate: string | undefined
+): Map<string, LatestPeSnapshot> {
+  if (!asOfDate) return snapshots;
+  const next = new Map<string, LatestPeSnapshot>();
+  for (const [key, value] of snapshots.entries()) {
+    next.set(key, { ...value, asOfDate: value.asOfDate || asOfDate });
+  }
+  return next;
+}
+
 function parseWsjPeSnapshotFromHtml(html: string): Map<string, LatestPeSnapshot> {
   const result = new Map<string, LatestPeSnapshot>();
   const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
@@ -1607,18 +1678,31 @@ function parseWsjPeSnapshotFromText(text: string): Map<string, LatestPeSnapshot>
   const lines = String(text || "")
     .replace(/\r/g, "\n")
     .split("\n")
-    .map((line) => line.trim())
+    .map((line) => stripHtmlText(line).trim())
     .filter(Boolean);
+  let currentAsOfDate: string | undefined;
 
   for (const line of lines) {
-    const lineKey = normalizeLookupText(line);
+    const lineAsOfDate = parseWsjSnapshotAsOfDateFromLine(line);
+    if (lineAsOfDate) {
+      currentAsOfDate = lineAsOfDate;
+    }
+
+    const cells = line.includes("|")
+      ? line
+          .split("|")
+          .map((cell) => cell.trim())
+          .filter(Boolean)
+      : [line];
+    const lineKey = normalizeLookupText(cells.join(" "));
     if (!lineKey) continue;
 
     for (const [indexId, keywords] of Object.entries(WSJ_ROW_KEYWORDS)) {
       if (result.has(indexId)) continue;
       if (!keywords.some((keyword) => lineKey.includes(normalizeLookupText(keyword)))) continue;
-      const values = parseWsjRowPeValues([line]);
-      if (values) result.set(indexId, values);
+      const values = parseWsjRowPeValues(cells);
+      if (!values) continue;
+      result.set(indexId, currentAsOfDate ? { ...values, asOfDate: currentAsOfDate } : values);
     }
   }
 
@@ -1642,13 +1726,13 @@ async function fetchWsjPeSnapshot(): Promise<Map<string, LatestPeSnapshot>> {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
         Accept: "text/html,application/xhtml+xml,text/plain",
       });
-      const htmlParsed = parseWsjPeSnapshotFromHtml(body);
-      const textParsed = parseWsjPeSnapshotFromText(stripHtmlText(body));
-      const merged = mergeLatestPeSnapshotMaps(htmlParsed, textParsed);
+      const asOfDate = parseWsjSnapshotAsOfDate(body);
+      const htmlParsed = attachWsjSnapshotDate(parseWsjPeSnapshotFromHtml(body), asOfDate);
+      const textParsed = attachWsjSnapshotDate(parseWsjPeSnapshotFromText(body), asOfDate);
+      const merged = mergeLatestPeSnapshotMaps(textParsed, htmlParsed);
       if (merged.size > 0) {
         combined = mergeLatestPeSnapshotMaps(merged, combined);
       }
-      if (combined.size >= 3) break;
     } catch {
       // try next source
     }
@@ -3201,6 +3285,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       let resolvedFrom = "";
       const trendRoutes = TRENDONIFY_ROUTES[meta.id];
       const siblisRoute = SIBLIS_ROUTES[meta.id];
+      const prefersWsjLatestSnapshot = WSJ_PRIORITY_INDEX_IDS.has(meta.id);
 
       let trailingSeries: MonthlyMetricPoint[] | undefined;
       let forwardSeries: MonthlyMetricPoint[] | undefined;
@@ -3376,7 +3461,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
       }
 
-      if (!SIBLIS_FULL_HISTORY_INDEX_IDS.has(meta.id)) {
+      if (!SIBLIS_FULL_HISTORY_INDEX_IDS.has(meta.id) && !prefersWsjLatestSnapshot) {
         if (
           isLatestSnapshotDeviationAcceptable(
             trailingSeries,
@@ -3423,28 +3508,25 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
       }
 
-      let wsjSnapshotAppliedForIndex = false;
       const wsjLatest = wsjPeSnapshot.get(meta.id);
       if (wsjLatest) {
         let appliedWsjSnapshot = false;
+        const hasExplicitWsjDate = /^\d{4}-\d{2}-\d{2}$/.test(String(wsjLatest.asOfDate || ""));
+        const wsjEffectiveDate =
+          wsjLatest.asOfDate && wsjLatest.asOfDate <= effectiveEnd ? wsjLatest.asOfDate : effectiveEnd;
         const wsjTrailing = isReasonablePe(wsjLatest.trailing) ? Number(wsjLatest.trailing) : undefined;
         const wsjForward = isReasonableForwardPe(wsjLatest.forward) ? Number(wsjLatest.forward) : undefined;
-        const canApplyWsjTrailing = isLatestSnapshotDeviationAcceptable(
-          trailingSeries,
-          effectiveEnd,
-          wsjTrailing,
-          isReasonablePe
-        );
-        const canApplyWsjForward = isLatestSnapshotDeviationAcceptable(
-          forwardSeries,
-          effectiveEnd,
-          wsjForward,
-          isReasonableForwardPe,
-          { maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO }
-        );
+        const canApplyWsjTrailing = hasExplicitWsjDate
+          ? isReasonablePe(wsjTrailing)
+          : isLatestSnapshotDeviationAcceptable(trailingSeries, wsjEffectiveDate, wsjTrailing, isReasonablePe);
+        const canApplyWsjForward = hasExplicitWsjDate
+          ? isReasonableForwardPe(wsjForward)
+          : isLatestSnapshotDeviationAcceptable(forwardSeries, wsjEffectiveDate, wsjForward, isReasonableForwardPe, {
+              maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO,
+            });
 
         if (canApplyWsjTrailing) {
-          trailingSeries = upsertSeriesValueAtDate(trailingSeries, effectiveEnd, wsjTrailing);
+          trailingSeries = upsertSeriesValueAtDate(trailingSeries, wsjEffectiveDate, wsjTrailing);
           anchorPe = wsjTrailing;
           resolvedFrom = "wsj";
           appliedWsjSnapshot = true;
@@ -3454,7 +3536,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
         if (isPlausibleForwardPair(wsjTrailing, wsjForward) && canApplyWsjForward) {
           if (!FORWARD_LOCKED_INDEX_IDS.has(meta.id) && !hasPinnedForwardSeries) {
-            forwardSeries = upsertSeriesValueAtDate(forwardSeries, effectiveEnd, Number(wsjForward));
+            forwardSeries = upsertSeriesValueAtDate(forwardSeries, wsjEffectiveDate, Number(wsjForward));
             appliedWsjSnapshot = true;
           }
         } else if (isPlausibleForwardPair(wsjTrailing, wsjForward)) {
@@ -3462,7 +3544,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
         if (appliedWsjSnapshot) {
           wsjSnapshotCount += 1;
-          wsjSnapshotAppliedForIndex = true;
         }
       }
 
@@ -3497,7 +3578,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
       if (
         (meta.id === "sp500" || meta.id === "nasdaq100" || meta.id === "russell2000") &&
-        !wsjSnapshotAppliedForIndex
+        !prefersWsjLatestSnapshot
       ) {
         let appliedStockAnalysisSnapshot = false;
         let stockTrailing: number | undefined;
