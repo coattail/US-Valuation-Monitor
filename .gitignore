@@ -3,3 +3,4 @@ node_modules
 *.log
 coverage
 apps/miniprogram/.idea
+data/standardized/company-valuation-history.json

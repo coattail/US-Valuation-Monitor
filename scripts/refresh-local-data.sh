@@ -152,14 +152,14 @@ from pathlib import Path
 
 root = Path("data/standardized")
 index_data = json.loads((root / "valuation-history.json").read_text())
-company_data = json.loads((root / "company-valuation-history.json").read_text())
+company_snapshot = json.loads((root / "company-valuation-snapshot.json").read_text())
 
 latest_index = max(
     (point["date"] for item in index_data["indices"] for point in item.get("points", [])),
     default="n/a",
 )
 latest_company = max(
-    (point["date"] for item in company_data["indices"] for point in item.get("points", [])),
+    (item.get("endDate") or item.get("date") or "n/a" for item in company_snapshot.get("indices", [])),
     default="n/a",
 )
 
@@ -168,7 +168,7 @@ print(
     f"latest_index_date={latest_index}"
 )
 print(
-    f"[summary] company_generated_at={company_data.get('generatedAt')} "
+    f"[summary] company_generated_at={company_snapshot.get('generatedAt')} "
     f"latest_company_date={latest_company}"
 )
 PY

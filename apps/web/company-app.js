@@ -4,12 +4,6 @@ const SNAPSHOT_PATH_CANDIDATES = [
   "./company-valuation-snapshot.json",
 ];
 
-const FULL_DATA_PATH_CANDIDATES = [
-  "/data/standardized/company-valuation-history.json",
-  "../../data/standardized/company-valuation-history.json",
-  "./company-valuation-history.json",
-];
-
 const SERIES_PATH_CANDIDATES = [
   "/data/standardized/company-series",
   "../../data/standardized/company-series",
@@ -595,20 +589,6 @@ function normalizeSnapshotDataset(payload) {
 async function fetchDataset() {
   const cacheBust = `v=${Date.now()}`;
   for (const basePath of SNAPSHOT_PATH_CANDIDATES) {
-    const path = `${basePath}${basePath.includes("?") ? "&" : "?"}${cacheBust}`;
-    try {
-      const response = await fetch(path, { cache: "no-store" });
-      if (!response.ok) continue;
-      const payload = await response.json();
-      const normalized = normalizeSnapshotDataset(payload);
-      if (!normalized) continue;
-      return normalized;
-    } catch {
-      // continue
-    }
-  }
-
-  for (const basePath of FULL_DATA_PATH_CANDIDATES) {
     const path = `${basePath}${basePath.includes("?") ? "&" : "?"}${cacheBust}`;
     try {
       const response = await fetch(path, { cache: "no-store" });

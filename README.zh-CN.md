@@ -181,7 +181,7 @@ npm run start:api
 - 标准化主数据：`data/standardized/valuation-history.json`
 - 指数轻量快照（Web 首屏使用）：`data/standardized/valuation-snapshot.json`
 - 指数分指数时序（按需加载）：`data/standardized/index-series/<index_id>.json`
-- 企业全量历史：`data/standardized/company-valuation-history.json`
+- 企业本地构建中间文件（不提交仓库）：`data/standardized/company-valuation-history.json`
 - 企业轻量快照（Web 首屏使用）：`data/standardized/company-valuation-snapshot.json`
 - 企业分公司时序（按需加载）：`data/standardized/company-series/<company_id>.json`
 - 自选存储：`data/runtime/watchlists.json`

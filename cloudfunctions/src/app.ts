@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 
 import {
   ALL_INDICES,
@@ -32,7 +32,8 @@ import { generateDataset, validateDataset } from "../../packages/data-pipeline/s
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const DEFAULT_ROOT = path.resolve(path.dirname(CURRENT_FILE), "../..");
 const DATA_FILE = ["data", "standardized", "valuation-history.json"];
-const COMPANY_DATA_FILE = ["data", "standardized", "company-valuation-history.json"];
+const COMPANY_SNAPSHOT_FILE = ["data", "standardized", "company-valuation-snapshot.json"];
+const COMPANY_SERIES_DIR = ["data", "standardized", "company-series"];
 const WATCHLIST_FILE = ["data", "runtime", "watchlists.json"];
 const ALERTS_FILE = ["data", "runtime", "alerts.json"];
 const ALERT_STATE_FILE = ["data", "runtime", "alert-state.json"];
@@ -248,29 +249,76 @@ export async function loadDataset(rootDir: string): Promise<ValuationDataset> {
 }
 
 export async function loadCompanyDataset(rootDir: string): Promise<CompanyValuationDataset> {
-  const dataPath = resolvePath(rootDir, COMPANY_DATA_FILE);
-  const payload = await readJsonFile<CompanyValuationDataset | null>(dataPath, null);
-  if (!payload || !Array.isArray(payload.indices)) {
+  const snapshotPath = resolvePath(rootDir, COMPANY_SNAPSHOT_FILE);
+  const seriesDir = resolvePath(rootDir, COMPANY_SERIES_DIR);
+  const snapshotPayload = await readJsonFile<{
+    generatedAt?: string;
+    source?: string;
+  } | null>(snapshotPath, null);
+  const seriesEntries = await readFileList(seriesDir);
+
+  if (!seriesEntries.length) {
     return {
-      generatedAt: "",
-      source: "company-snapshot",
+      generatedAt: String(snapshotPayload?.generatedAt || ""),
+      source: String(snapshotPayload?.source || "company-snapshot"),
       indices: [],
     };
   }
 
-  const normalizedIndices = payload.indices
-    .filter((item) => item && typeof item === "object")
+  const payloads = await Promise.all(
+    seriesEntries.map(async (entry) =>
+      readJsonFile<
+        | (Partial<CompanyDatasetIndex> & {
+            indexId?: string;
+            points?: CompanyValuationPoint[];
+          })
+        | null
+      >(path.join(seriesDir, entry), null)
+    )
+  );
+
+  const normalizedIndices = payloads
+    .filter((item): item is NonNullable<typeof item> => Boolean(item && typeof item === "object"))
     .map((item) => ({
       ...item,
+      id: String(item.id || item.indexId || "").trim(),
+      symbol: String(item.symbol || "").trim().toUpperCase(),
+      displayName: String(item.displayName || "").trim(),
+      description: String(item.description || `${item.displayName || ""} (${item.symbol || ""})`),
+      rank: toFiniteNumber(item.rank, 9999),
+      marketCap: toFiniteNumber(item.marketCap, 0),
+      peg: Number.isFinite(Number(item.peg)) ? Number(item.peg) : null,
+      forwardStartDate: String(item.forwardStartDate || ""),
+      quarterlyNetIncome: Array.isArray(item.quarterlyNetIncome) ? item.quarterlyNetIncome : [],
+      quarterlyEps: Array.isArray(item.quarterlyEps) ? item.quarterlyEps : [],
       points: Array.isArray(item.points) ? item.points.map((point) => stripCompanyPointGrowthFields(point)) : [],
     }))
-    .filter((item) => item.id && item.symbol && item.displayName);
+    .filter((item) => item.id && item.symbol && item.displayName && item.points.length)
+    .sort((a, b) => {
+      const capDiff = toFiniteNumber(b.marketCap, 0) - toFiniteNumber(a.marketCap, 0);
+      if (capDiff !== 0) return capDiff;
+      const rankDiff = toFiniteNumber(a.rank, 9999) - toFiniteNumber(b.rank, 9999);
+      if (rankDiff !== 0) return rankDiff;
+      return String(a.displayName || "").localeCompare(String(b.displayName || ""));
+    });
 
   return {
-    generatedAt: String(payload.generatedAt || ""),
-    source: payload.source ? String(payload.source) : "company-snapshot",
+    generatedAt: String(snapshotPayload?.generatedAt || normalizedIndices[0]?.points.at(-1)?.date || ""),
+    source: snapshotPayload?.source ? String(snapshotPayload.source) : "company-snapshot",
     indices: normalizedIndices,
   };
+}
+
+async function readFileList(dirPath: string): Promise<string[]> {
+  try {
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+      .map((entry) => entry.name)
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
 }
 
 function cacheStillValid<T>(cache: DatasetCacheEntry<T> | null, rootDir: string): cache is DatasetCacheEntry<T> {
@@ -746,14 +794,20 @@ async function runCompanyDataRefresh(
   mode: "full" | "filtered";
   symbols: string[];
 }> {
-  const scriptPath = path.join(rootDir, "packages", "data-pipeline", "src", "build-company-snapshot.ts");
+  const buildScriptPath = path.join(rootDir, "packages", "data-pipeline", "src", "build-company-snapshot.ts");
+  const splitScriptPath = path.join(rootDir, "packages", "data-pipeline", "src", "split-company-dataset.ts");
   const normalizedSymbols = normalizeCompanySymbols(symbols);
   const env = { ...process.env };
   if (normalizedSymbols.length) {
     env.COMPANY_SYMBOLS = normalizedSymbols.join(",");
   }
 
-  await execFileAsync("node", [scriptPath], {
+  await execFileAsync("node", [buildScriptPath], {
+    cwd: rootDir,
+    env,
+    maxBuffer: 20 * 1024 * 1024,
+  });
+  await execFileAsync("node", [splitScriptPath], {
     cwd: rootDir,
     env,
     maxBuffer: 20 * 1024 * 1024,
@@ -762,7 +816,7 @@ async function runCompanyDataRefresh(
   const companyDataset = await readJsonFile<{
     generatedAt?: string;
     indices?: unknown[];
-  }>(resolvePath(rootDir, COMPANY_DATA_FILE), {
+  }>(resolvePath(rootDir, COMPANY_SNAPSHOT_FILE), {
     generatedAt: "",
     indices: [],
   });
