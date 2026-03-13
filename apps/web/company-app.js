@@ -18,6 +18,10 @@ const COMPANY_REFRESH_API_CANDIDATES = [
   "http://127.0.0.1:9040/api/jobs/company-refresh",
   "http://localhost:9040/api/jobs/company-refresh",
 ];
+const IS_LOCAL_RUNTIME =
+  window.location.protocol === "file:" ||
+  window.location.hostname === "127.0.0.1" ||
+  window.location.hostname === "localhost";
 
 const STORAGE_KEYS = {
   watchlist: "usvm-company-watchlist",
@@ -722,6 +726,20 @@ function setHotRefreshButtonBusy(isBusy, label = "") {
   elements.hotRefreshBtn.disabled = Boolean(isBusy);
   elements.hotRefreshBtn.classList.toggle("is-loading", Boolean(isBusy));
   elements.hotRefreshBtn.textContent = label || (isBusy ? "热更新中..." : "热更新数据");
+}
+
+function configureHotRefreshAvailability() {
+  if (!elements.hotRefreshBtn) return;
+  if (IS_LOCAL_RUNTIME) {
+    elements.hotRefreshBtn.hidden = false;
+    elements.hotRefreshBtn.disabled = false;
+    elements.hotRefreshBtn.title = "";
+    return;
+  }
+
+  elements.hotRefreshBtn.hidden = true;
+  elements.hotRefreshBtn.disabled = true;
+  elements.hotRefreshBtn.title = "GitHub Pages 为静态站点，暂不支持在线热更新";
 }
 
 async function triggerCompanyRefreshJob(symbols = []) {
@@ -2650,6 +2668,7 @@ async function hotRefreshData() {
 async function bootstrap() {
   applyTheme();
   sanitizeLegacyStaticMetricOption();
+  configureHotRefreshAvailability();
   bindEvents();
 
   try {

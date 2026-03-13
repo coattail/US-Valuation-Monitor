@@ -1,0 +1,78 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Assemble static site
+        run: |
+          rm -rf .pages
+          mkdir -p .pages/apps .pages/data/standardized
+
+          cp -R apps/web .pages/apps/
+          cp data/standardized/valuation-snapshot.json .pages/data/standardized/
+          cp data/standardized/valuation-history.json .pages/data/standardized/
+          cp data/standardized/company-valuation-snapshot.json .pages/data/standardized/
+          cp -R data/standardized/index-series .pages/data/standardized/
+          cp -R data/standardized/company-series .pages/data/standardized/
+
+          touch .pages/.nojekyll
+
+          cat > .pages/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <meta http-equiv="refresh" content="0; url=./apps/web/index.html" />
+              <title>US Valuation Monitor</title>
+              <script>
+                window.location.replace("./apps/web/index.html");
+              </script>
+            </head>
+            <body>
+              <p>Redirecting to <a href="./apps/web/index.html">US Valuation Monitor</a>...</p>
+            </body>
+          </html>
+          EOF
+
+          cp .pages/index.html .pages/404.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .pages
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
