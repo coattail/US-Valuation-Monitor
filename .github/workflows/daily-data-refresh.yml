@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: daily-data-refresh
@@ -17,12 +19,16 @@ jobs:
   refresh-data:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -33,15 +39,78 @@ jobs:
         run: npm run build:data
 
       - name: Commit and push changes
+        id: commit_changes
+        shell: bash
         run: |
+          set -euo pipefail
+
           if git diff --quiet -- data/standardized/valuation-history.json data/standardized/valuation-snapshot.json data/standardized/index-series data/standardized/company-valuation-snapshot.json data/standardized/company-series data/standardized/company-yahoo-daily-metrics.json; then
             echo "No dataset changes detected."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/standardized/valuation-history.json data/standardized/valuation-snapshot.json data/standardized/index-series data/standardized/company-valuation-snapshot.json data/standardized/company-series data/standardized/company-yahoo-daily-metrics.json
+          git add -A data/standardized/valuation-history.json data/standardized/valuation-snapshot.json data/standardized/index-series data/standardized/company-valuation-snapshot.json data/standardized/company-series data/standardized/company-yahoo-daily-metrics.json
+
+          if git diff --cached --quiet; then
+            echo "No staged dataset changes detected after git add."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           git commit -m "chore: daily data refresh"
-          git push
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Pages
+        if: steps.commit_changes.outputs.changed == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Assemble static site
+        if: steps.commit_changes.outputs.changed == 'true'
+        run: |
+          rm -rf .pages
+          mkdir -p .pages/apps .pages/data/standardized
+
+          cp -R apps/web .pages/apps/
+          cp data/standardized/valuation-snapshot.json .pages/data/standardized/
+          cp data/standardized/valuation-history.json .pages/data/standardized/
+          cp data/standardized/company-valuation-snapshot.json .pages/data/standardized/
+          cp -R data/standardized/index-series .pages/data/standardized/
+          cp -R data/standardized/company-series .pages/data/standardized/
+
+          touch .pages/.nojekyll
+
+          cat > .pages/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <meta http-equiv="refresh" content="0; url=./apps/web/index.html" />
+              <title>US Valuation Monitor</title>
+              <script>
+                window.location.replace("./apps/web/index.html");
+              </script>
+            </head>
+            <body>
+              <p>Redirecting to <a href="./apps/web/index.html">US Valuation Monitor</a>...</p>
+            </body>
+          </html>
+          EOF
+
+          cp .pages/index.html .pages/404.html
+
+      - name: Upload Pages artifact
+        if: steps.commit_changes.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .pages
+
+      - name: Deploy to GitHub Pages
+        if: steps.commit_changes.outputs.changed == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
