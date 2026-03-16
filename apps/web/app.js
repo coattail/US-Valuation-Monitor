@@ -190,9 +190,6 @@ const detailZoomSyncState = {
   pending: null,
 };
 
-const BOARD_FLIP_NAV_DELAY_MS = 620;
-let boardFlipNavigating = false;
-
 function safeJsonParse(rawValue, fallback) {
   if (!rawValue) return fallback;
   try {
@@ -848,20 +845,19 @@ function renderSnapshotGrid(rows) {
   const isSearching = state.overview.search.trim().length > 0;
 
   elements.snapshotGrid.innerHTML = rows
-    .map((row, index) => {
+    .map((row) => {
       const rawPct = clamp(row.percentile_full * 100, 0, 100);
       const pinLeft = rawPct;
       const peChangeTone = row.pe_ttm_change_1y >= 0 ? "up" : "down";
       const toneVars = snapshotToneVars(row.percentile_full);
       const searchCardLayoutStyle = isSearching ? "max-width:320px;width:100%;justify-self:start;" : "";
-      const flipOrderStyle = `--flip-order:${index};`;
       const nameLength = String(row.displayName || "").length;
       const nameClass = nameLength >= 28 ? "name name--tight" : nameLength >= 20 ? "name name--compact" : "name";
       const tickerWatermark = String(row.symbol || "")
         .toUpperCase()
         .replace(/[<>&"]/g, "");
       return `
-      <article class="snapshot-card" data-index-id="${row.indexId}" style="${toneVars}${searchCardLayoutStyle}${flipOrderStyle}">
+      <article class="snapshot-card" data-index-id="${row.indexId}" style="${toneVars}${searchCardLayoutStyle}">
         <div class="card-logo-watermark card-logo-watermark--ticker" aria-hidden="true">
           <span>${tickerWatermark}</span>
         </div>
@@ -2141,24 +2137,6 @@ function showToast(message) {
   }, 1800);
 }
 
-function triggerBoardFlipNavigation(href, direction = "to-company") {
-  if (!href || boardFlipNavigating) return;
-  boardFlipNavigating = true;
-
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    window.location.href = href;
-    return;
-  }
-
-  document.body.classList.remove("is-board-flip-to-company", "is-board-flip-to-index");
-  document.body.classList.add("is-board-flipping");
-  document.body.classList.add(direction === "to-index" ? "is-board-flip-to-index" : "is-board-flip-to-company");
-
-  window.setTimeout(() => {
-    window.location.href = href;
-  }, BOARD_FLIP_NAV_DELAY_MS);
-}
-
 function switchView(view) {
   for (const button of elements.tabButtons) {
     button.classList.toggle("is-active", button.dataset.view === view);
@@ -2228,12 +2206,6 @@ function applyDataSourceBadge(sourceText = "") {
 }
 
 function bindEvents() {
-  elements.enterCompanyBoardBtn?.addEventListener("click", (event) => {
-    const href = event.currentTarget?.getAttribute("href") || "./companies.html";
-    event.preventDefault();
-    triggerBoardFlipNavigation(href, "to-company");
-  });
-
   elements.tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
       switchView(button.dataset.view);

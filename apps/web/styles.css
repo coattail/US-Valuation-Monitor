@@ -437,67 +437,6 @@ input {
   }
 }
 
-@keyframes boardFlipOutLeft {
-  0% {
-    opacity: 1;
-    transform: perspective(1400px) rotateY(0deg) translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: perspective(1400px) rotateY(-16deg) translateY(16px) scale(0.985);
-  }
-}
-
-@keyframes boardFlipOutRight {
-  0% {
-    opacity: 1;
-    transform: perspective(1400px) rotateY(0deg) translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: perspective(1400px) rotateY(16deg) translateY(16px) scale(0.985);
-  }
-}
-
-@keyframes boardCardFlipOutLeft {
-  0% {
-    opacity: 1;
-    transform: perspective(1200px) rotateY(0deg) translateY(0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: perspective(1200px) rotateY(-70deg) translateY(10px) scale(0.98);
-  }
-}
-
-@keyframes boardCardFlipOutRight {
-  0% {
-    opacity: 1;
-    transform: perspective(1200px) rotateY(0deg) translateY(0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: perspective(1200px) rotateY(70deg) translateY(10px) scale(0.98);
-  }
-}
-
-body.is-board-flipping .snapshot-grid .snapshot-card {
-  transform-origin: 50% 50%;
-  animation-duration: 0.42s;
-  animation-fill-mode: forwards;
-  animation-timing-function: cubic-bezier(0.22, 0.76, 0.26, 1);
-  animation-delay: min(calc(var(--flip-order, 0) * 14ms), 160ms);
-  will-change: transform, opacity;
-}
-
-body.is-board-flipping.is-board-flip-to-company .snapshot-grid .snapshot-card {
-  animation-name: boardCardFlipOutLeft;
-}
-
-body.is-board-flipping.is-board-flip-to-index .snapshot-grid .snapshot-card {
-  animation-name: boardCardFlipOutRight;
-}
-
 @keyframes cardSweep {
   0% {
     transform: translateX(-148%) skewX(-22deg);
@@ -1862,11 +1801,6 @@ input:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.is-board-flipping .snapshot-grid .snapshot-card {
-    animation: none;
-    opacity: 0.92;
-  }
-
   .snapshot-card::after {
     animation: none;
     opacity: 0.12;
