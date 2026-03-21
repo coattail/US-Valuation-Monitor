@@ -122,9 +122,49 @@ npm run start:api
 | 命令 | 用途 |
 | --- | --- |
 | `npm run build:data` | 抓取并融合数据，输出 `data/standardized/valuation-history.json` |
+| `npm run build:site` | 组装 Cloudflare Pages / GitHub Pages 可直接部署的静态站点到 `.pages/` |
 | `npm run start:web` | 启动 9030 端口静态服务 |
 | `npm run start:api` | 启动 API（默认 `127.0.0.1:9040`） |
 | `npm test` | 运行 core + API 测试 |
+
+## 6.1）Cloudflare Pages 部署
+
+这个项目的 Web 端本质上是静态站点，部署到 Cloudflare 时应使用 **Cloudflare Pages**，不要在仓库根目录执行 `npx wrangler deploy`。
+
+推荐配置：
+
+| 配置项 | 值 |
+| --- | --- |
+| Framework preset | `None` |
+| Root directory | 仓库根目录 |
+| Build command | `npm run build:site` |
+| Build output directory | `.pages` |
+
+说明：
+- 仓库根目录是一个 npm workspace，直接运行 `wrangler deploy` 会触发 workspace 根目录检测并报错。
+- `npm run build:site` 会把 `apps/web` 和 `data/standardized` 下站点所需的静态资源复制到 `.pages/`，Cloudflare 只需要发布这个目录。
+- 当前 Cloudflare / GitHub Pages 部署的是静态站点，因此网页里的“热更新数据”按钮不会在线可用；如需在线刷新，需要单独部署 `cloudfunctions` API。
+
+## 6.2）Cloudflare 自动更新
+
+如果你的 Cloudflare Pages 项目是通过 **GitHub 仓库集成**创建的，那么这个仓库已经具备自动更新所需的主要条件：
+
+1. GitHub Actions 每天定时执行 [`daily-data-refresh.yml`](./.github/workflows/daily-data-refresh.yml)，重建最新数据。
+2. 当 `data/standardized` 下文件发生变化时，workflow 会自动提交并推送到默认分支。
+3. Cloudflare Pages 监听到默认分支的新 commit 后，会自动重新构建并发布站点。
+
+建议在 Cloudflare 中额外检查两项：
+- Production branch 设为 `main`（或你的默认发布分支）。
+- Build watch paths 只包含与站点相关的路径，避免仓库里其他目录改动触发无关构建。
+
+推荐的 include paths：
+- `apps/web/*`
+- `data/standardized/*`
+- `scripts/build-static-site.mjs`
+- `package.json`
+- `.github/workflows/daily-data-refresh.yml`
+
+如果你不是通过 GitHub 集成部署，而是走手动上传，也可以在 Cloudflare Pages 里创建 Deploy Hook，再由 GitHub Actions 在定时任务完成后调用这个 Hook 触发重建。
 
 ## 7）API 接口
 
@@ -165,7 +205,7 @@ npm run start:api
 - `.github/workflows/daily-data-refresh.yml`
 
 当前策略：
-- 定时触发（`cron: 30 6 * * *`，美股收盘后）+ 手动触发
+- 定时触发（`cron: 30 21 * * 1-5`，按 UTC 21:30 在美股交易日运行；对应美东 16:30 EST / 17:30 EDT，全年都在收盘后）+ 手动触发
 - 执行 `npm run build:data`
 - 指数估值沿用既有历史同源链路（不引入 Yahoo，降低短期口径波动）
 - 企业估值时序按 Yahoo 可用最新交易日截断并同步写入历史

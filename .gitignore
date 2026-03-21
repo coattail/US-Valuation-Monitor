@@ -2,5 +2,7 @@
 node_modules
 *.log
 coverage
+.pages
+.pages-local
 apps/miniprogram/.idea
 data/standardized/company-valuation-history.json

@@ -122,9 +122,49 @@ Notes:
 | Command | Purpose |
 | --- | --- |
 | `npm run build:data` | Fetch/merge/normalize data and write `data/standardized/valuation-history.json` |
+| `npm run build:site` | Assemble a Cloudflare Pages / GitHub Pages static site into `.pages/` |
 | `npm run start:web` | Start static web server at port `9030` |
 | `npm run start:api` | Start API server (default `127.0.0.1:9040`) |
 | `npm test` | Run core + API test suites |
+
+## 6.1) Deploy to Cloudflare Pages
+
+The web app is a static site. On Cloudflare, deploy it with **Cloudflare Pages** instead of running `npx wrangler deploy` from the workspace root.
+
+Recommended settings:
+
+| Setting | Value |
+| --- | --- |
+| Framework preset | `None` |
+| Root directory | repository root |
+| Build command | `npm run build:site` |
+| Build output directory | `.pages` |
+
+Notes:
+- The repository root is an npm workspace, so a root-level `wrangler deploy` can fail with workspace application detection errors.
+- `npm run build:site` copies the required files from `apps/web` and `data/standardized` into `.pages/`, which Cloudflare can publish directly.
+- The deployed Cloudflare/GitHub Pages site is static, so the in-app "hot refresh data" action is intentionally unavailable unless you deploy `cloudfunctions` separately.
+
+## 6.2) Automatic updates on Cloudflare
+
+If your Cloudflare Pages project is connected to this repository through the **GitHub integration**, the repository already has the main pieces needed for automatic updates:
+
+1. GitHub Actions runs [`daily-data-refresh.yml`](./.github/workflows/daily-data-refresh.yml) on a schedule and rebuilds the latest datasets.
+2. When files under `data/standardized` change, the workflow commits and pushes them to the default branch.
+3. Cloudflare Pages detects the new commit on the production branch and automatically rebuilds and deploys the site.
+
+It is worth checking two settings in Cloudflare:
+- Production branch should be `main` (or your actual release branch).
+- Build watch paths should include only site-related paths, so unrelated changes in the repo do not trigger extra builds.
+
+Suggested include paths:
+- `apps/web/*`
+- `data/standardized/*`
+- `scripts/build-static-site.mjs`
+- `package.json`
+- `.github/workflows/daily-data-refresh.yml`
+
+If you are not using GitHub integration and deploy manually instead, create a Pages Deploy Hook and call it from GitHub Actions after the scheduled refresh finishes.
 
 ## 7) API Reference
 
@@ -165,7 +205,7 @@ Workflow file:
 - `.github/workflows/daily-data-refresh.yml`
 
 Current behavior:
-- Runs on schedule (`cron: 30 6 * * *`, after US market close) and manual dispatch
+- Runs on schedule (`cron: 30 21 * * 1-5`, 21:30 UTC on US trading weekdays, after market close year-round) and manual dispatch
 - Executes `npm run build:data`
 - Index valuation keeps the historical non-Yahoo source chain to avoid short-term source-regime shocks
 - Company valuation series are capped to Yahoo's latest available trading day and appended into history
