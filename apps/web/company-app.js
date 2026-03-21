@@ -137,6 +137,7 @@ const state = {
     endDate: localStorage.getItem(STORAGE_KEYS.compareEndDate) || "",
     indexIds: [],
     watchlistOnly: false,
+    search: "",
   },
 
   settings: {
@@ -188,6 +189,8 @@ const elements = {
   compareResetDate: document.getElementById("compare-reset-date"),
   compareWatchlistOnly: document.getElementById("compare-watchlist-only"),
   compareApply: document.getElementById("compare-apply"),
+  compareSearch: document.getElementById("compare-search"),
+  comparePickerCount: document.getElementById("compare-picker-count"),
   compareIndexPicker: document.getElementById("compare-index-picker"),
   compareSummary: document.getElementById("compare-summary"),
   compareChart: document.getElementById("compare-chart"),
@@ -1756,29 +1759,94 @@ function populateDetailOptions() {
   syncDetailSelectors();
 }
 
-function buildCompareIndexList() {
-  const list = state.compare.watchlistOnly
+function getComparePickerCandidates() {
+  const baseList = state.compare.watchlistOnly
     ? state.metaRows.filter((item) => state.watchlist.includes(item.id))
     : state.metaRows;
+  const keyword = String(state.compare.search || "")
+    .trim()
+    .toLowerCase();
+
+  if (!keyword) return baseList;
+
+  return baseList.filter((item) => {
+    const displayName = String(item.displayName || "").toLowerCase();
+    const symbol = String(item.symbol || "").toLowerCase();
+    return displayName.includes(keyword) || symbol.includes(keyword);
+  });
+}
+
+function updateComparePickerCount(visibleCount = 0, totalCount = 0) {
+  if (!elements.comparePickerCount) return;
+
+  const visibleIds = new Set(getComparePickerCandidates().map((item) => item.id));
+  const hiddenSelectedCount = state.compare.indexIds.filter((id) => !visibleIds.has(id)).length;
+  const parts = [`已选 ${state.compare.indexIds.length} / 8`];
+
+  if (totalCount > 0) {
+    parts.push(`当前显示 ${visibleCount} / ${totalCount}`);
+  }
+  if (hiddenSelectedCount > 0) {
+    parts.push(`隐藏已选 ${hiddenSelectedCount}`);
+  }
+
+  elements.comparePickerCount.textContent = parts.join(" · ");
+}
+
+function buildCompareIndexList() {
+  const totalList = state.compare.watchlistOnly
+    ? state.metaRows.filter((item) => state.watchlist.includes(item.id))
+    : state.metaRows;
+  const list = getComparePickerCandidates();
+
+  updateComparePickerCount(list.length, totalList.length);
+
+  if (!list.length) {
+    const emptyText = state.compare.search
+      ? "当前筛选条件下没有匹配公司"
+      : state.compare.watchlistOnly
+        ? "自选池为空，请先在偏好设置中添加公司"
+        : "暂无可选公司";
+    elements.compareIndexPicker.innerHTML = `<div class="compare-picker-empty hint">${emptyText}</div>`;
+    return;
+  }
 
   elements.compareIndexPicker.innerHTML = list
     .map((item) => {
-      const checked = state.compare.indexIds.includes(item.id) ? "checked" : "";
+      const checked = state.compare.indexIds.includes(item.id);
+      const rankLabel = Number.isFinite(item.rank) ? `#${item.rank}` : "公司";
       return `
-      <label class="compare-item">
-        <input type="checkbox" data-index-id="${item.id}" ${checked} />
-        <span>${item.displayName}</span>
+      <label class="compare-item ${checked ? "is-selected" : ""}">
+        <span class="compare-item-main">
+          <span class="compare-item-name">${item.displayName}</span>
+          <span class="compare-item-meta">${rankLabel} · ${item.symbol}</span>
+        </span>
+        <input class="compare-item-check" type="checkbox" data-index-id="${item.id}" ${checked ? "checked" : ""} />
       </label>`;
     })
     .join("");
 }
 
 function collectCompareSelection() {
-  const checked = [...elements.compareIndexPicker.querySelectorAll("input[type=checkbox]")]
-    .filter((input) => input.checked)
-    .map((input) => input.dataset.indexId);
+  const validIds = new Set(state.metaRows.map((item) => item.id));
+  state.compare.indexIds = (state.compare.indexIds || []).filter((id) => validIds.has(id)).slice(0, 8);
+}
 
-  state.compare.indexIds = checked.slice(0, 8);
+function toggleCompareSelection(indexId, checked) {
+  if (!indexId) return;
+
+  const nextSelected = (state.compare.indexIds || []).filter((id) => id !== indexId);
+  if (checked) {
+    if (nextSelected.length >= 8) {
+      buildCompareIndexList();
+      showToast("最多同时选择 8 家公司");
+      return;
+    }
+    nextSelected.push(indexId);
+  }
+
+  state.compare.indexIds = nextSelected;
+  buildCompareIndexList();
 }
 
 function buildCompareRows() {
@@ -2519,9 +2587,20 @@ function bindEvents() {
     renderCompareCharts();
   });
 
+  elements.compareSearch?.addEventListener("input", (event) => {
+    state.compare.search = event.target.value || "";
+    buildCompareIndexList();
+  });
+
   elements.compareWatchlistOnly.addEventListener("change", (event) => {
     state.compare.watchlistOnly = event.target.checked;
     buildCompareIndexList();
+  });
+
+  elements.compareIndexPicker?.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || target.type !== "checkbox") return;
+    toggleCompareSelection(target.dataset.indexId || "", target.checked);
   });
 
   elements.compareApply.addEventListener("click", () => {
@@ -2555,6 +2634,9 @@ function initSelections() {
   elements.compareRange.value = state.compare.range;
   setCompareDateRange(state.compare.startDate, state.compare.endDate, false);
   elements.compareWatchlistOnly.checked = state.compare.watchlistOnly;
+  if (elements.compareSearch) {
+    elements.compareSearch.value = state.compare.search;
+  }
 
   if (!state.compare.indexIds.length) {
     state.compare.indexIds = getDefaultCompareSelection();

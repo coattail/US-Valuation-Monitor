@@ -168,7 +168,19 @@
             <button id="compare-apply" class="btn" type="button">应用对比</button>
           </div>
 
-          <div id="compare-index-picker" class="compare-picker"></div>
+          <div class="compare-selector">
+            <div class="compare-selector-toolbar">
+              <div class="compare-selector-heading">
+                <h3>选择公司</h3>
+                <span id="compare-picker-count" class="hint">已选 0 / 8</span>
+              </div>
+              <label class="compare-search-field">
+                搜索
+                <input id="compare-search" type="text" placeholder="公司名称 / 股票代码" />
+              </label>
+            </div>
+            <div id="compare-index-picker" class="compare-picker"></div>
+          </div>
           <div id="compare-summary" class="compare-summary"></div>
 
           <div class="compare-main-layout">
