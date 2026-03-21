@@ -2884,6 +2884,8 @@ function buildCloseAnchoredOverride(
     minValue: number;
     maxValue: number;
     maxAnchorLagDays: number;
+    maxSegmentSpanDays?: number;
+    maxTailCarryDays?: number;
     segmentMode?: "anchor_carry" | "denom_progress" | "daily_return_path";
   }
 ): number[] | undefined {
@@ -2933,6 +2935,12 @@ function buildCloseAnchoredOverride(
 
   const result = new Array<number>(points.length);
   const segmentMode = options.segmentMode ?? "anchor_carry";
+  const maxSegmentSpanDays = Number.isFinite(options.maxSegmentSpanDays)
+    ? Math.max(0, Number(options.maxSegmentSpanDays))
+    : Number.POSITIVE_INFINITY;
+  const maxTailCarryDays = Number.isFinite(options.maxTailCarryDays)
+    ? Math.max(0, Number(options.maxTailCarryDays))
+    : Number.POSITIVE_INFINITY;
 
   for (let segment = 0; segment + 1 < tradeAnchors.length; segment += 1) {
     const left = tradeAnchors[segment];
@@ -2948,6 +2956,13 @@ function buildCloseAnchoredOverride(
     if (!Number.isFinite(leftDenom) || !Number.isFinite(rightDenom) || leftDenom <= 0 || rightDenom <= 0) continue;
 
     const span = rightIndex - leftIndex;
+    const segmentSpanDays = (right.ts - left.ts) / dayMs;
+    if (segmentSpanDays > maxSegmentSpanDays) {
+      result[leftIndex] = clamp(Number(left.value), options.minValue, options.maxValue);
+      result[rightIndex] = clamp(Number(right.value), options.minValue, options.maxValue);
+      continue;
+    }
+
     if (segmentMode === "anchor_carry") {
       for (let i = leftIndex; i < rightIndex; i += 1) {
         const close = closeByDate.get(points[i].date);
@@ -3026,6 +3041,8 @@ function buildCloseAnchoredOverride(
     const lastAnchorIndex = indexByDate.get(lastAnchor.date);
     if (lastAnchorIndex !== undefined) {
       for (let i = lastAnchorIndex; i < points.length; i += 1) {
+        const carrySpanDays = (parseDate(points[i].date).getTime() - lastAnchor.ts) / dayMs;
+        if (carrySpanDays > maxTailCarryDays) break;
         const close = closeByDate.get(points[i].date);
         if (!Number.isFinite(close) || Number(close) <= 0) continue;
 
@@ -3057,6 +3074,10 @@ function applyCloseAnchoredOverrides(
     minForward?: number;
     maxForward?: number;
     maxAnchorLagDays?: number;
+    trailingMaxSegmentSpanDays?: number;
+    trailingMaxTailCarryDays?: number;
+    forwardMaxSegmentSpanDays?: number;
+    forwardMaxTailCarryDays?: number;
   } = {}
 ): RawValuationPoint[] {
   if (!points.length || !closes.length) return points;
@@ -3065,11 +3086,17 @@ function applyCloseAnchoredOverrides(
   const minForward = options.minForward ?? 2;
   const maxForward = options.maxForward ?? 120;
   const maxAnchorLagDays = options.maxAnchorLagDays ?? 5;
+  const trailingMaxSegmentSpanDays = options.trailingMaxSegmentSpanDays ?? Number.POSITIVE_INFINITY;
+  const trailingMaxTailCarryDays = options.trailingMaxTailCarryDays ?? Number.POSITIVE_INFINITY;
+  const forwardMaxSegmentSpanDays = options.forwardMaxSegmentSpanDays ?? Number.POSITIVE_INFINITY;
+  const forwardMaxTailCarryDays = options.forwardMaxTailCarryDays ?? Number.POSITIVE_INFINITY;
 
   const trailingOverride = buildCloseAnchoredOverride(points, closes, trailingSeries, {
     minValue: minTtm,
     maxValue: maxTtm,
     maxAnchorLagDays,
+    maxSegmentSpanDays: trailingMaxSegmentSpanDays,
+    maxTailCarryDays: trailingMaxTailCarryDays,
     segmentMode: "anchor_carry",
   });
 
@@ -3077,6 +3104,8 @@ function applyCloseAnchoredOverrides(
     minValue: minForward,
     maxValue: maxForward,
     maxAnchorLagDays,
+    maxSegmentSpanDays: forwardMaxSegmentSpanDays,
+    maxTailCarryDays: forwardMaxTailCarryDays,
     segmentMode: "anchor_carry",
   });
 
@@ -3777,6 +3806,10 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         minForward: 2,
         maxForward: meta.id === "nasdaq100" ? 180 : 140,
         maxAnchorLagDays: 5,
+        trailingMaxSegmentSpanDays: meta.id === "nasdaq100" ? 540 : Number.POSITIVE_INFINITY,
+        trailingMaxTailCarryDays: meta.id === "nasdaq100" ? 120 : Number.POSITIVE_INFINITY,
+        forwardMaxSegmentSpanDays: meta.id === "nasdaq100" ? 540 : Number.POSITIVE_INFINITY,
+        forwardMaxTailCarryDays: meta.id === "nasdaq100" ? 120 : Number.POSITIVE_INFINITY,
       });
 
       liveSeriesCount += 1;
