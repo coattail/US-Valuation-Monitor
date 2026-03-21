@@ -2884,6 +2884,7 @@ function buildCloseAnchoredOverride(
     minValue: number;
     maxValue: number;
     maxAnchorLagDays: number;
+    maxSegmentSpanDays?: number;
     segmentMode?: "anchor_carry" | "denom_progress" | "daily_return_path";
   }
 ): number[] | undefined {
@@ -2933,6 +2934,7 @@ function buildCloseAnchoredOverride(
 
   const result = new Array<number>(points.length);
   const segmentMode = options.segmentMode ?? "anchor_carry";
+  const maxSegmentSpanDays = options.maxSegmentSpanDays ?? Number.POSITIVE_INFINITY;
 
   for (let segment = 0; segment + 1 < tradeAnchors.length; segment += 1) {
     const left = tradeAnchors[segment];
@@ -2948,6 +2950,9 @@ function buildCloseAnchoredOverride(
     if (!Number.isFinite(leftDenom) || !Number.isFinite(rightDenom) || leftDenom <= 0 || rightDenom <= 0) continue;
 
     const span = rightIndex - leftIndex;
+    const spanDays = (right.ts - left.ts) / dayMs;
+    if (spanDays > maxSegmentSpanDays) continue;
+
     if (segmentMode === "anchor_carry") {
       for (let i = leftIndex; i < rightIndex; i += 1) {
         const close = closeByDate.get(points[i].date);
@@ -3057,6 +3062,8 @@ function applyCloseAnchoredOverrides(
     minForward?: number;
     maxForward?: number;
     maxAnchorLagDays?: number;
+    trailingMaxSegmentSpanDays?: number;
+    forwardMaxSegmentSpanDays?: number;
   } = {}
 ): RawValuationPoint[] {
   if (!points.length || !closes.length) return points;
@@ -3065,11 +3072,14 @@ function applyCloseAnchoredOverrides(
   const minForward = options.minForward ?? 2;
   const maxForward = options.maxForward ?? 120;
   const maxAnchorLagDays = options.maxAnchorLagDays ?? 5;
+  const trailingMaxSegmentSpanDays = options.trailingMaxSegmentSpanDays ?? Number.POSITIVE_INFINITY;
+  const forwardMaxSegmentSpanDays = options.forwardMaxSegmentSpanDays ?? Number.POSITIVE_INFINITY;
 
   const trailingOverride = buildCloseAnchoredOverride(points, closes, trailingSeries, {
     minValue: minTtm,
     maxValue: maxTtm,
     maxAnchorLagDays,
+    maxSegmentSpanDays: trailingMaxSegmentSpanDays,
     segmentMode: "anchor_carry",
   });
 
@@ -3077,6 +3087,7 @@ function applyCloseAnchoredOverrides(
     minValue: minForward,
     maxValue: maxForward,
     maxAnchorLagDays,
+    maxSegmentSpanDays: forwardMaxSegmentSpanDays,
     segmentMode: "anchor_carry",
   });
 
@@ -3777,6 +3788,8 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         minForward: 2,
         maxForward: meta.id === "nasdaq100" ? 180 : 140,
         maxAnchorLagDays: 5,
+        trailingMaxSegmentSpanDays: meta.id === "nasdaq100" ? 540 : 720,
+        forwardMaxSegmentSpanDays: meta.id === "nasdaq100" ? 540 : 365,
       });
 
       liveSeriesCount += 1;
