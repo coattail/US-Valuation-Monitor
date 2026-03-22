@@ -281,6 +281,35 @@ function getLineEndLabelLayout(chartWidth, seriesCount = 1) {
   };
 }
 
+function formatCompareEndLabelText(value, metricCfg) {
+  if (!Number.isFinite(value)) return "--";
+  const formatted = fmt(value, metricCfg.digits);
+  return metricCfg.percentage ? `${formatted}%` : formatted;
+}
+
+function resolveCompareEndLabelLayout(chartWidth, rows, metricCfg) {
+  const endLabelLayout = getLineEndLabelLayout(chartWidth, rows.length);
+  const compareLabelFontSize = Math.max(endLabelLayout.fontSize + 3, 15);
+  const horizontalPadding = Array.isArray(endLabelLayout.padding)
+    ? Number(endLabelLayout.padding[1] || 0) * 2
+    : 0;
+  const maxLabelChars = rows.reduce((max, item) => {
+    const latestRow = item?.rows?.[item.rows.length - 1];
+    if (!latestRow) return max;
+    const latestValue = metricCfg.percentage ? latestRow.value * 100 : latestRow.value;
+    return Math.max(max, formatCompareEndLabelText(latestValue, metricCfg).length);
+  }, 4);
+  const estimatedLabelWidth = Math.ceil(maxLabelChars * compareLabelFontSize * 0.66);
+  const maxRightPadding = Math.max(92, Math.min(Math.round((Number(chartWidth) || 0) * 0.16), 148));
+  const compareRightPadding = Math.round(clamp(estimatedLabelWidth + horizontalPadding + 20, 84, maxRightPadding));
+
+  return {
+    endLabelLayout,
+    compareLabelFontSize,
+    compareRightPadding,
+  };
+}
+
 function median(values) {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -2142,10 +2171,10 @@ async function renderCompareCharts() {
     const chart = ensureChart("compare", elements.compareChart);
     const rows = buildCompareRows();
     const compareChartWidth = elements.compareChart?.clientWidth || 0;
-    const endLabelLayout = getLineEndLabelLayout(compareChartWidth, rows.length);
-    const compareLabelFontSize = Math.max(endLabelLayout.fontSize + 3, 15);
-    const compareRightPadding = Math.round(
-      Math.max(24, Math.min(endLabelLayout.rightSpace * 0.38 + 10, compareChartWidth * 0.06, 50))
+    const { endLabelLayout, compareLabelFontSize, compareRightPadding } = resolveCompareEndLabelLayout(
+      compareChartWidth,
+      rows,
+      metricCfg
     );
 
     if (!rows.length) {
@@ -2195,12 +2224,12 @@ async function renderCompareCharts() {
           verticalAlign: "middle",
           formatter(params) {
             const value = params.value?.[1];
-            return metricCfg.percentage ? `${fmt(value, metricCfg.digits)}%` : fmt(value, metricCfg.digits);
+            return formatCompareEndLabelText(value, metricCfg);
           },
           color: lineColor,
           fontSize: compareLabelFontSize,
           fontWeight: 900,
-          padding: 0,
+          padding: endLabelLayout.padding,
         },
         labelLayout: {
           moveOverlap: "shiftY",
