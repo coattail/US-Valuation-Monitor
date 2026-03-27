@@ -468,6 +468,50 @@ function sanitizeSignedRatio(value: unknown): number | null {
   return n;
 }
 
+function derivePegFromPePair(peTtmValue: unknown, peForwardValue: unknown): number | null {
+  const peTtm = sanitizeSignedRatio(peTtmValue);
+  const peForward = sanitizeSignedRatio(peForwardValue);
+  if (peTtm === null || peForward === null) return null;
+
+  const growthRate = peTtm / peForward - 1;
+  if (!Number.isFinite(growthRate) || Math.abs(growthRate) <= 1e-8) return null;
+
+  const pegValue = peTtm / (growthRate * 100);
+  if (!Number.isFinite(pegValue)) return null;
+  return roundTo(clamp(pegValue, -METRIC_MAX.peg, METRIC_MAX.peg), 4);
+}
+
+function scalePegWithPeTtm(currentPegValue: unknown, previousPeTtmValue: unknown, nextPeTtmValue: unknown): number | null {
+  const currentPeg = sanitizeSignedRatio(currentPegValue);
+  const previousPeTtm = sanitizeSignedRatio(previousPeTtmValue);
+  const nextPeTtm = sanitizeSignedRatio(nextPeTtmValue);
+  if (currentPeg === null || previousPeTtm === null || nextPeTtm === null) return null;
+
+  const pegValue = (currentPeg * nextPeTtm) / previousPeTtm;
+  if (!Number.isFinite(pegValue)) return null;
+  return roundTo(clamp(pegValue, -METRIC_MAX.peg, METRIC_MAX.peg), 4);
+}
+
+function resolvePegAfterPeRefresh(
+  point: Pick<SnapshotPoint, "pe_ttm" | "pe_forward" | "peg">,
+  nextPeTtmValue: unknown,
+  nextPeForwardValue: unknown = point.pe_forward,
+  explicitPegValue: unknown = null
+): number | null {
+  const explicitPeg = sanitizeSignedRatio(explicitPegValue);
+  if (explicitPeg !== null) {
+    return roundTo(clamp(explicitPeg, -METRIC_MAX.peg, METRIC_MAX.peg), 4);
+  }
+
+  const scaledPeg = scalePegWithPeTtm(point.peg, point.pe_ttm, nextPeTtmValue);
+  if (scaledPeg !== null) return scaledPeg;
+
+  const derivedPeg = derivePegFromPePair(nextPeTtmValue, nextPeForwardValue);
+  if (derivedPeg !== null) return derivedPeg;
+
+  return sanitizeSignedRatio(point.peg);
+}
+
 function sanitizeEps(value: unknown): number | null {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
@@ -1928,6 +1972,7 @@ function parseYahooTrailingPegTimeseriesPayload(rawText: string): RatioPayload |
     .find((rows) => rows.length) as Array<Record<string, unknown>> | undefined;
   if (!sourceRows || !sourceRows.length) return null;
 
+  const byDate = new Map<string, RatioAnchor>();
   let latestPeg: number | null = null;
   let latestDate = "";
   for (const row of sourceRows) {
@@ -1939,16 +1984,24 @@ function parseYahooTrailingPegTimeseriesPayload(rawText: string): RatioPayload |
     const peg = sanitizeSignedRatio(rawValue);
     if (peg === null) continue;
 
+    byDate.set(asOfDate, {
+      date: asOfDate,
+      pe_ttm: null,
+      pe_forward: null,
+      pb: null,
+      peg,
+    });
+
     if (!latestDate || asOfDate >= latestDate) {
       latestDate = asOfDate;
       latestPeg = peg;
     }
   }
 
-  if (latestPeg === null) return null;
+  if (!byDate.size && latestPeg === null) return null;
 
   return {
-    anchors: [],
+    anchors: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
     latest: {
       pe_ttm: null,
       pe_forward: null,
@@ -2238,18 +2291,23 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
   keyStatisticsPayload = sanitizeYahooRatioPayloadMetrics(keyStatisticsPayload);
 
   const quoteLatestPayload = mergeRatioPayloadList(
-    [keyStatisticsPayload, trailingPePayload, forwardPePayload, quoteSummaryPayload, quoteApiPayload].filter(
-      Boolean
-    ) as RatioPayload[]
+    [
+      trailingPegPayload,
+      keyStatisticsPayload,
+      trailingPePayload,
+      forwardPePayload,
+      quoteSummaryPayload,
+      quoteApiPayload,
+    ].filter(Boolean) as RatioPayload[]
   );
   const payload = mergeRatioPayloadList(
     [
+      trailingPegPayload,
       quoteSummaryPayload,
       quoteApiPayload,
       keyStatisticsPayload,
       trailingPePayload,
       forwardPePayload,
-      trailingPegPayload,
     ].filter(Boolean) as RatioPayload[]
   );
   const latestTtmDate = getLatestMetricAnchorDate(trailingPePayload, "pe_ttm");
@@ -2886,7 +2944,8 @@ function applyLatestRatioOverrideToLastPoint(
   const overrideSource = String(latestOverride.source || "").trim();
   const overridePeTtm = sanitizeYahooMetricValue("pe_ttm", latestOverride.latest.pe_ttm, overrideSource);
   const overridePeForward = sanitizeYahooMetricValue("pe_forward", latestOverride.latest.pe_forward, overrideSource);
-  if (!overridePeTtm && !overridePeForward) {
+  const overridePeg = sanitizeYahooMetricValue("peg", latestOverride.latest.peg, overrideSource);
+  if (!overridePeTtm && !overridePeForward && !overridePeg) {
     return valuationPoints;
   }
 
@@ -2905,6 +2964,20 @@ function applyLatestRatioOverrideToLastPoint(
     nextLastPoint = {
       ...(nextLastPoint || currentLastPoint),
       pe_forward: roundTo(overridePeForward, 4),
+    };
+  }
+
+  const effectivePoint = nextLastPoint || currentLastPoint;
+  const effectivePeg = resolvePegAfterPeRefresh(
+    currentLastPoint,
+    effectivePoint.pe_ttm,
+    effectivePoint.pe_forward,
+    overridePeg
+  );
+  if (effectivePeg !== sanitizeSignedRatio(effectivePoint.peg)) {
+    nextLastPoint = {
+      ...effectivePoint,
+      peg: effectivePeg,
     };
   }
 
@@ -6029,6 +6102,7 @@ function overrideRecentPeTtmWithLatestActualTtmEps(
     return {
       ...point,
       pe_ttm: roundTo(peTtm, 6),
+      peg: resolvePegAfterPeRefresh(point, peTtm),
     };
   });
 }

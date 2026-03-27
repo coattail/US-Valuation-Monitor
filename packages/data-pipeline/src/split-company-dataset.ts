@@ -76,6 +76,11 @@ function toFiniteNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function resolveLatestPeg(points: CompanyValuationPoint[], fallback?: unknown): number | null {
+  const latestPoint = Array.isArray(points) && points.length ? points[points.length - 1] : null;
+  return toFiniteNumber(latestPoint?.peg ?? fallback);
+}
+
 function valuationRankValue(value: number): number {
   if (value >= 0) return value;
   const abs = Math.max(Math.abs(value), NEGATIVE_VALUATION_EPSILON);
@@ -194,7 +199,7 @@ function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
     pe_ttm: toFiniteNumber(latestPoint.pe_ttm),
     pe_forward: toFiniteNumber(latestPoint.pe_forward),
     pb: toFiniteNumber(latestPoint.pb),
-    peg: toFiniteNumber(item.peg ?? latestPoint.peg),
+    peg: resolveLatestPeg(points, item.peg),
     percentile_5y: peStats.percentile_5y,
     percentile_10y: peStats.percentile_10y,
     percentile_full: peStats.percentile_full,

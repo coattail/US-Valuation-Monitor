@@ -287,11 +287,14 @@ export async function loadCompanyDataset(rootDir: string): Promise<CompanyValuat
       description: String(item.description || `${item.displayName || ""} (${item.symbol || ""})`),
       rank: toFiniteNumber(item.rank, 9999),
       marketCap: toFiniteNumber(item.marketCap, 0),
-      peg: Number.isFinite(Number(item.peg)) ? Number(item.peg) : null,
       forwardStartDate: String(item.forwardStartDate || ""),
       quarterlyNetIncome: Array.isArray(item.quarterlyNetIncome) ? item.quarterlyNetIncome : [],
       quarterlyEps: Array.isArray(item.quarterlyEps) ? item.quarterlyEps : [],
       points: Array.isArray(item.points) ? item.points.map((point) => stripCompanyPointGrowthFields(point)) : [],
+    }))
+    .map((item) => ({
+      ...item,
+      peg: resolveLatestCompanyPeg(item.points, item.peg),
     }))
     .filter((item) => item.id && item.symbol && item.displayName && item.points.length)
     .sort((a, b) => {
@@ -466,6 +469,14 @@ function toFiniteNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(num) ? num : fallback;
 }
 
+function resolveLatestCompanyPeg(points: CompanyValuationPoint[], fallback?: unknown): number | null {
+  const latestPoint = Array.isArray(points) && points.length ? points[points.length - 1] : null;
+  const latestPeg = Number(latestPoint?.peg);
+  if (Number.isFinite(latestPeg)) return latestPeg;
+  const fallbackPeg = Number(fallback);
+  return Number.isFinite(fallbackPeg) ? fallbackPeg : null;
+}
+
 const NEGATIVE_VALUATION_BASE = 1_000_000;
 const NEGATIVE_VALUATION_EPSILON = 1e-6;
 
@@ -606,7 +617,7 @@ function buildCompanySnapshotRow(item: CompanyDatasetIndex) {
     pe_ttm: toFiniteNumber(latestRaw?.pe_ttm, 0),
     pe_forward: toFiniteNumber(latestRaw?.pe_forward, 0),
     pb: toFiniteNumber(latestRaw?.pb, 0),
-    peg: Number.isFinite(Number(item.peg)) ? Number(item.peg) : null,
+    peg: resolveLatestCompanyPeg(points, item.peg),
     earnings_yield:
       Number.isFinite(latestPe) && Math.abs(latestPe) > 1e-12 ? Number((1 / latestPe).toFixed(8)) : 0,
     percentile_5y: peStats.percentile_5y,

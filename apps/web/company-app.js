@@ -243,6 +243,10 @@ function toFiniteNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function resolveLatestPointPeg(point, fallback) {
+  return toFiniteNumber(point?.peg ?? fallback);
+}
+
 function fmt(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
   return Number(value).toFixed(digits);
@@ -590,7 +594,7 @@ function normalizeSnapshotDataset(payload) {
         pe_ttm: toFiniteNumber(item.pe_ttm),
         pe_forward: toFiniteNumber(item.pe_forward),
         pb: toFiniteNumber(item.pb),
-        peg: toFiniteNumber(item.peg),
+        peg: resolveLatestPointPeg(lastPoint, item.peg),
         percentile_5y: Number.isFinite(Number(item.percentile_5y))
           ? clamp(Number(item.percentile_5y), 0, 1)
           : null,
@@ -962,7 +966,7 @@ function buildSnapshotRows() {
       pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm) ?? 0,
       pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward) ?? 0,
       pb: toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb) ?? 0,
-      peg: toFiniteNumber(indexData.peg),
+      peg: resolveLatestPointPeg(latestRaw, indexData.peg),
       percentile_5y: latestPe.percentile_5y,
       percentile_10y: latestPe.percentile_10y,
       percentile_full: latestPe.percentile_full,

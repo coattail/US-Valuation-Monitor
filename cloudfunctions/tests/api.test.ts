@@ -56,6 +56,31 @@ test("company series payload supports default full history", async () => {
   assert.equal(payload.rows[payload.rows.length - 1].date, payload.availableRange.endDate);
 });
 
+test("company snapshot payload prefers latest point peg over stale top-level peg", () => {
+  const dataset = {
+    generatedAt: "2026-03-27T00:00:00.000Z",
+    source: "test",
+    indices: [
+      {
+        id: "company_test",
+        symbol: "TEST",
+        displayName: "Test Inc",
+        description: "Test Inc (TEST)",
+        rank: 1,
+        marketCap: 100,
+        peg: 9.99,
+        points: [
+          { date: "2025-03-26", pe_ttm: 20, pe_forward: 18, pb: 4, peg: 1.1 },
+          { date: "2026-03-26", pe_ttm: 25, pe_forward: 19, pb: 5, peg: 1.8 },
+        ],
+      },
+    ],
+  };
+
+  const payload = buildCompanySnapshotPayload(dataset);
+  assert.equal(payload.rows[0]?.peg, 1.8);
+});
+
 test("watchlist normalization applies defaults and clamps invalid input", () => {
   const watchlist = normalizeWatchlist(
     {
