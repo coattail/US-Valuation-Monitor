@@ -151,6 +151,9 @@ interface YahooRatioPayloadResult {
   quoteLatestPayload: RatioPayload | null;
   trailingPePayload: RatioPayload | null;
   forwardPePayload: RatioPayload | null;
+  latestMetricDates: Partial<Record<RatioMetricKey, string>>;
+  latestMetricValues: Partial<Record<RatioMetricKey, number | null>>;
+  metricAnchorDates: Partial<Record<RatioMetricKey, string[]>>;
 }
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
@@ -2249,11 +2252,29 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
       trailingPegPayload,
     ].filter(Boolean) as RatioPayload[]
   );
+  const latestTtmDate = getLatestMetricAnchorDate(trailingPePayload, "pe_ttm");
+  const latestForwardDate = getLatestMetricAnchorDate(forwardPePayload, "pe_forward");
+  const latestPegDate = getLatestMetricAnchorDate(trailingPegPayload, "peg");
   return {
     payload,
     quoteLatestPayload,
     trailingPePayload,
     forwardPePayload,
+    latestMetricDates: {
+      pe_ttm: latestTtmDate,
+      pe_forward: latestForwardDate,
+      peg: latestPegDate,
+    },
+    latestMetricValues: {
+      pe_ttm: getMetricAnchorValueOnDate(trailingPePayload, "pe_ttm", latestTtmDate),
+      pe_forward: getMetricAnchorValueOnDate(forwardPePayload, "pe_forward", latestForwardDate),
+      peg: getMetricAnchorValueOnDate(trailingPegPayload, "peg", latestPegDate),
+    },
+    metricAnchorDates: {
+      pe_ttm: getMetricAnchorDates(trailingPePayload, "pe_ttm"),
+      pe_forward: getMetricAnchorDates(forwardPePayload, "pe_forward"),
+      peg: getMetricAnchorDates(trailingPegPayload, "peg"),
+    },
   };
 }
 
@@ -2658,6 +2679,42 @@ function getEarliestMetricAnchorDate(payload: RatioPayload | null, metric: Ratio
   return dates[0] || "";
 }
 
+function getLatestMetricAnchorDate(payload: RatioPayload | null, metric: RatioMetricKey): string {
+  if (!payload || !Array.isArray(payload.anchors) || !payload.anchors.length) return "";
+  const dates = payload.anchors
+    .filter((item) => getRatioAnchorMetricValue(item, metric) !== null)
+    .map((item) => item.date)
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .sort((a, b) => a.localeCompare(b));
+  return dates[dates.length - 1] || "";
+}
+
+function getMetricAnchorValueOnDate(
+  payload: RatioPayload | null,
+  metric: RatioMetricKey,
+  date: string
+): number | null {
+  if (!payload || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  for (const anchor of payload.anchors || []) {
+    if (anchor.date !== date) continue;
+    return getRatioAnchorMetricValue(anchor, metric);
+  }
+  return null;
+}
+
+function getMetricAnchorDates(payload: RatioPayload | null, metric: RatioMetricKey): string[] {
+  if (!payload || !Array.isArray(payload.anchors) || !payload.anchors.length) return [];
+  return [
+    ...new Set(
+      payload.anchors
+        .filter((item) => getRatioAnchorMetricValue(item, metric) !== null)
+        .map((item) => item.date)
+        .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+        .sort((a, b) => a.localeCompare(b))
+    ),
+  ];
+}
+
 function minIsoDate(a: string, b: string): string {
   const normalizedA = /^\d{4}-\d{2}-\d{2}$/.test(a) ? a : "";
   const normalizedB = /^\d{4}-\d{2}-\d{2}$/.test(b) ? b : "";
@@ -2884,25 +2941,103 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
   };
 }
 
-function createYahooDailyMetricSnapshot(date: string, payload: RatioPayload | null): YahooDailyMetricSnapshot | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !payload) return null;
+function createYahooDailyMetricSnapshots(
+  payload: RatioPayload | null,
+  fallbackDate: string,
+  latestMetricDates: Partial<Record<RatioMetricKey, string>>,
+  latestMetricValues: Partial<Record<RatioMetricKey, number | null>>
+): YahooDailyMetricSnapshot[] {
+  if (!payload) return [];
 
   const source = String(payload.source || "").trim();
-  const peTtm = sanitizeYahooMetricValue("pe_ttm", payload.latest.pe_ttm, source);
-  const peForward = sanitizeYahooMetricValue("pe_forward", payload.latest.pe_forward, source);
-  const pb = sanitizeYahooMetricValue("pb", payload.latest.pb, source);
-  const peg = sanitizeYahooMetricValue("peg", payload.latest.peg, source);
-  if (!peTtm && !peForward && !pb && !peg) return null;
+  if (!source) return [];
 
-  return {
-    date,
-    pe_ttm: peTtm,
-    pe_forward: peForward,
-    pb,
-    peg,
-    source,
-    capturedAt: new Date().toISOString(),
+  const valuesByMetric: Partial<Record<RatioMetricKey, number | null>> = {
+    pe_ttm: sanitizeYahooMetricValue("pe_ttm", payload.latest.pe_ttm, source),
+    pe_forward: sanitizeYahooMetricValue("pe_forward", payload.latest.pe_forward, source),
+    pb: sanitizeYahooMetricValue("pb", payload.latest.pb, source),
+    peg: sanitizeYahooMetricValue("peg", payload.latest.peg, source),
   };
+
+  const byDate = new Map<string, YahooDailyMetricSnapshot>();
+  const metrics: RatioMetricKey[] = ["pe_ttm", "pe_forward", "pb", "peg"];
+  const effectiveFallbackDate = /^\d{4}-\d{2}-\d{2}$/.test(fallbackDate) ? fallbackDate : "";
+
+  for (const metric of metrics) {
+    const value =
+      (metric === "pe_ttm" || metric === "pe_forward")
+        ? sanitizeSignedRatio(latestMetricValues?.[metric] ?? null)
+        : valuesByMetric[metric];
+    if (value === null || value === undefined) continue;
+
+    const hintDate = String(latestMetricDates?.[metric] || "").trim();
+    // For PE metrics we only write a snapshot on Yahoo's actual update date.
+    const targetDate =
+      metric === "pe_ttm" || metric === "pe_forward"
+        ? (/^\d{4}-\d{2}-\d{2}$/.test(hintDate) ? hintDate : "")
+        : /^\d{4}-\d{2}-\d{2}$/.test(hintDate)
+          ? hintDate
+          : effectiveFallbackDate;
+    if (!targetDate) continue;
+
+    const current = byDate.get(targetDate) || {
+      date: targetDate,
+      pe_ttm: null,
+      pe_forward: null,
+      pb: null,
+      peg: null,
+      source,
+      capturedAt: new Date().toISOString(),
+    };
+
+    if (metric === "pe_ttm") current.pe_ttm = value;
+    else if (metric === "pe_forward") current.pe_forward = value;
+    else if (metric === "pb") current.pb = value;
+    else current.peg = value;
+
+    byDate.set(targetDate, current);
+  }
+
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function alignSnapshotMetricsToLatestDates(
+  snapshots: YahooDailyMetricSnapshot[],
+  latestMetricDates: Partial<Record<RatioMetricKey, string>>,
+  metricAnchorDates: Partial<Record<RatioMetricKey, string[]>>
+): YahooDailyMetricSnapshot[] {
+  if (!Array.isArray(snapshots) || !snapshots.length) return [];
+
+  const latestTtmDate = String(latestMetricDates?.pe_ttm || "").trim();
+  const latestForwardDate = String(latestMetricDates?.pe_forward || "").trim();
+  const validLatestTtmDate = /^\d{4}-\d{2}-\d{2}$/.test(latestTtmDate) ? latestTtmDate : "";
+  const validLatestForwardDate = /^\d{4}-\d{2}-\d{2}$/.test(latestForwardDate) ? latestForwardDate : "";
+  const validTtmDates = new Set((metricAnchorDates?.pe_ttm || []).filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item)));
+  const validForwardDates = new Set(
+    (metricAnchorDates?.pe_forward || []).filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item))
+  );
+
+  return snapshots
+    .map((item) => normalizeYahooDailyMetricSnapshot(item))
+    .filter((item): item is YahooDailyMetricSnapshot => !!item)
+    .map((item) => {
+      const nextItem: YahooDailyMetricSnapshot = { ...item };
+      if (validLatestTtmDate && nextItem.date > validLatestTtmDate) {
+        nextItem.pe_ttm = null;
+      }
+      if (nextItem.pe_ttm !== null && validTtmDates.size && !validTtmDates.has(nextItem.date)) {
+        nextItem.pe_ttm = null;
+      }
+      if (validLatestForwardDate && nextItem.date > validLatestForwardDate) {
+        nextItem.pe_forward = null;
+      }
+      if (nextItem.pe_forward !== null && validForwardDates.size && !validForwardDates.has(nextItem.date)) {
+        nextItem.pe_forward = null;
+      }
+      return nextItem;
+    })
+    .filter((item) => item.pe_ttm || item.pe_forward || item.pb || item.peg)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function shouldNullifyForwardByYahooSnapshot(snapshot: YahooDailyMetricSnapshot): boolean {
@@ -2926,7 +3061,26 @@ function upsertYahooDailyMetricSnapshot(
     nextByDate.set(normalized.date, normalized);
   }
 
-  nextByDate.set(snapshot.date, snapshot);
+  const current = nextByDate.get(snapshot.date);
+  if (current) {
+    nextByDate.set(snapshot.date, {
+      ...current,
+      pe_ttm: snapshot.pe_ttm ?? current.pe_ttm,
+      pe_forward: snapshot.pe_forward ?? current.pe_forward,
+      pb: snapshot.pb ?? current.pb,
+      peg: snapshot.peg ?? current.peg,
+      source: [
+        ...new Set(
+          [String(current.source || "").trim(), String(snapshot.source || "").trim()]
+            .filter(Boolean)
+            .flatMap((item) => item.split("+").map((part) => part.trim()).filter(Boolean))
+        ),
+      ].join("+"),
+      capturedAt: String(snapshot.capturedAt || current.capturedAt || "").trim(),
+    });
+  } else {
+    nextByDate.set(snapshot.date, snapshot);
+  }
   bySymbol.set(
     normalizedSymbol,
     [...nextByDate.values()].sort((a, b) => a.date.localeCompare(b.date))
@@ -6241,13 +6395,23 @@ async function main(): Promise<void> {
 
     const lastCloseDate = closePoints[closePoints.length - 1]?.date || "";
     if (lastCloseDate) {
-      upsertYahooDailyMetricSnapshot(
-        yahooDailyMetricsBySymbol,
-        company.symbol,
-        createYahooDailyMetricSnapshot(lastCloseDate, yahooQuoteLatestPayload)
+      const nextSnapshots = createYahooDailyMetricSnapshots(
+        yahooQuoteLatestPayload,
+        lastCloseDate,
+        yahooFetchResult?.latestMetricDates || {},
+        yahooFetchResult?.latestMetricValues || {}
       );
+      for (const snapshot of nextSnapshots) {
+        upsertYahooDailyMetricSnapshot(yahooDailyMetricsBySymbol, company.symbol, snapshot);
+      }
     }
-    const yahooDailySnapshots = yahooDailyMetricsBySymbol.get(company.symbol) || [];
+    const yahooDailySnapshotsRaw = yahooDailyMetricsBySymbol.get(company.symbol) || [];
+    const yahooDailySnapshots = alignSnapshotMetricsToLatestDates(
+      yahooDailySnapshotsRaw,
+      yahooFetchResult?.latestMetricDates || {},
+      yahooFetchResult?.metricAnchorDates || {}
+    );
+    yahooDailyMetricsBySymbol.set(company.symbol, yahooDailySnapshots);
     const effectiveYahooSnapshots = buildEffectiveYahooDailyMetricSnapshots(closePoints, yahooDailySnapshots);
     const snapshotLatestRatioOverride =
       shouldUseYahooLatestOverride && lastCloseDate
