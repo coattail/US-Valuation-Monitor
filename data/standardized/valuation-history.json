@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-03-27T21:56:08.642Z",
-  "source": "free-live-proxy-v6+stockanalysis-pe-11+trendonify-pe-5+wsj-pe-3+wsj-curated-ttm-1+siblis-pe-1+siblis-fpe-1+local-mm-fpe-1+ndx-fpe-bootstrap-1+ndx-ttm-factset-1+history-fpe-15+fred10y",
+  "generatedAt": "2026-03-30T22:01:44.112Z",
+  "source": "free-live-proxy-v6+history-fallback-17+no-live-refresh+fred10y",
   "indices": [
     {
       "id": "sp500",
