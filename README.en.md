@@ -153,6 +153,10 @@ If your Cloudflare Pages project is connected to this repository through the **G
 2. When files under `data/standardized` change, the workflow commits and pushes them to the default branch.
 3. Cloudflare Pages detects the new commit on the production branch and automatically rebuilds and deploys the site.
 
+Important:
+- `daily-data-refresh.yml` should use the repository secret `REPO_PUSH_TOKEN` for checkout/push instead of relying only on the default `GITHUB_TOKEN`.
+- Commits pushed with `GITHUB_TOKEN` do not trigger a new Pages build, so Cloudflare would miss the refresh commit. Using `REPO_PUSH_TOKEN` ensures Cloudflare receives a normal push event and republishes the latest data.
+
 It is worth checking two settings in Cloudflare:
 - Production branch should be `main` (or your actual release branch).
 - Build watch paths should include only site-related paths, so unrelated changes in the repo do not trigger extra builds.

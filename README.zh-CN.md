@@ -153,6 +153,10 @@ npm run start:api
 2. 当 `data/standardized` 下文件发生变化时，workflow 会自动提交并推送到默认分支。
 3. Cloudflare Pages 监听到默认分支的新 commit 后，会自动重新构建并发布站点。
 
+注意：
+- `daily-data-refresh.yml` 需要使用仓库 secret `REPO_PUSH_TOKEN` 作为 checkout/push 凭据，而不是仅依赖默认的 `GITHUB_TOKEN`。
+- 原因是 `GITHUB_TOKEN` 推出的提交不会触发新的 Pages 构建；使用 `REPO_PUSH_TOKEN` 后，Cloudflare 才能收到正常的 push 事件并自动发布最新数据。
+
 建议在 Cloudflare 中额外检查两项：
 - Production branch 设为 `main`（或你的默认发布分支）。
 - Build watch paths 只包含与站点相关的路径，避免仓库里其他目录改动触发无关构建。
