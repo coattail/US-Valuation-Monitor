@@ -147,28 +147,30 @@ Notes:
 
 ## 6.2) Automatic updates on Cloudflare
 
-If your Cloudflare Pages project is connected to this repository through the **GitHub integration**, the repository already has the main pieces needed for automatic updates:
+The current `us-valuation-monitor.pages.dev` project is a **Direct Upload** Pages project (`Git Provider = No` in Cloudflare), so it does not rebuild automatically from repository commits.
+
+The repository now uses a two-stage automation flow:
 
 1. GitHub Actions runs [`daily-data-refresh.yml`](./.github/workflows/daily-data-refresh.yml) on a schedule and rebuilds the latest datasets.
 2. When files under `data/standardized` change, the workflow commits and pushes them to the default branch.
-3. Cloudflare Pages detects the new commit on the production branch and automatically rebuilds and deploys the site.
+3. After the push to `main`, [`deploy-cloudflare-pages.yml`](./.github/workflows/deploy-cloudflare-pages.yml) runs `wrangler pages deploy` and uploads `.pages/` directly to Cloudflare Pages.
 
 Important:
 - `daily-data-refresh.yml` should use the repository secret `REPO_PUSH_TOKEN` for checkout/push instead of relying only on the default `GITHUB_TOKEN`.
-- Commits pushed with `GITHUB_TOKEN` do not trigger a new Pages build, so Cloudflare would miss the refresh commit. Using `REPO_PUSH_TOKEN` ensures Cloudflare receives a normal push event and republishes the latest data.
+- Commits pushed with `GITHUB_TOKEN` do not trigger a new GitHub push workflow. Using `REPO_PUSH_TOKEN` ensures the follow-up Cloudflare deployment workflow runs normally.
+- `deploy-cloudflare-pages.yml` requires two GitHub repository secrets:
+  - `CLOUDFLARE_ACCOUNT_ID`
+  - `CLOUDFLARE_API_TOKEN`
 
-It is worth checking two settings in Cloudflare:
-- Production branch should be `main` (or your actual release branch).
-- Build watch paths should include only site-related paths, so unrelated changes in the repo do not trigger extra builds.
+Recommended `CLOUDFLARE_API_TOKEN` permission:
+- `Account` / `Cloudflare Pages` / `Edit`
 
-Suggested include paths:
-- `apps/web/*`
-- `data/standardized/*`
-- `scripts/build-static-site.mjs`
-- `package.json`
-- `.github/workflows/daily-data-refresh.yml`
+The deployment command is:
 
-If you are not using GitHub integration and deploy manually instead, create a Pages Deploy Hook and call it from GitHub Actions after the scheduled refresh finishes.
+```bash
+npm run build:site
+npx wrangler pages deploy .pages --project-name us-valuation-monitor --branch main
+```
 
 ## 7) API Reference
 

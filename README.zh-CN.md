@@ -147,28 +147,31 @@ npm run start:api
 
 ## 6.2）Cloudflare 自动更新
 
-如果你的 Cloudflare Pages 项目是通过 **GitHub 仓库集成**创建的，那么这个仓库已经具备自动更新所需的主要条件：
+当前 `us-valuation-monitor.pages.dev` 使用的是 **Direct Upload** 项目（Cloudflare Pages 后台里 `Git Provider = No`），因此它不会因为 GitHub 仓库有新 commit 自动更新。
 
-1. GitHub Actions 每天定时执行 [`daily-data-refresh.yml`](./.github/workflows/daily-data-refresh.yml)，重建最新数据。
-2. 当 `data/standardized` 下文件发生变化时，workflow 会自动提交并推送到默认分支。
-3. Cloudflare Pages 监听到默认分支的新 commit 后，会自动重新构建并发布站点。
+这个仓库现在采用两段式自动化：
+
+1. GitHub Actions 定时执行 [`daily-data-refresh.yml`](./.github/workflows/daily-data-refresh.yml)，重建最新数据。
+2. 当 `data/standardized` 发生变化时，workflow 会自动提交并推送到默认分支。
+3. 推送到 `main` 后，再由 [`deploy-cloudflare-pages.yml`](./.github/workflows/deploy-cloudflare-pages.yml) 运行 `wrangler pages deploy`，把 `.pages/` 直接发布到 Cloudflare Pages。
 
 注意：
 - `daily-data-refresh.yml` 需要使用仓库 secret `REPO_PUSH_TOKEN` 作为 checkout/push 凭据，而不是仅依赖默认的 `GITHUB_TOKEN`。
-- 原因是 `GITHUB_TOKEN` 推出的提交不会触发新的 Pages 构建；使用 `REPO_PUSH_TOKEN` 后，Cloudflare 才能收到正常的 push 事件并自动发布最新数据。
+- 原因是 `GITHUB_TOKEN` 推出的提交不会触发新的 GitHub push 工作流；改成 `REPO_PUSH_TOKEN` 后，后续的 Cloudflare 发布 workflow 才能被正常触发。
+- `deploy-cloudflare-pages.yml` 需要两个 GitHub repository secrets：
+  - `CLOUDFLARE_ACCOUNT_ID`
+  - `CLOUDFLARE_API_TOKEN`
 
-建议在 Cloudflare 中额外检查两项：
-- Production branch 设为 `main`（或你的默认发布分支）。
-- Build watch paths 只包含与站点相关的路径，避免仓库里其他目录改动触发无关构建。
+`CLOUDFLARE_API_TOKEN` 推荐权限：
+- `Account` / `Cloudflare Pages` / `Edit`
+- 如果你只想最小权限，也可以单独为目标账号创建只用于 Pages 直传的 token。
 
-推荐的 include paths：
-- `apps/web/*`
-- `data/standardized/*`
-- `scripts/build-static-site.mjs`
-- `package.json`
-- `.github/workflows/daily-data-refresh.yml`
+发布命令固定为：
 
-如果你不是通过 GitHub 集成部署，而是走手动上传，也可以在 Cloudflare Pages 里创建 Deploy Hook，再由 GitHub Actions 在定时任务完成后调用这个 Hook 触发重建。
+```bash
+npm run build:site
+npx wrangler pages deploy .pages --project-name us-valuation-monitor --branch main
+```
 
 ## 7）API 接口
 
