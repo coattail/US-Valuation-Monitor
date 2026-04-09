@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>13F Tracker</title>
+    <link rel="stylesheet" href="./styles.css?v=20260223-ui107" />
+  </head>
+  <body>
+    <div class="site-bg"></div>
+    <div class="noise-layer"></div>
+    <main class="layout two-step-layout">
+      <section id="listView" class="catalog-view">
+        <div class="catalog-shell">
+          <div class="catalog-head">
+            <p class="eyebrow">STEP 1 · INSTITUTION SELECTOR</p>
+            <h1>13F Tracker</h1>
+            <p class="hero-desc">Select an institution to view 13F holdings and quarterly changes.</p>
+          </div>
+          <div class="catalog-tools">
+            <div class="catalog-search">
+              <input
+                id="catalogSearchInput"
+                class="catalog-search-input"
+                type="search"
+                placeholder="Filter by institution, manager, style, or ticker"
+                aria-label="Filter institutions by institution, manager, style, or ticker"
+                autocomplete="off"
+              />
+              <button id="catalogSearchClearBtn" class="catalog-search-clear" type="button" hidden>
+                Clear
+              </button>
+            </div>
+            <p id="catalogMeta" class="catalog-meta"></p>
+          </div>
+          <div id="institutionGrid" class="institution-grid"></div>
+          <section class="catalog-treemap">
+            <div class="catalog-panel-head">
+              <h2>Popular Holdings Treemap</h2>
+              <p>Area sized by heat score from coverage, average weight, and aggregated value.</p>
+            </div>
+            <div id="institutionTreemapMeta" class="catalog-treemap-meta"></div>
+            <div id="institutionTreemap" class="catalog-treemap-canvas"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="detailView" class="detail-view" hidden>
+        <header class="panel detail-hero-panel">
+          <div class="detail-top-row">
+            <button id="backToListBtn" class="back-btn" type="button">Back to Institutions</button>
+            <label class="quarter-picker detail-quarter" for="quarterSelect">
+              <span>Quarter</span>
+              <select id="quarterSelect" aria-label="Quarter"></select>
+            </label>
+          </div>
+          <div class="detail-heading">
+            <p class="eyebrow">STEP 2 · INSTITUTION DETAIL</p>
+            <h2 id="detailOrgTitle">--</h2>
+            <p id="detailManagerLine" class="hero-desc">--</p>
+            <div id="detailLinks" class="detail-links" hidden></div>
+          </div>
+          <div id="detailQuickStats" class="detail-stats"></div>
+        </header>
+
+        <section class="panel panel-evolution">
+          <div class="panel-head">
+            <h2>Portfolio Evolution & Style Snapshot</h2>
+            <p>Trend as the primary view, with a compact style polygon and S&P 500 comparison on the side.</p>
+          </div>
+          <div class="evolution-panel">
+            <div class="evolution-main">
+              <div class="evolution-subhead">
+                <h3>Holdings Net Asset Trend</h3>
+                <p>Hover or click a point to inspect each quarter.</p>
+              </div>
+              <div id="aumTrendPanel" class="aum-trend-panel"></div>
+            </div>
+            <div class="evolution-side">
+              <div class="evolution-subhead">
+                <h3>Institution Style</h3>
+                <p>7-dimension style profile vs S&P 500 benchmark.</p>
+              </div>
+              <div id="styleRadarPanel" class="style-radar-panel"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel panel-holdings">
+          <div class="panel-head">
+            <h2>Quarterly Holdings Overview</h2>
+          </div>
+          <div id="holdingsCards" class="holdings-cards"></div>
+        </section>
+
+        <section class="panel panel-changes">
+          <div class="panel-head">
+            <h2>Quarter-over-Quarter Position Changes</h2>
+            <p>Ranked by buy/sell intensity with share-count change indicators.</p>
+          </div>
+          <div id="changesCards" class="changes-cards"></div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer-note">
+      <span class="footer-source">Data source: SEC EDGAR Form 13F filings.</span>
+      <button id="snapshotBtn" class="snapshot-btn" type="button" hidden>Download Snapshot</button>
+    </footer>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="./app.js?v=20260223-ui130"></script>
+  </body>
+</html>
