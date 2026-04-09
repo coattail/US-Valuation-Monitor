@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - "apps/13f/**"
       - "apps/web/**"
       - "data/standardized/**"
       - "scripts/build-static-site.mjs"
