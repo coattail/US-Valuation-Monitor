@@ -1,0 +1,98 @@
+name: Sync 13F Data
+
+on:
+  schedule:
+    # Weekday baseline refresh to pick up routine filings/amendments.
+    - cron: "15 4 * * 1-5"
+    # Higher-frequency refresh during 13F due windows (UTC).
+    - cron: "20 */4 14-20 2,5,8,11 *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-13f-data
+  cancel-in-progress: false
+
+jobs:
+  sync-13f-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout website repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ secrets.REPO_PUSH_TOKEN }}
+
+      - name: Checkout 13F source repo
+        uses: actions/checkout@v4
+        with:
+          repository: coattail/13F-Tracker
+          path: tmp/13F-Tracker
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare SEC User-Agent
+        run: |
+          if [ -n "${{ secrets.SEC_CONTACT_EMAIL }}" ]; then
+            echo "SEC_CONTACT_EMAIL=${{ secrets.SEC_CONTACT_EMAIL }}" >> "$GITHUB_ENV"
+          fi
+
+          if [ -n "${{ secrets.SEC_USER_AGENT }}" ]; then
+            echo "SEC_USER_AGENT=${{ secrets.SEC_USER_AGENT }}" >> "$GITHUB_ENV"
+          else
+            echo "SEC_USER_AGENT=13F-Tracker-AutoUpdate/1.0 (contact: maintainer@example.com)" >> "$GITHUB_ENV"
+            echo "SEC_USER_AGENT secret is not set; using fallback User-Agent."
+          fi
+
+      - name: Refresh 13F datasets from SEC
+        working-directory: tmp/13F-Tracker
+        run: |
+          python3 scripts/fetch_sec_13f_history.py
+          python3 scripts/fetch_sec_13f_latest.py
+          python3 scripts/enrich_sec_13f_holdings.py
+
+      - name: Sync 13F datasets into site payload
+        env:
+          THIRTEEN_F_SOURCE_DIR: ${{ github.workspace }}/tmp/13F-Tracker/data
+        run: node scripts/sync-13f-data.mjs
+
+      - name: Commit and push changes
+        id: commit_changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- apps/13f/data/sec-13f-history.json apps/13f/data/sec-13f-latest.json; then
+            echo "No 13F dataset changes detected."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add apps/13f/data/sec-13f-history.json apps/13f/data/sec-13f-latest.json
+
+          if git diff --cached --quiet; then
+            echo "No staged 13F dataset changes detected after git add."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "chore: sync 13f data"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"

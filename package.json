@@ -17,7 +17,7 @@
     "install:local-refresh": "bash scripts/install-local-refresh-launchd.sh",
     "start:api": "node cloudfunctions/server.ts",
     "start:web": "python3 -m http.server 9030",
-    "test": "node --test packages/core/tests/*.test.ts cloudfunctions/tests/*.test.ts",
+    "test": "node --test packages/core/tests/*.test.ts cloudfunctions/tests/*.test.ts scripts/*.test.mjs",
     "dev": "node cloudfunctions/server.ts"
   }
 }

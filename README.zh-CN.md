@@ -149,18 +149,23 @@ npm run start:api
 
 当前 `us-valuation-monitor.pages.dev` 使用的是 **Direct Upload** 项目（Cloudflare Pages 后台里 `Git Provider = No`），因此它不会因为 GitHub 仓库有新 commit 自动更新。
 
-这个仓库现在采用两段式自动化：
+这个仓库现在采用两条自动化链路：
 
-1. GitHub Actions 定时执行 [`daily-data-refresh.yml`](./.github/workflows/daily-data-refresh.yml)，重建最新数据。
-2. 当 `data/standardized` 发生变化时，workflow 会自动提交并推送到默认分支。
-3. 推送到 `main` 后，再由 [`deploy-cloudflare-pages.yml`](./.github/workflows/deploy-cloudflare-pages.yml) 运行 `wrangler pages deploy`，把 `.pages/` 直接发布到 Cloudflare Pages。
+1. 估值主站数据：GitHub Actions 定时执行 [`daily-data-refresh.yml`](./.github/workflows/daily-data-refresh.yml)，重建 `data/standardized`。
+2. 13F 页面数据：GitHub Actions 定时执行 [`sync-13f-data.yml`](./.github/workflows/sync-13f-data.yml)，从公开仓库 `coattail/13F-Tracker` 拉取最新 SEC 13F 数据，重建 `apps/13f/data/sec-13f-history.json` 和 `apps/13f/data/sec-13f-latest.json`。
+3. 当上述数据文件发生变化时，workflow 会自动提交并推送到默认分支。
+4. 推送到 `main` 后，再由 [`deploy-cloudflare-pages.yml`](./.github/workflows/deploy-cloudflare-pages.yml) 运行 `wrangler pages deploy`，把 `.pages/` 直接发布到 Cloudflare Pages。
 
 注意：
 - `daily-data-refresh.yml` 需要使用仓库 secret `REPO_PUSH_TOKEN` 作为 checkout/push 凭据，而不是仅依赖默认的 `GITHUB_TOKEN`。
+- `sync-13f-data.yml` 同样需要 `REPO_PUSH_TOKEN`，否则它推送出来的数据更新不会继续触发 Cloudflare 发布 workflow。
 - 原因是 `GITHUB_TOKEN` 推出的提交不会触发新的 GitHub push 工作流；改成 `REPO_PUSH_TOKEN` 后，后续的 Cloudflare 发布 workflow 才能被正常触发。
 - `deploy-cloudflare-pages.yml` 需要两个 GitHub repository secrets：
   - `CLOUDFLARE_ACCOUNT_ID`
   - `CLOUDFLARE_API_TOKEN`
+- 如果你希望访问 SEC 时带上规范联系人信息，还可以额外配置：
+  - `SEC_CONTACT_EMAIL`
+  - `SEC_USER_AGENT`
 
 `CLOUDFLARE_API_TOKEN` 推荐权限：
 - `Account` / `Cloudflare Pages` / `Edit`

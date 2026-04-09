@@ -149,18 +149,23 @@ Notes:
 
 The current `us-valuation-monitor.pages.dev` project is a **Direct Upload** Pages project (`Git Provider = No` in Cloudflare), so it does not rebuild automatically from repository commits.
 
-The repository now uses a two-stage automation flow:
+The repository now uses two automation chains:
 
-1. GitHub Actions runs [`daily-data-refresh.yml`](./.github/workflows/daily-data-refresh.yml) on a schedule and rebuilds the latest datasets.
-2. When files under `data/standardized` change, the workflow commits and pushes them to the default branch.
-3. After the push to `main`, [`deploy-cloudflare-pages.yml`](./.github/workflows/deploy-cloudflare-pages.yml) runs `wrangler pages deploy` and uploads `.pages/` directly to Cloudflare Pages.
+1. Main valuation datasets: GitHub Actions runs [`daily-data-refresh.yml`](./.github/workflows/daily-data-refresh.yml) on a schedule and rebuilds `data/standardized`.
+2. 13F page datasets: GitHub Actions runs [`sync-13f-data.yml`](./.github/workflows/sync-13f-data.yml) on a schedule, pulls the latest SEC 13F data from the public `coattail/13F-Tracker` repository, and refreshes `apps/13f/data/sec-13f-history.json` plus `apps/13f/data/sec-13f-latest.json`.
+3. When those dataset files change, the workflow commits and pushes them to the default branch.
+4. After the push to `main`, [`deploy-cloudflare-pages.yml`](./.github/workflows/deploy-cloudflare-pages.yml) runs `wrangler pages deploy` and uploads `.pages/` directly to Cloudflare Pages.
 
 Important:
 - `daily-data-refresh.yml` should use the repository secret `REPO_PUSH_TOKEN` for checkout/push instead of relying only on the default `GITHUB_TOKEN`.
+- `sync-13f-data.yml` should also use `REPO_PUSH_TOKEN`, otherwise its dataset commit will not trigger the downstream Cloudflare deployment workflow.
 - Commits pushed with `GITHUB_TOKEN` do not trigger a new GitHub push workflow. Using `REPO_PUSH_TOKEN` ensures the follow-up Cloudflare deployment workflow runs normally.
 - `deploy-cloudflare-pages.yml` requires two GitHub repository secrets:
   - `CLOUDFLARE_ACCOUNT_ID`
   - `CLOUDFLARE_API_TOKEN`
+- If you want a compliant SEC contact header, you can also set:
+  - `SEC_CONTACT_EMAIL`
+  - `SEC_USER_AGENT`
 
 Recommended `CLOUDFLARE_API_TOKEN` permission:
 - `Account` / `Cloudflare Pages` / `Edit`
