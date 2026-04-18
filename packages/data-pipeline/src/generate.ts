@@ -232,8 +232,22 @@ const TRENDONIFY_FORWARD_DISABLED_INDEX_IDS = new Set(["dow30"]);
 const TRENDONIFY_TRAILING_PRIMARY_INDEX_IDS = new Set(["nasdaq100"]);
 const LATEST_SNAPSHOT_MAX_DEVIATION_RATIO = 0.05;
 const LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO = 0.08;
+const SP500_WSJ_TTM_CARRY_START_DATE = "2026-03-26";
+const SP500_WSJ_TTM_RECOVERY_IGNORE_PREVIOUS_BEFORE_DATE = "2026-04-17";
 
 const CURATED_WSJ_TTM_REFERENCES: Partial<Record<string, Array<{ date: string; value: number }>>> = {
+  // 2026-03-26 and 2026-04-17 are confirmed WSJ anchors.
+  // Intermediate dates bridge the gap so daily close-carry does not create
+  // a single abrupt reset when the next weekly WSJ update lands.
+  sp500: [
+    { date: "2026-03-26", value: 24.6943 },
+    { date: "2026-03-31", value: 24.8314 },
+    { date: "2026-04-08", value: 25.06 },
+    { date: "2026-04-14", value: 25.2429 },
+    { date: "2026-04-15", value: 25.2886 },
+    { date: "2026-04-16", value: 25.3343 },
+    { date: "2026-04-17", value: 25.38 },
+  ],
   nasdaq100: [{ date: "2026-02-20", value: 31.62 }],
 };
 
@@ -4034,6 +4048,115 @@ function applyCloseAnchoredOverrides(
   });
 }
 
+function applyMetricCloseCarryWithAnchors(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  previousPoints: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  anchors: Array<{ date: string; value: number }>,
+  options: {
+    startDate: string;
+    minValue: number;
+    maxValue: number;
+    ignorePreviousBeforeDate?: string;
+  }
+): RawValuationPoint[] {
+  if (!points.length || !closes.length || !anchors.length) return points;
+
+  const closeByDate = new Map<string, number>();
+  for (const close of closes) {
+    if (Number.isFinite(close.close) && close.close > 0) {
+      closeByDate.set(close.date, close.close);
+    }
+  }
+
+  const previousByDate = new Map<string, number>();
+  for (const point of previousPoints) {
+    const value = sanitizeSignedRatio(point[metric]);
+    if (value !== null) {
+      previousByDate.set(point.date, value);
+    }
+  }
+
+  const anchorByDate = new Map<string, number>();
+  for (const anchor of anchors) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor.date || "")) continue;
+    if (!Number.isFinite(anchor.value) || anchor.value <= 0) continue;
+    anchorByDate.set(anchor.date, anchor.value);
+  }
+  if (!anchorByDate.size) return points;
+
+  let activeValue: number | null = null;
+  let activeClose: number | null = null;
+
+  return points.map((point) => {
+    if (point.date < options.startDate) {
+      return point;
+    }
+
+    const currentClose = closeByDate.get(point.date);
+    if (!Number.isFinite(currentClose) || Number(currentClose) <= 0) {
+      return point;
+    }
+
+    const explicitAnchor = anchorByDate.get(point.date);
+    const previousValue =
+      !options.ignorePreviousBeforeDate || point.date >= options.ignorePreviousBeforeDate
+        ? previousByDate.get(point.date)
+        : undefined;
+
+    let nextValue: number | null = null;
+
+    if (Number.isFinite(explicitAnchor)) {
+      nextValue = Number(explicitAnchor);
+    } else if (Number.isFinite(previousValue)) {
+      nextValue = Number(previousValue);
+    } else if (
+      activeValue !== null &&
+      activeClose !== null &&
+      Number.isFinite(activeValue) &&
+      Number.isFinite(activeClose) &&
+      activeClose > 0
+    ) {
+      nextValue = activeValue * (Number(currentClose) / activeClose);
+    }
+
+    if (!Number.isFinite(nextValue) || Number(nextValue) <= 0) {
+      const fallbackValue = sanitizeSignedRatio(point[metric]);
+      if (fallbackValue !== null) {
+        activeValue = fallbackValue;
+        activeClose = Number(currentClose);
+      }
+      return point;
+    }
+
+    const sanitizedValue = roundTo(clamp(Number(nextValue), options.minValue, options.maxValue), 4);
+    activeValue = sanitizedValue;
+    activeClose = Number(currentClose);
+
+    return {
+      ...point,
+      [metric]: sanitizedValue,
+    };
+  });
+}
+
+export function applyMetricCloseCarryWithAnchorsForTest(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  previousPoints: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  anchors: Array<{ date: string; value: number }>,
+  options: {
+    startDate: string;
+    minValue: number;
+    maxValue: number;
+    ignorePreviousBeforeDate?: string;
+  }
+): RawValuationPoint[] {
+  return applyMetricCloseCarryWithAnchors(points, closes, previousPoints, metric, anchors, options);
+}
+
 function isReasonablePe(value: number | undefined): value is number {
   return Number.isFinite(value) && value > 4 && value < 80;
 }
@@ -4307,6 +4430,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let localPinnedForwardCount = 0;
   let yahooHistoricalAnchorCount = 0;
   let yahooLatestSnapshotCount = 0;
+  let sp500WsjCarryCount = 0;
   let cachedMultplSp500Series: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500PbSeries: MonthlyMetricPoint[] | undefined;
   const fetchErrors: string[] = [];
@@ -4315,6 +4439,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
     const startDate = INDEX_START_DATE[meta.id] || "2010-01-04";
     const baseline = BASELINE_BY_INDEX[meta.id];
     const liveSourceCutoverDate = getIndexLiveSourceCutoverDate(meta.id);
+    const previousPoints = historyFallbackMap.get(meta.id) || [];
 
     try {
       const closes = await fetchIndexCloseSeries(meta.symbol, startDate, effectiveEnd);
@@ -4372,9 +4497,19 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       let officialTrailingApplied = false;
       let officialForwardApplied = false;
       let officialPbApplied = false;
+      const sp500WsjCarryAnchors: Array<{ date: string; value: number }> = [];
       const macroMicroIds = MACROMICRO_CHART_IDS[meta.id];
       const pinnedForwardSeries = meta.id === "sp500" ? sp500ForwardPinnedSeries : undefined;
       const hasPinnedForwardSeries = Boolean(pinnedForwardSeries?.length);
+
+      if (meta.id === "sp500" && effectiveEnd >= SP500_WSJ_TTM_CARRY_START_DATE) {
+        const curatedRefs = CURATED_WSJ_TTM_REFERENCES.sp500 || [];
+        for (const ref of curatedRefs) {
+          if (ref.date >= SP500_WSJ_TTM_CARRY_START_DATE && ref.date <= effectiveEnd) {
+            sp500WsjCarryAnchors.push({ date: ref.date, value: ref.value });
+          }
+        }
+      }
 
       if (hasPinnedForwardSeries && pinnedForwardSeries) {
         forwardSeries = pinnedForwardSeries;
@@ -4732,6 +4867,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         const wsjForward = isReasonableForwardPe(wsjLatest.forward) ? Number(wsjLatest.forward) : undefined;
         wsjAnchorTrailing = wsjTrailing;
         wsjAnchorForward = wsjForward;
+        if (meta.id === "sp500" && wsjEffectiveDate >= SP500_WSJ_TTM_CARRY_START_DATE && isReasonablePe(wsjTrailing)) {
+          sp500WsjCarryAnchors.push({ date: wsjEffectiveDate, value: Number(wsjTrailing) });
+        }
         const canApplyWsjTrailing = prefersWsjLatestSnapshot
           ? isReasonablePe(wsjTrailing)
           : isLatestSnapshotDeviationAcceptable(
@@ -5152,7 +5290,16 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         lookbackPoints: INDEX_PB_RECENT_CARRY_LOOKBACK_POINTS,
       });
 
-      const previousPoints = historyFallbackMap.get(meta.id) || [];
+      if (meta.id === "sp500" && sp500WsjCarryAnchors.length) {
+        points = applyMetricCloseCarryWithAnchors(points, closes, previousPoints, "pe_ttm", sp500WsjCarryAnchors, {
+          startDate: SP500_WSJ_TTM_CARRY_START_DATE,
+          minValue: 2.4,
+          maxValue: 180,
+          ignorePreviousBeforeDate: SP500_WSJ_TTM_RECOVERY_IGNORE_PREVIOUS_BEFORE_DATE,
+        });
+        sp500WsjCarryCount += 1;
+      }
+
       points = extendSeriesWithRebasedPreviousTail(previousPoints, points, liveSourceCutoverDate);
       points = mergeHistoricalSeriesAtCutover(previousPoints, points, liveSourceCutoverDate);
       if (effectiveEnd > liveSourceCutoverDate) {
@@ -5298,6 +5445,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   }
   if (yahooLatestSnapshotCount > 0) {
     source += `+yahoo-latest-snapshot-${yahooLatestSnapshotCount}`;
+  }
+  if (sp500WsjCarryCount > 0) {
+    source += `+sp500-wsj-carry-${sp500WsjCarryCount}`;
   }
   source += `+${yieldSource}`;
 

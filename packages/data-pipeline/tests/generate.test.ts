@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  applyMetricCloseCarryWithAnchorsForTest,
   applyYahooSnapshotCarryToMetricForTest,
   applyRecentCloseCarryWindowToMetricForTest,
   applyPostCutoverMetricSources,
@@ -175,6 +176,75 @@ test("applyRecentCloseCarryWindowToMetricForTest carries explicit PE snapshots f
   assert.equal(next[3].pe_ttm, 24.6889);
   assert.equal(next[4].pe_ttm, 24.9898);
   assert.equal(next[5].pe_ttm, 25.2489);
+});
+
+test("applyMetricCloseCarryWithAnchorsForTest smooths sp500 TTM PE between WSJ anchors by daily close moves", () => {
+  const points = [
+    { date: "2026-03-26", pe_ttm: 24.6943, pe_forward: 21.1, pb: 5.4, us10y_yield: 0.042 },
+    { date: "2026-03-27", pe_ttm: 26.2791, pe_forward: 21.2, pb: 5.4, us10y_yield: 0.0421 },
+    { date: "2026-03-30", pe_ttm: 22.5862, pe_forward: 21.3, pb: 5.4, us10y_yield: 0.0422 },
+    { date: "2026-03-31", pe_ttm: 23.2428, pe_forward: 21.4, pb: 5.4, us10y_yield: 0.0423 },
+  ];
+  const closes = [
+    { date: "2026-03-26", close: 610.0 },
+    { date: "2026-03-27", close: 599.6 },
+    { date: "2026-03-30", close: 597.5953 },
+    { date: "2026-03-31", close: 613.3867 },
+  ];
+  const next = applyMetricCloseCarryWithAnchorsForTest(
+    points,
+    closes,
+    [],
+    "pe_ttm",
+    [
+      { date: "2026-03-26", value: 24.6943 },
+      { date: "2026-03-31", value: 24.8314 },
+    ],
+    {
+      startDate: "2026-03-26",
+      minValue: 2.4,
+      maxValue: 180,
+    }
+  );
+
+  assert.equal(next[0].pe_ttm, 24.6943);
+  assert.equal(next[1].pe_ttm, 24.2733);
+  assert.equal(next[2].pe_ttm, 24.1921);
+  assert.equal(next[3].pe_ttm, 24.8314);
+});
+
+test("applyMetricCloseCarryWithAnchorsForTest prefers previous rebuilt values after recovery date before resuming carry", () => {
+  const points = [
+    { date: "2026-04-17", pe_ttm: 25.38, pe_forward: 21.5, pb: 5.5, us10y_yield: 0.042 },
+    { date: "2026-04-20", pe_ttm: 25.9, pe_forward: 21.6, pb: 5.5, us10y_yield: 0.0421 },
+    { date: "2026-04-21", pe_ttm: 26.1, pe_forward: 21.7, pb: 5.5, us10y_yield: 0.0422 },
+  ];
+  const closes = [
+    { date: "2026-04-17", close: 700.0 },
+    { date: "2026-04-20", close: 703.0 },
+    { date: "2026-04-21", close: 710.0 },
+  ];
+  const previousPoints = [
+    { date: "2026-04-17", pe_ttm: 25.38, pe_forward: 21.5, pb: 5.5, us10y_yield: 0.042 },
+    { date: "2026-04-20", pe_ttm: 25.4888, pe_forward: 21.6, pb: 5.5, us10y_yield: 0.0421 },
+  ];
+  const next = applyMetricCloseCarryWithAnchorsForTest(
+    points,
+    closes,
+    previousPoints,
+    "pe_ttm",
+    [{ date: "2026-04-17", value: 25.38 }],
+    {
+      startDate: "2026-03-26",
+      minValue: 2.4,
+      maxValue: 180,
+      ignorePreviousBeforeDate: "2026-04-17",
+    }
+  );
+
+  assert.equal(next[0].pe_ttm, 25.38);
+  assert.equal(next[1].pe_ttm, 25.4888);
+  assert.equal(next[2].pe_ttm, 25.7426);
 });
 
 test("buildEffectiveIndexYahooDailyMetricSnapshotsForTest keeps newer explicit snapshots even when value is unchanged", () => {
