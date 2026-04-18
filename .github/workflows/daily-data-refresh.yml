@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- data/standardized/valuation-history.json data/standardized/valuation-snapshot.json data/standardized/index-series data/standardized/company-valuation-snapshot.json data/standardized/company-series data/standardized/company-yahoo-daily-metrics.json; then
+          if git diff --quiet -- data/standardized/valuation-history.json data/standardized/valuation-snapshot.json data/standardized/index-series data/standardized/index-yahoo-daily-metrics.json data/standardized/company-valuation-snapshot.json data/standardized/company-series data/standardized/company-yahoo-daily-metrics.json; then
             echo "No dataset changes detected."
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -60,7 +60,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -A data/standardized/valuation-history.json data/standardized/valuation-snapshot.json data/standardized/index-series data/standardized/company-valuation-snapshot.json data/standardized/company-series data/standardized/company-yahoo-daily-metrics.json
+          git add -A data/standardized/valuation-history.json data/standardized/valuation-snapshot.json data/standardized/index-series data/standardized/index-yahoo-daily-metrics.json data/standardized/company-valuation-snapshot.json data/standardized/company-series data/standardized/company-yahoo-daily-metrics.json
 
           if git diff --cached --quiet; then
             echo "No staged dataset changes detected after git add."

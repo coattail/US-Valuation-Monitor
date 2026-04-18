@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const DATA_PIPELINE_ROOT = path.resolve(path.dirname(CURRENT_FILE), "../../..");
 const OUTPUT_DIR = path.join(DATA_PIPELINE_ROOT, "data", "standardized");
+const INDEX_YAHOO_DAILY_METRICS_FILE = path.join(OUTPUT_DIR, "index-yahoo-daily-metrics.json");
 const SP500_FORWARD_PE_MM_CSV = path.join(
   DATA_PIPELINE_ROOT,
   "data",
@@ -224,9 +225,10 @@ const MACROMICRO_SERIES_ROUTES: Partial<
   },
 };
 
-const RECENT_OVERRIDE_INDEX_IDS = new Set(["russell2000"]);
+const RECENT_OVERRIDE_INDEX_IDS = new Set<string>();
 const FORWARD_LOCKED_INDEX_IDS = new Set(["nasdaq100"]);
-const SIBLIS_FULL_HISTORY_INDEX_IDS = new Set(["nasdaq100"]);
+const SIBLIS_FULL_HISTORY_INDEX_IDS = new Set(["nasdaq100", "russell2000"]);
+const TRENDONIFY_FORWARD_DISABLED_INDEX_IDS = new Set(["dow30"]);
 const TRENDONIFY_TRAILING_PRIMARY_INDEX_IDS = new Set(["nasdaq100"]);
 const LATEST_SNAPSHOT_MAX_DEVIATION_RATIO = 0.05;
 const LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO = 0.08;
@@ -250,6 +252,123 @@ const WSJ_ROW_KEYWORDS: Record<string, string[]> = {
   russell2000: ["russell2000"],
 };
 const WSJ_PRIORITY_INDEX_IDS = new Set(Object.keys(WSJ_ROW_KEYWORDS));
+
+const OFFICIAL_INDEX_SNAPSHOT_ROUTES: Partial<
+  Record<
+    string,
+    Array<{
+      provider: "ssga" | "ishares";
+      source: string;
+      urls: string[];
+    }>
+  >
+> = {
+  dow30: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/spdr-dow-jones-industrial-average-etf-trust-dia"],
+    },
+  ],
+  russell2000: [
+    {
+      provider: "ishares",
+      source: "ishares-official-latest",
+      urls: ["https://www.ishares.com/us/products/239710/ishares-russell-2000-etf"],
+    },
+  ],
+  sp400: [
+    {
+      provider: "ishares",
+      source: "ishares-official-latest",
+      urls: ["https://www.ishares.com/us/products/239763/ishares-core-sp-midcap-etf"],
+    },
+  ],
+  us_total_market: [
+    {
+      provider: "ishares",
+      source: "ishares-official-latest",
+      urls: ["https://www.ishares.com/us/products/239724/ishares-core-sp-total-us-stock-market-etf"],
+    },
+  ],
+  sector_communication: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-communication-services-select-sector-spdr-fund-xlc"],
+    },
+  ],
+  sector_consumer_discretionary: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-consumer-discretionary-select-sector-spdr-fund-xly"],
+    },
+  ],
+  sector_consumer_staples: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-consumer-staples-select-sector-spdr-fund-xlp"],
+    },
+  ],
+  sector_energy: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-energy-select-sector-spdr-fund-xle"],
+    },
+  ],
+  sector_financials: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-financial-select-sector-spdr-fund-xlf"],
+    },
+  ],
+  sector_healthcare: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-health-care-select-sector-spdr-fund-xlv"],
+    },
+  ],
+  sector_industrials: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-industrial-select-sector-spdr-fund-xli"],
+    },
+  ],
+  sector_materials: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-materials-select-sector-spdr-fund-xlb"],
+    },
+  ],
+  sector_real_estate: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-real-estate-select-sector-spdr-fund-xlre"],
+    },
+  ],
+  sector_technology: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-technology-select-sector-spdr-fund-xlk"],
+    },
+  ],
+  sector_utilities: [
+    {
+      provider: "ssga",
+      source: "ssga-official-latest",
+      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-utilities-select-sector-spdr-fund-xlu"],
+    },
+  ],
+};
 
 const NASDAQ100_FORWARD_MM_BOOTSTRAP: Array<{ date: string; value: number }> = [
   { date: "2000-01-31", value: 95.92 },
@@ -334,6 +453,14 @@ interface LatestPeSnapshot {
   asOfDate?: string;
 }
 
+interface OfficialIndexSnapshot {
+  date: string;
+  pe_ttm: number | null;
+  pe_forward: number | null;
+  pb: number | null;
+  source: string;
+}
+
 interface IndexRatioAnchor {
   date: string;
   pe_ttm: number | null;
@@ -373,10 +500,23 @@ type IndexRatioMetricKey = keyof IndexRatioPayload["latest"];
 class ReliableSourceError extends Error {}
 
 const INDEX_YAHOO_HISTORY_START_DATE = "1990-01-01";
+const INDEX_LIVE_SOURCE_CUTOVER_DATE = "2026-03-27";
+const INDEX_LIVE_SOURCE_CUTOVER_DATE_OVERRIDES: Partial<Record<string, string>> = {
+  dow30: "1998-01-02",
+  russell2000: "2001-01-03",
+};
+const YCHARTS_CALC_PB = "price_to_book_value";
 const YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE = 0.01;
 const INDEX_YAHOO_LATEST_TTM_MAX_DEVIATION_RATIO = 0.06;
 const INDEX_YAHOO_LATEST_FORWARD_MAX_DEVIATION_RATIO = 0.06;
+const OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO = 0.2;
+const OFFICIAL_INDEX_LATEST_PB_MAX_DEVIATION_RATIO = 0.28;
 const INDEX_YAHOO_RECENT_REPAIR_LOOKBACK_POINTS = 45;
+const INDEX_POST_CUTOVER_MAX_INTERPOLATION_SPAN_DAYS = 45;
+const INDEX_POST_CUTOVER_MAX_FORWARD_FILL_DAYS = 5;
+const INDEX_PE_RECENT_CARRY_LOOKBACK_POINTS = 10;
+const INDEX_FORWARD_RECENT_CARRY_LOOKBACK_POINTS = 10;
+const INDEX_PB_RECENT_CARRY_LOOKBACK_POINTS = 3;
 
 function parseDate(dateText: string): Date {
   return new Date(`${dateText}T00:00:00Z`);
@@ -389,6 +529,156 @@ function formatDate(input: Date): string {
 function shiftIsoDate(dateText: string, days: number): string {
   const base = parseDate(dateText);
   return formatDate(new Date(base.getTime() + days * 86_400_000));
+}
+
+function getIndexLiveSourceCutoverDate(indexId: string): string {
+  return INDEX_LIVE_SOURCE_CUTOVER_DATE_OVERRIDES[indexId] || INDEX_LIVE_SOURCE_CUTOVER_DATE;
+}
+
+export function getIndexLiveSourceCutoverDateForTest(indexId: string): string {
+  return getIndexLiveSourceCutoverDate(indexId);
+}
+
+export function mergeHistoricalSeriesAtCutover(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[],
+  cutoverDate = INDEX_LIVE_SOURCE_CUTOVER_DATE
+): RawValuationPoint[] {
+  const mergedByDate = new Map<string, RawValuationPoint>();
+
+  for (const point of previousPoints || []) {
+    if (!point?.date || point.date >= cutoverDate) continue;
+    mergedByDate.set(point.date, point);
+  }
+
+  for (const point of nextPoints || []) {
+    if (!point?.date || point.date < cutoverDate) continue;
+    mergedByDate.set(point.date, point);
+  }
+
+  return [...mergedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function rebaseMetricValue(
+  currentValue: number | null | undefined,
+  previousAnchorValue: number | null | undefined,
+  nextAnchorValue: number | null | undefined
+): number | null {
+  if (!Number.isFinite(currentValue)) return null;
+  if (!Number.isFinite(previousAnchorValue) || Math.abs(Number(previousAnchorValue)) < 1e-8) {
+    return roundTo(Number(currentValue), 4);
+  }
+  if (!Number.isFinite(nextAnchorValue)) {
+    return roundTo(Number(currentValue), 4);
+  }
+  return roundTo((Number(currentValue) * Number(nextAnchorValue)) / Number(previousAnchorValue), 4);
+}
+
+function blendRebasedMetricValue(
+  leftValue: number | null | undefined,
+  rightValue: number | null | undefined,
+  weight: number
+): number | null {
+  const leftFinite = Number.isFinite(leftValue);
+  const rightFinite = Number.isFinite(rightValue);
+  if (leftFinite && rightFinite) {
+    const blended = Number(leftValue) + (Number(rightValue) - Number(leftValue)) * clamp(weight, 0, 1);
+    return roundTo(blended, 4);
+  }
+  if (leftFinite) return roundTo(Number(leftValue), 4);
+  if (rightFinite) return roundTo(Number(rightValue), 4);
+  return null;
+}
+
+function extendSeriesWithRebasedPreviousTail(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[],
+  cutoverDate = INDEX_LIVE_SOURCE_CUTOVER_DATE
+): RawValuationPoint[] {
+  if (!previousPoints.length || !nextPoints.length) return nextPoints;
+
+  const sortedNextPoints = [...nextPoints].sort((a, b) => a.date.localeCompare(b.date));
+  const previousByDate = new Map(previousPoints.map((point) => [point.date, point]));
+  const extendedByDate = new Map(sortedNextPoints.map((point) => [point.date, point]));
+
+  for (let i = 0; i < sortedNextPoints.length - 1; i += 1) {
+    const leftAnchor = sortedNextPoints[i];
+    const rightAnchor = sortedNextPoints[i + 1];
+    if (!leftAnchor?.date || !rightAnchor?.date || rightAnchor.date <= cutoverDate) continue;
+
+    const previousLeftAnchor = previousByDate.get(leftAnchor.date);
+    const previousRightAnchor = previousByDate.get(rightAnchor.date);
+    if (!previousLeftAnchor || !previousRightAnchor) continue;
+
+    const missingSegment = previousPoints.filter(
+      (point) =>
+        !!point?.date &&
+        point.date > cutoverDate &&
+        point.date > leftAnchor.date &&
+        point.date < rightAnchor.date &&
+        !extendedByDate.has(point.date)
+    );
+    const totalSteps = missingSegment.length + 1;
+    if (!missingSegment.length) continue;
+
+    missingSegment.forEach((point, index) => {
+      const weight = (index + 1) / totalSteps;
+      extendedByDate.set(point.date, {
+        date: point.date,
+        pe_ttm: blendRebasedMetricValue(
+          rebaseMetricValue(point.pe_ttm, previousLeftAnchor.pe_ttm, leftAnchor.pe_ttm),
+          rebaseMetricValue(point.pe_ttm, previousRightAnchor.pe_ttm, rightAnchor.pe_ttm),
+          weight
+        ),
+        pe_forward: blendRebasedMetricValue(
+          rebaseMetricValue(point.pe_forward, previousLeftAnchor.pe_forward, leftAnchor.pe_forward),
+          rebaseMetricValue(point.pe_forward, previousRightAnchor.pe_forward, rightAnchor.pe_forward),
+          weight
+        ),
+        pb: blendRebasedMetricValue(
+          rebaseMetricValue(point.pb, previousLeftAnchor.pb, leftAnchor.pb),
+          rebaseMetricValue(point.pb, previousRightAnchor.pb, rightAnchor.pb),
+          weight
+        ),
+        us10y_yield: point.us10y_yield,
+      });
+    });
+  }
+
+  const nextLatest = sortedNextPoints[sortedNextPoints.length - 1];
+  const previousLatest = previousPoints[previousPoints.length - 1];
+  if (!nextLatest?.date || !previousLatest?.date) return nextPoints;
+  if (nextLatest.date <= cutoverDate || previousLatest.date <= nextLatest.date) {
+    return [...extendedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  const previousAnchor = previousByDate.get(nextLatest.date);
+  if (!previousAnchor) return [...extendedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+
+  const tail = previousPoints.filter((point) => point.date > nextLatest.date && !extendedByDate.has(point.date));
+  if (!tail.length) return [...extendedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+
+  const rebasedTail = tail.map((point) => ({
+    date: point.date,
+    pe_ttm: rebaseMetricValue(point.pe_ttm, previousAnchor.pe_ttm, nextLatest.pe_ttm),
+    pe_forward: rebaseMetricValue(point.pe_forward, previousAnchor.pe_forward, nextLatest.pe_forward),
+    pb: rebaseMetricValue(point.pb, previousAnchor.pb, nextLatest.pb),
+    us10y_yield: point.us10y_yield,
+  }));
+
+  for (const point of rebasedTail) {
+    extendedByDate.set(point.date, point);
+  }
+
+  return [...extendedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function extendSeriesWithRebasedPreviousTailForTest(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[],
+  cutoverDate = INDEX_LIVE_SOURCE_CUTOVER_DATE
+): RawValuationPoint[] {
+  return extendSeriesWithRebasedPreviousTail(previousPoints, nextPoints, cutoverDate);
 }
 
 function getLastCompletedUsMarketDate(now = new Date()): string {
@@ -482,6 +772,89 @@ function setIndexSnapshotMetricValue(
   value: number | null
 ): void {
   snapshot[metric] = sanitizeSignedRatio(value);
+}
+
+function rebaseHistoryFallbackWithSnapshots(
+  points: RawValuationPoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  cutoverDate = INDEX_LIVE_SOURCE_CUTOVER_DATE
+): RawValuationPoint[] {
+  if (!points.length || !snapshots.length) return points;
+
+  const next = points.map((point) => ({ ...point }));
+  const indexByDate = new Map<string, number>();
+  for (let i = 0; i < next.length; i += 1) {
+    indexByDate.set(next[i].date, i);
+  }
+
+  const normalizedSnapshots = snapshots
+    .map((item) => normalizeIndexYahooDailyMetricSnapshot(item))
+    .filter((item): item is IndexYahooDailyMetricSnapshot => !!item && item.date > cutoverDate)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const metrics: IndexRatioMetricKey[] = ["pe_ttm", "pe_forward", "pb"];
+  for (const snapshot of normalizedSnapshots) {
+    const anchorIndex = indexByDate.get(snapshot.date);
+    if (anchorIndex === undefined) continue;
+
+    for (const metric of metrics) {
+      const snapshotValue = getIndexSnapshotMetricValue(snapshot, metric);
+      if (!Number.isFinite(snapshotValue)) continue;
+
+      const anchorValue = sanitizeSignedRatio(next[anchorIndex][metric]);
+      const scale =
+        Number.isFinite(anchorValue) && Math.abs(Number(anchorValue)) > 1e-8
+          ? Number(snapshotValue) / Number(anchorValue)
+          : undefined;
+
+      for (let index = anchorIndex; index < next.length; index += 1) {
+        const currentValue = sanitizeSignedRatio(next[index][metric]);
+        if (!Number.isFinite(currentValue)) continue;
+        next[index][metric] = roundTo(
+          Number.isFinite(scale) ? Number(currentValue) * Number(scale) : Number(currentValue),
+          4
+        );
+      }
+
+      next[anchorIndex][metric] = Number(snapshotValue);
+    }
+  }
+
+  return next;
+}
+
+export function rebaseHistoryFallbackWithSnapshotsForTest(
+  points: RawValuationPoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  cutoverDate = INDEX_LIVE_SOURCE_CUTOVER_DATE
+): RawValuationPoint[] {
+  return rebaseHistoryFallbackWithSnapshots(points, snapshots, cutoverDate);
+}
+
+function repairHistoryFallbackPoints(
+  points: RawValuationPoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  cutoverDate = INDEX_LIVE_SOURCE_CUTOVER_DATE
+): RawValuationPoint[] {
+  if (!points.length || !snapshots.length) return points;
+
+  const explicitSnapshots = snapshots
+    .map((item) => normalizeIndexYahooDailyMetricSnapshot(item))
+    .filter(
+      (item): item is IndexYahooDailyMetricSnapshot =>
+        !!item && item.date > cutoverDate && isExplicitIndexYahooLatestMetricSource(item.source)
+    );
+
+  if (!explicitSnapshots.length) return points;
+  return rebaseHistoryFallbackWithSnapshots(points, explicitSnapshots, cutoverDate);
+}
+
+export function repairHistoryFallbackPointsForTest(
+  points: RawValuationPoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  cutoverDate = INDEX_LIVE_SOURCE_CUTOVER_DATE
+): RawValuationPoint[] {
+  return repairHistoryFallbackPoints(points, snapshots, cutoverDate);
 }
 
 function mergeIndexRatioPayloads(payloads: IndexRatioPayload[]): IndexRatioPayload | null {
@@ -853,7 +1226,12 @@ function isExplicitIndexYahooLatestMetricSource(source: string): boolean {
   return (
     normalized.includes("yahoo-quote-summary-latest") ||
     normalized.includes("yahoo-quote-api-latest") ||
-    normalized.includes("yahoo-yfinance-latest")
+    normalized.includes("yahoo-yfinance-latest") ||
+    normalized.includes("wsj-latest") ||
+    normalized.includes("ssga-official-latest") ||
+    normalized.includes("ishares-official-latest") ||
+    normalized.includes("stockanalysis-latest") ||
+    normalized.includes("finviz-latest")
   );
 }
 
@@ -930,9 +1308,9 @@ function upsertIndexYahooDailyMetricSnapshot(
   const existing = nextByDate.get(snapshot.date);
   nextByDate.set(snapshot.date, {
     date: snapshot.date,
-    pe_ttm: sanitizeSignedRatio(snapshot.pe_ttm),
-    pe_forward: sanitizeSignedRatio(snapshot.pe_forward),
-    pb: sanitizeSignedRatio(snapshot.pb),
+    pe_ttm: sanitizeSignedRatio(snapshot.pe_ttm) ?? sanitizeSignedRatio(existing?.pe_ttm),
+    pe_forward: sanitizeSignedRatio(snapshot.pe_forward) ?? sanitizeSignedRatio(existing?.pe_forward),
+    pb: sanitizeSignedRatio(snapshot.pb) ?? sanitizeSignedRatio(existing?.pb),
     source: String(snapshot.source || existing?.source || "").trim(),
     capturedAt: String(snapshot.capturedAt || existing?.capturedAt || new Date().toISOString()).trim(),
   });
@@ -940,6 +1318,14 @@ function upsertIndexYahooDailyMetricSnapshot(
     normalizedSymbol,
     [...nextByDate.values()].sort((a, b) => a.date.localeCompare(b.date))
   );
+}
+
+export function upsertIndexYahooDailyMetricSnapshotForTest(
+  bySymbol: Map<string, IndexYahooDailyMetricSnapshot[]>,
+  symbol: string,
+  snapshot: IndexYahooDailyMetricSnapshot | null
+): void {
+  upsertIndexYahooDailyMetricSnapshot(bySymbol, symbol, snapshot);
 }
 
 function reconcileIndexYahooDailyMetricSnapshot(
@@ -975,6 +1361,46 @@ function reconcileIndexYahooDailyMetricSnapshot(
     bySymbol.set(normalizedSymbol, rows);
   } else {
     bySymbol.delete(normalizedSymbol);
+  }
+}
+
+export function parseYahooChartCloseSeries(jsonText: string, startDate: string, endDate: string): ClosePoint[] {
+  try {
+    const payload = JSON.parse(jsonText) as {
+      chart?: {
+        result?: Array<{
+          timestamp?: Array<number | null>;
+          indicators?: {
+            quote?: Array<{
+              close?: Array<number | null>;
+            }>;
+          };
+        }>;
+      };
+    };
+
+    const result = payload?.chart?.result?.[0];
+    const timestamps = result?.timestamp || [];
+    const closes = result?.indicators?.quote?.[0]?.close || [];
+    if (!timestamps.length || !closes.length) return [];
+
+    const byDate = new Map<string, ClosePoint>();
+    const size = Math.min(timestamps.length, closes.length);
+
+    for (let i = 0; i < size; i += 1) {
+      const ts = Number(timestamps[i]);
+      const close = Number(closes[i]);
+      if (!Number.isFinite(ts) || ts <= 0) continue;
+      if (!Number.isFinite(close) || close <= 0) continue;
+
+      const date = new Date(ts * 1000).toISOString().slice(0, 10);
+      if (date < startDate || date > endDate) continue;
+      byDate.set(date, { date, close });
+    }
+
+    return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
   }
 }
 
@@ -1057,22 +1483,9 @@ function buildEffectiveIndexYahooDailyMetricSnapshots(
           Number(currentClose) > 0
         ) {
           if (explicitLatestSource) {
-            const rawChange =
-              previous.value * currentValue <= 0 ||
-              Math.abs(previous.value) < 1e-8 ||
-              Math.abs(currentValue) < 1e-8
-                ? Number.POSITIVE_INFINITY
-                : Math.max(Math.abs(currentValue / previous.value), Math.abs(previous.value / currentValue));
-            const priceRatio = Number(currentClose) / Number(previousClose);
-            const priceMove =
-              !Number.isFinite(priceRatio) || priceRatio <= 0
-                ? Number.POSITIVE_INFINITY
-                : Math.max(priceRatio, 1 / priceRatio);
-
-            shouldKeep = !(
-              rawChange <= 1 + YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE &&
-              priceMove > 1 + YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE
-            );
+            // For explicit latest sources such as WSJ weekly updates, the newer
+            // date itself is the anchor. Keep it even when the reported value is unchanged.
+            shouldKeep = true;
           } else {
             const expectedCarriedValue = previous.value * (Number(currentClose) / Number(previousClose));
             const deviation =
@@ -1105,12 +1518,60 @@ function buildEffectiveIndexYahooDailyMetricSnapshots(
   return accepted;
 }
 
+function collapseRedundantExplicitLatestSnapshots(
+  snapshots: IndexYahooDailyMetricSnapshot[]
+): IndexYahooDailyMetricSnapshot[] {
+  const normalized = snapshots
+    .map((item) => normalizeIndexYahooDailyMetricSnapshot(item))
+    .filter((item): item is IndexYahooDailyMetricSnapshot => !!item)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!normalized.length) return [];
+
+  const collapsed: IndexYahooDailyMetricSnapshot[] = [];
+
+  for (const snapshot of normalized) {
+    const previous = collapsed[collapsed.length - 1];
+    const sameExplicitLatestSource =
+      previous &&
+      isExplicitIndexYahooLatestMetricSource(previous.source || "") &&
+      isExplicitIndexYahooLatestMetricSource(snapshot.source || "") &&
+      String(previous.source || "").trim().toLowerCase() === String(snapshot.source || "").trim().toLowerCase();
+    const sameValues =
+      previous &&
+      getIndexSnapshotMetricValue(previous, "pe_ttm") === getIndexSnapshotMetricValue(snapshot, "pe_ttm") &&
+      getIndexSnapshotMetricValue(previous, "pe_forward") === getIndexSnapshotMetricValue(snapshot, "pe_forward") &&
+      getIndexSnapshotMetricValue(previous, "pb") === getIndexSnapshotMetricValue(snapshot, "pb");
+
+    if (sameExplicitLatestSource && sameValues) {
+      collapsed[collapsed.length - 1] = snapshot;
+      continue;
+    }
+
+    collapsed.push(snapshot);
+  }
+
+  return collapsed;
+}
+
+export function buildEffectiveIndexYahooDailyMetricSnapshotsForTest(
+  closePoints: ClosePoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[]
+): IndexYahooDailyMetricSnapshot[] {
+  return buildEffectiveIndexYahooDailyMetricSnapshots(closePoints, snapshots);
+}
+
+export function collapseRedundantExplicitLatestSnapshotsForTest(
+  snapshots: IndexYahooDailyMetricSnapshot[]
+): IndexYahooDailyMetricSnapshot[] {
+  return collapseRedundantExplicitLatestSnapshots(snapshots);
+}
+
 function applyYahooSnapshotCarryToMetric(
   points: RawValuationPoint[],
   closes: ClosePoint[],
   snapshots: IndexYahooDailyMetricSnapshot[],
   metric: IndexRatioMetricKey,
-  options: { minValue: number; maxValue: number; backfillLookbackPoints?: number }
+  options: { minValue: number; maxValue: number; backfillLookbackPoints?: number; minDate?: string }
 ): RawValuationPoint[] {
   if (!points.length || !closes.length || !snapshots.length) return points;
 
@@ -1142,6 +1603,7 @@ function applyYahooSnapshotCarryToMetric(
   const explicitSnapshotDates = [...snapshotsByDate.keys()].sort((a, b) => a.localeCompare(b));
   const overrides = new Map<string, number>();
   const backfillLookbackPoints = Math.max(0, Math.floor(options.backfillLookbackPoints ?? 0));
+  const minDate = String(options.minDate || "").trim();
 
   if (backfillLookbackPoints > 0) {
     for (let snapshotIndex = 0; snapshotIndex < explicitSnapshotDates.length; snapshotIndex += 1) {
@@ -1166,6 +1628,7 @@ function applyYahooSnapshotCarryToMetric(
 
       for (let i = anchorPointIndex - 1; i >= repairStartIndex; i -= 1) {
         const date = points[i].date;
+        if (minDate && date <= minDate) continue;
         const currentClose = closeByDate.get(date);
         if (!Number.isFinite(currentClose) || Number(currentClose) <= 0) continue;
         const value = (Number(anchorValue) * Number(currentClose)) / Number(anchorClose);
@@ -1180,6 +1643,8 @@ function applyYahooSnapshotCarryToMetric(
   let activeClose: number | null = null;
 
   return points.map((point) => {
+    if (minDate && point.date <= minDate) return point;
+
     const backfilledValue = overrides.get(point.date);
     if (point.date < earliestSnapshotDate && !Number.isFinite(backfilledValue)) {
       return point;
@@ -1226,6 +1691,16 @@ function applyYahooSnapshotCarryToMetric(
   });
 }
 
+export function applyYahooSnapshotCarryToMetricForTest(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  metric: IndexRatioMetricKey,
+  options: { minValue: number; maxValue: number; backfillLookbackPoints?: number; minDate?: string }
+): RawValuationPoint[] {
+  return applyYahooSnapshotCarryToMetric(points, closes, snapshots, metric, options);
+}
+
 function applyRecentCloseCarryWindowToMetric(
   points: RawValuationPoint[],
   closes: ClosePoint[],
@@ -1246,17 +1721,20 @@ function applyRecentCloseCarryWindowToMetric(
     }
   }
 
-  const explicitSnapshotDates = new Set(
+  const explicitSnapshotValues = new Map(
     snapshots
-      .filter((snapshot) => {
+      .map((snapshot) => {
         const metricValue = getIndexSnapshotMetricValue(snapshot, metric);
-        return (
-          isExplicitIndexYahooLatestMetricSource(snapshot.source) &&
-          Number.isFinite(metricValue) &&
-          closeByDate.has(snapshot.date)
-        );
+        if (
+          !isExplicitIndexYahooLatestMetricSource(snapshot.source) ||
+          !Number.isFinite(metricValue) ||
+          !closeByDate.has(snapshot.date)
+        ) {
+          return null;
+        }
+        return [snapshot.date, Number(metricValue)] as const;
       })
-      .map((snapshot) => snapshot.date)
+      .filter((item): item is readonly [string, number] => !!item)
   );
 
   let anchorIndex = -1;
@@ -1285,7 +1763,7 @@ function applyRecentCloseCarryWindowToMetric(
       return point;
     }
 
-    const explicitValue = explicitSnapshotDates.has(point.date) ? sanitizeSignedRatio(point[metric]) : null;
+    const explicitValue = explicitSnapshotValues.get(point.date) ?? null;
     if (index === anchorIndex || Number.isFinite(explicitValue)) {
       anchorValue = Number(explicitValue ?? point[metric]);
       anchorClose = Number(currentClose);
@@ -1310,6 +1788,152 @@ function applyRecentCloseCarryWindowToMetric(
     return {
       ...point,
       [metric]: roundTo(clamp(carriedValue, options.minValue, options.maxValue), 4),
+    };
+  });
+}
+
+export function applyRecentCloseCarryWindowToMetricForTest(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  metric: IndexRatioMetricKey,
+  options: { minValue: number; maxValue: number; lookbackPoints: number }
+): RawValuationPoint[] {
+  return applyRecentCloseCarryWindowToMetric(points, closes, snapshots, metric, options);
+}
+
+function extractExplicitMetricSnapshots(
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  metric: IndexRatioMetricKey,
+  minDate = ""
+): Array<{ date: string; value: number }> {
+  return snapshots
+    .map((snapshot) => {
+      const value = getIndexSnapshotMetricValue(snapshot, metric);
+      return value === null ? null : { date: snapshot.date, value };
+    })
+    .filter((item): item is { date: string; value: number } => !!item)
+    .filter((item) => !minDate || item.date > minDate)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function pruneInvalidExplicitIndexSnapshots(
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  trailingSeries: MonthlyMetricPoint[],
+  forwardSeries: MonthlyMetricPoint[],
+  pbSeries: MonthlyMetricPoint[]
+): IndexYahooDailyMetricSnapshot[] {
+  return snapshots
+    .map((snapshot) => {
+      const next: IndexYahooDailyMetricSnapshot = { ...snapshot };
+
+      if (
+        isExplicitIndexYahooLatestMetricSource(snapshot.source || "") &&
+        !isLatestSnapshotDeviationAcceptable(trailingSeries, snapshot.date, snapshot.pe_ttm ?? undefined, isReasonablePe)
+      ) {
+        next.pe_ttm = null;
+      }
+      if (
+        isExplicitIndexYahooLatestMetricSource(snapshot.source || "") &&
+        !isLatestSnapshotDeviationAcceptable(
+          forwardSeries,
+          snapshot.date,
+          snapshot.pe_forward ?? undefined,
+          isReasonableForwardPe,
+          { maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO }
+        )
+      ) {
+        next.pe_forward = null;
+      }
+      if (
+        isExplicitIndexYahooLatestMetricSource(snapshot.source || "") &&
+        pbSeries.length &&
+        !isLatestSnapshotDeviationAcceptable(pbSeries, snapshot.date, snapshot.pb ?? undefined, isReasonablePb, {
+          maxDeviationRatio: 0.2,
+          maxInterpolationSpanDays: 180,
+          maxForwardFillDays: 120,
+        })
+      ) {
+        next.pb = null;
+      }
+
+      return normalizeIndexYahooDailyMetricSnapshot(next);
+    })
+    .filter((snapshot): snapshot is IndexYahooDailyMetricSnapshot => !!snapshot);
+}
+
+export function pruneInvalidExplicitIndexSnapshotsForTest(
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  trailingSeries: MonthlyMetricPoint[],
+  forwardSeries: MonthlyMetricPoint[],
+  pbSeries: MonthlyMetricPoint[]
+): IndexYahooDailyMetricSnapshot[] {
+  return pruneInvalidExplicitIndexSnapshots(snapshots, trailingSeries, forwardSeries, pbSeries);
+}
+
+function discardFutureWsjSnapshots(
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  latestAllowedDate: string
+): IndexYahooDailyMetricSnapshot[] {
+  if (!snapshots.length || !latestAllowedDate) return snapshots;
+
+  return snapshots
+    .map((snapshot) => {
+      if (snapshot.source !== "wsj-latest" || snapshot.date <= latestAllowedDate) {
+        return snapshot;
+      }
+      return normalizeIndexYahooDailyMetricSnapshot({
+        ...snapshot,
+        pe_ttm: null,
+        pe_forward: null,
+      });
+    })
+    .filter((snapshot): snapshot is IndexYahooDailyMetricSnapshot => !!snapshot);
+}
+
+export function applyPostCutoverMetricSources(
+  points: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  explicitSnapshots: Array<{ date: string; value: number }>,
+  anchorSeries: MonthlyMetricPoint[],
+  cutoverDate = INDEX_LIVE_SOURCE_CUTOVER_DATE,
+  options: {
+    minValue: number;
+    maxValue: number;
+    maxInterpolationSpanDays?: number;
+    maxForwardFillDays?: number;
+  }
+): RawValuationPoint[] {
+  if (!points.length) return points;
+
+  const explicitByDate = new Map<string, number>();
+  for (const item of explicitSnapshots) {
+    if (!item?.date) continue;
+    const value = sanitizeSignedRatio(item.value);
+    if (value === null) continue;
+    explicitByDate.set(item.date, value);
+  }
+
+  return points.map((point) => {
+    if (point.date <= cutoverDate) return point;
+
+    const explicitValue = explicitByDate.get(point.date);
+    const interpolatedValue =
+      explicitValue ??
+      interpolateMonthlyMetric(
+        point.date,
+        anchorSeries,
+        options.maxInterpolationSpanDays ?? INDEX_POST_CUTOVER_MAX_INTERPOLATION_SPAN_DAYS,
+        options.maxForwardFillDays ?? INDEX_POST_CUTOVER_MAX_FORWARD_FILL_DAYS
+      );
+
+    if (!Number.isFinite(interpolatedValue) || Number(interpolatedValue) <= 0) {
+      return point;
+    }
+
+    return {
+      ...point,
+      [metric]: roundTo(clamp(Number(interpolatedValue), options.minValue, options.maxValue), 4),
     };
   });
 }
@@ -1566,6 +2190,100 @@ function parseNumericText(raw: string): number | undefined {
   return value;
 }
 
+function parseAsOfDateFromText(raw: string): string | undefined {
+  const match = String(raw || "").match(/\bas of\s+([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})\b/i);
+  if (!match) return undefined;
+  return monthDayYearToIsoDate(match[1], match[2], match[3]);
+}
+
+function extractSectionChunk(html: string, title: string, maxChars = 8_000): string {
+  const source = String(html || "");
+  const index = source.toLowerCase().indexOf(title.toLowerCase());
+  if (index < 0) return "";
+  return source.slice(index, Math.min(source.length, index + maxChars));
+}
+
+function parseSsgaSectionMetricRows(html: string): Map<string, number> {
+  const rows = new Map<string, number>();
+  const rowRegex =
+    /<tr[\s\S]*?<td[^>]*class="label"[^>]*>([\s\S]*?)<\/td>[\s\S]*?<td[^>]*class="data"[^>]*>([\s\S]*?)<\/td>[\s\S]*?<\/tr>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = rowRegex.exec(html)) !== null) {
+    const label = normalizeLookupText(stripHtmlText(match[1]));
+    const value = parseNumericText(stripHtmlText(match[2]));
+    if (!label || !Number.isFinite(value)) continue;
+    rows.set(label, Number(value));
+  }
+
+  return rows;
+}
+
+function parseSsgaIndexMetrics(html: string): OfficialIndexSnapshot | undefined {
+  const fundChunk = extractSectionChunk(html, "Fund Characteristics");
+  const indexChunk = extractSectionChunk(html, "Index Characteristics");
+  if (!fundChunk && !indexChunk) return undefined;
+
+  const fundRows = parseSsgaSectionMetricRows(fundChunk);
+  const indexRows = parseSsgaSectionMetricRows(indexChunk);
+  const date = parseAsOfDateFromText(indexChunk) || parseAsOfDateFromText(fundChunk);
+
+  const peTtm = sanitizeSignedRatio(indexRows.get("priceearnings") ?? fundRows.get("priceearnings"));
+  const peForward = sanitizeSignedRatio(
+    indexRows.get("priceearningsratiofy1") ?? fundRows.get("priceearningsratiofy1")
+  );
+  const pb = sanitizeSignedRatio(fundRows.get("pricebookratio") ?? indexRows.get("pricebookratio"));
+
+  if (!date || (!peTtm && !peForward && !pb)) return undefined;
+  return {
+    date,
+    pe_ttm: peTtm,
+    pe_forward: peForward,
+    pb,
+    source: "ssga-official-latest",
+  };
+}
+
+function parseIsharesMetricBlock(html: string, label: string): { date?: string; value?: number } {
+  const source = String(html || "");
+  const index = source.indexOf(label);
+  if (index < 0) return {};
+
+  const chunk = source.slice(index, Math.min(source.length, index + 1_500));
+  const date = parseAsOfDateFromText(chunk);
+  const valueMatch = chunk.match(/<div[^>]*class="data"[^>]*>\s*([^<]+?)\s*<\/div>/i);
+  const value = valueMatch ? parseNumericText(stripHtmlText(valueMatch[1])) : undefined;
+  return {
+    date,
+    value,
+  };
+}
+
+function parseIsharesPortfolioMetrics(html: string): OfficialIndexSnapshot | undefined {
+  const pe = parseIsharesMetricBlock(html, "P/E Ratio");
+  const pb = parseIsharesMetricBlock(html, "P/B Ratio");
+  const date = pe.date || pb.date;
+  const peTtm = sanitizeSignedRatio(pe.value);
+  const pbValue = sanitizeSignedRatio(pb.value);
+
+  if (!date || (!peTtm && !pbValue)) return undefined;
+  return {
+    date,
+    pe_ttm: peTtm,
+    pe_forward: null,
+    pb: pbValue,
+    source: "ishares-official-latest",
+  };
+}
+
+export function parseSsgaIndexMetricsForTest(html: string): OfficialIndexSnapshot | undefined {
+  return parseSsgaIndexMetrics(html);
+}
+
+export function parseIsharesPortfolioMetricsForTest(html: string): OfficialIndexSnapshot | undefined {
+  return parseIsharesPortfolioMetrics(html);
+}
+
 function normalizeLookupText(input: string): string {
   return String(input || "")
     .toLowerCase()
@@ -1574,8 +2292,9 @@ function normalizeLookupText(input: string): string {
 }
 
 function parseWsjRowPeValues(cells: string[]): LatestPeSnapshot | undefined {
+  const numericCells = cells.slice(1);
   const values: number[] = [];
-  for (const cell of cells) {
+  for (const cell of numericCells) {
     const matches = String(cell || "").match(/[0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]+)?/g) || [];
     for (const raw of matches) {
       const value = Number(raw.replace(/,/g, ""));
@@ -1585,10 +2304,9 @@ function parseWsjRowPeValues(cells: string[]): LatestPeSnapshot | undefined {
     }
   }
 
-  if (values.length < 2) return undefined;
+  if (values.length < 3) return undefined;
   const trailing = values[0];
-  const forwardCandidates = values.slice(1).filter((value) => value < trailing);
-  const forward = forwardCandidates.length ? Math.min(...forwardCandidates) : Math.min(...values.slice(1));
+  const forward = values[2];
   if (!Number.isFinite(trailing) || !Number.isFinite(forward)) return undefined;
   return {
     trailing,
@@ -1658,7 +2376,7 @@ function parseWsjPeSnapshotFromHtml(html: string): Map<string, LatestPeSnapshot>
     const cells = [...rowHtml.matchAll(/<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi)].map((item) =>
       stripHtmlText(item[1])
     );
-    if (!cells.length) continue;
+    if (cells.length < 4) continue;
     const rowKey = normalizeLookupText(cells.join(" "));
     if (!rowKey) continue;
 
@@ -1693,7 +2411,8 @@ function parseWsjPeSnapshotFromText(text: string): Map<string, LatestPeSnapshot>
           .split("|")
           .map((cell) => cell.trim())
           .filter(Boolean)
-      : [line];
+      : [];
+    if (cells.length < 4) continue;
     const lineKey = normalizeLookupText(cells.join(" "));
     if (!lineKey) continue;
 
@@ -1707,6 +2426,10 @@ function parseWsjPeSnapshotFromText(text: string): Map<string, LatestPeSnapshot>
   }
 
   return result;
+}
+
+export function parseWsjPeSnapshotFromTextForTest(text: string): Map<string, LatestPeSnapshot> {
+  return parseWsjPeSnapshotFromText(text);
 }
 
 function mergeLatestPeSnapshotMaps(primary: Map<string, LatestPeSnapshot>, secondary: Map<string, LatestPeSnapshot>): Map<string, LatestPeSnapshot> {
@@ -1739,6 +2462,34 @@ async function fetchWsjPeSnapshot(): Promise<Map<string, LatestPeSnapshot>> {
   }
 
   return combined;
+}
+
+async function fetchOfficialIndexLatestSnapshot(indexId: string): Promise<OfficialIndexSnapshot | null> {
+  const routes = OFFICIAL_INDEX_SNAPSHOT_ROUTES[indexId];
+  if (!routes?.length) return null;
+
+  for (const route of routes) {
+    for (const url of route.urls) {
+      try {
+        const body = await curlGet(url, 30000, {
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+          Accept: "text/html,application/xhtml+xml",
+        });
+
+        const parsed =
+          route.provider === "ssga" ? parseSsgaIndexMetrics(body) : parseIsharesPortfolioMetrics(body);
+        if (!parsed) continue;
+        return {
+          ...parsed,
+          source: route.source,
+        };
+      } catch {
+        // try next route
+      }
+    }
+  }
+
+  return null;
 }
 
 function parseSiblisSeries(
@@ -1882,12 +2633,7 @@ async function fetchTrendonifySeries(urls: string[]): Promise<MonthlyMetricPoint
   return undefined;
 }
 
-async function fetchMultplSp500PeSeries(): Promise<MonthlyMetricPoint[] | undefined> {
-  const html = await curlGet("https://www.multpl.com/s-p-500-pe-ratio/table/by-month", 25000, {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-    Accept: "text/html,application/xhtml+xml",
-  });
-
+function parseMultplTableSeries(html: string, maxValue = 250): MonthlyMetricPoint[] | undefined {
   const byDate = new Map<string, number>();
   const rowRegex =
     /<tr[^>]*>\s*<td>\s*([A-Za-z]{3,9})\s+([0-9]{1,2}),\s*([12][0-9]{3})\s*<\/td>\s*<td>[\s\S]*?([0-9]+(?:\.[0-9]+)?)\s*<\/td>\s*<\/tr>/gi;
@@ -1896,7 +2642,7 @@ async function fetchMultplSp500PeSeries(): Promise<MonthlyMetricPoint[] | undefi
     const isoDate = monthDayYearToIsoDate(match[1], match[2], match[3]);
     if (!isoDate) continue;
     const value = Number(match[4]);
-    if (!Number.isFinite(value) || value <= 0 || value > 250) continue;
+    if (!Number.isFinite(value) || value <= 0 || value > maxValue) continue;
     if (!byDate.has(isoDate)) byDate.set(isoDate, value);
   }
 
@@ -1904,6 +2650,133 @@ async function fetchMultplSp500PeSeries(): Promise<MonthlyMetricPoint[] | undefi
   return [...byDate.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, value]) => ({ date, value, ts: parseDate(date).getTime() }));
+}
+
+export function parseMultplTableSeriesForTest(html: string, maxValue = 250): MonthlyMetricPoint[] | undefined {
+  return parseMultplTableSeries(html, maxValue);
+}
+
+function getYchartsSecurityIdCandidates(symbol: string): string[] {
+  const seed = String(symbol || "").trim().toUpperCase();
+  if (!seed) return [];
+
+  return [
+    ...new Set([
+      seed,
+      seed.replace(/-/g, "."),
+      seed.replace(/\./g, "-"),
+      seed.replace(/[^A-Z0-9]/g, ""),
+    ]),
+  ].filter(Boolean);
+}
+
+function buildYchartsFundDataUrl(securityId: string, calcIds: string[]): string {
+  const params = new URLSearchParams();
+  params.set("securities", `include:true,id:${securityId},,`);
+  params.set(
+    "calcs",
+    calcIds
+      .map((calcId) => `include:true,id:${calcId},,`)
+      .join("")
+  );
+  params.set("format", "real");
+  params.set("zoom", "max");
+  params.set("dateSelection", "range");
+  params.set("legendOnChart", "true");
+  params.set("chartType", "interactive");
+  params.set("nameInLegend", "name_and_ticker");
+  params.set("dataInLegend", "value");
+  params.set("quoteLegend", "false");
+  params.set("recessions", "false");
+  params.set("displayDateRange", "false");
+  params.set("source", "false");
+  params.set("units", "false");
+  params.set("useCustomColors", "false");
+  params.set("useEstimates", "false");
+  params.set("hideValueFlags", "false");
+  params.set("performanceDisclosure", "false");
+  params.set("splitType", "single");
+  params.set("chartCreator", "true");
+
+  return `https://ycharts.com/charts/fund_data.json?${params.toString()}`;
+}
+
+function parseYchartsFundMetricSeries(jsonText: string, calcId: string, maxValue = 250): MonthlyMetricPoint[] {
+  if (!jsonText || !jsonText.trim().startsWith("{")) return [];
+
+  try {
+    const payload = JSON.parse(jsonText) as {
+      chart_data?: Array<
+        Array<{
+          object_calc?: string;
+          raw_data?: Array<[number | null, number | null]>;
+        }>
+      >;
+    };
+    const byDate = new Map<string, number>();
+    for (const panel of payload.chart_data || []) {
+      if (!Array.isArray(panel)) continue;
+      for (const rawSeries of panel) {
+        if (String(rawSeries?.object_calc || "").trim() !== calcId) continue;
+        for (const pair of rawSeries?.raw_data || []) {
+          const epochLike = pair?.[0];
+          const valueLike = pair?.[1];
+          const epoch = Number(epochLike);
+          const value = Number(valueLike);
+          if (!Number.isFinite(epoch) || epoch <= 0) continue;
+          if (!Number.isFinite(value) || value <= 0 || value > maxValue) continue;
+          const date = new Date(epoch * 1000).toISOString().slice(0, 10);
+          byDate.set(date, value);
+        }
+      }
+    }
+    return [...byDate.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, value]) => ({ date, value, ts: parseDate(date).getTime() }));
+  } catch {
+    return [];
+  }
+}
+
+export function parseYchartsPbSeriesForTest(jsonText: string): MonthlyMetricPoint[] {
+  return parseYchartsFundMetricSeries(jsonText, YCHARTS_CALC_PB, 50);
+}
+
+async function fetchYchartsPbSeries(symbol: string): Promise<MonthlyMetricPoint[] | undefined> {
+  for (const candidate of getYchartsSecurityIdCandidates(symbol)) {
+    const url = buildYchartsFundDataUrl(candidate, [YCHARTS_CALC_PB]);
+    try {
+      const raw = await curlGet(url, 25000, {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        Accept: "application/json,text/plain,*/*",
+      });
+      const pbSeries = parseYchartsFundMetricSeries(raw, YCHARTS_CALC_PB, 50);
+      if (pbSeries.length >= 4) {
+        return pbSeries;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  return undefined;
+}
+
+async function fetchMultplTableSeries(url: string, maxValue = 250): Promise<MonthlyMetricPoint[] | undefined> {
+  const html = await curlGet(url, 25000, {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    Accept: "text/html,application/xhtml+xml",
+  });
+
+  return parseMultplTableSeries(html, maxValue);
+}
+
+async function fetchMultplSp500PeSeries(): Promise<MonthlyMetricPoint[] | undefined> {
+  return fetchMultplTableSeries("https://www.multpl.com/s-p-500-pe-ratio/table/by-month", 250);
+}
+
+async function fetchMultplSp500PbSeries(): Promise<MonthlyMetricPoint[] | undefined> {
+  return fetchMultplTableSeries("https://www.multpl.com/s-p-500-price-to-book/table/by-quarter", 50);
 }
 
 function normalizeMacroMicroMonthlyDate(dateText: string): string | undefined {
@@ -2468,6 +3341,57 @@ async function fetchStooqCloseSeries(symbol: string, startDate: string, endDate:
   }
 
   return result;
+}
+
+function buildYahooChartUrls(symbol: string, startDate: string, endDate: string): string[] {
+  const startTs = Math.floor(parseDate(startDate).getTime() / 1000);
+  const endTs = Math.floor((parseDate(endDate).getTime() + 86_399_000) / 1000);
+  const encoded = encodeURIComponent(symbol);
+  return [
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?period1=${startTs}&period2=${endTs}&interval=1d&events=history&includeAdjustedClose=true`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?period1=${startTs}&period2=${endTs}&interval=1d&events=history&includeAdjustedClose=true`,
+  ];
+}
+
+export function buildYahooChartUrlsForTest(symbol: string, startDate: string, endDate: string): string[] {
+  return buildYahooChartUrls(symbol, startDate, endDate);
+}
+
+async function fetchYahooCloseSeries(symbol: string, startDate: string, endDate: string): Promise<ClosePoint[]> {
+  const candidates = [...new Set([symbol, symbol.replace(/\./g, "-"), symbol.replace(/-/g, ".")])]
+    .map((item) => String(item || "").trim().toUpperCase())
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    const urls = buildYahooChartUrls(candidate, startDate, endDate);
+
+    for (const url of urls) {
+      try {
+        const jsonText = await curlGet(url, 28000, {
+          "user-agent": "Mozilla/5.0",
+          "accept-language": "en-US,en;q=0.9",
+          accept: "application/json,text/plain,*/*",
+        });
+        const points = parseYahooChartCloseSeries(jsonText, startDate, endDate);
+        if (points.length) {
+          return points;
+        }
+      } catch {
+        // try next Yahoo endpoint/candidate
+      }
+    }
+  }
+
+  return [];
+}
+
+async function fetchIndexCloseSeries(symbol: string, startDate: string, endDate: string): Promise<ClosePoint[]> {
+  const yahooPoints = await fetchYahooCloseSeries(symbol, startDate, endDate);
+  if (yahooPoints.length) {
+    return yahooPoints;
+  }
+
+  return fetchStooqCloseSeries(symbol, startDate, endDate);
 }
 
 async function fetchUs10ySeries(endDate: string): Promise<YieldPoint[]> {
@@ -3118,11 +4042,112 @@ function isReasonableForwardPe(value: number | undefined): value is number {
   return Number.isFinite(value) && value > 2 && value < 120;
 }
 
+function isReasonablePb(value: number | undefined): value is number {
+  return Number.isFinite(value) && value > 0.2 && value < 28;
+}
+
 function isPlausibleForwardPair(trailing: number | undefined, forward: number | undefined): boolean {
   if (!isReasonablePe(trailing) || !isReasonableForwardPe(forward)) return false;
   if (forward >= trailing) return false;
   const ratio = forward / trailing;
   return ratio >= 0.45 && ratio <= 0.95 && trailing - forward >= 0.8;
+}
+
+function pickAnchorForwardPe(
+  _indexId: string,
+  anchorPe: number | undefined,
+  candidates: {
+    latestForwardSeriesValue?: number | null;
+    stockAnalysisForward?: number | null;
+    finvizForward?: number | null;
+    wsjForward?: number | null;
+    wsjTrailing?: number | null;
+    officialForward?: number | null;
+    officialTrailing?: number | null;
+    latestHistoryForward?: number | null;
+  }
+): { value: number; source: "series" | "stockanalysis" | "finviz" | "wsj" | "official" | "history" } | null {
+  const pairWithAnchor = (forward: number | null | undefined): number | null => {
+    if (!isReasonableForwardPe(forward)) return null;
+    if (!isReasonablePe(anchorPe) || isPlausibleForwardPair(anchorPe, forward)) {
+      return Number(forward);
+    }
+    return null;
+  };
+  const pairWithTrailing = (trailing: number | null | undefined, forward: number | null | undefined): number | null => {
+    if (isPlausibleForwardPair(trailing ?? undefined, forward ?? undefined)) {
+      return Number(forward);
+    }
+    return pairWithAnchor(forward);
+  };
+  const relaxedWithAnchor = (forward: number | null | undefined): number | null => {
+    if (!isReasonableForwardPe(forward)) return null;
+    if (!isReasonablePe(anchorPe)) return Number(forward);
+    const ratio = Number(forward) / Number(anchorPe);
+    if (ratio >= 0.55 && ratio <= 1.1) {
+      return Number(forward);
+    }
+    return null;
+  };
+
+  const latestSeriesValue = pairWithAnchor(candidates.latestForwardSeriesValue);
+  if (latestSeriesValue !== null) {
+    return { value: latestSeriesValue, source: "series" };
+  }
+
+  const stockAnalysisValue = pairWithAnchor(candidates.stockAnalysisForward);
+  if (stockAnalysisValue !== null) {
+    return { value: stockAnalysisValue, source: "stockanalysis" };
+  }
+
+  const finvizValue = pairWithAnchor(candidates.finvizForward);
+  if (finvizValue !== null) {
+    return { value: finvizValue, source: "finviz" };
+  }
+
+  const wsjValue = pairWithTrailing(candidates.wsjTrailing, candidates.wsjForward);
+  if (wsjValue !== null) {
+    return { value: wsjValue, source: "wsj" };
+  }
+
+  const officialValue = pairWithTrailing(candidates.officialTrailing, candidates.officialForward);
+  if (officialValue !== null) {
+    return { value: officialValue, source: "official" };
+  }
+
+  const historyValue = pairWithAnchor(candidates.latestHistoryForward);
+  if (historyValue !== null) {
+    return { value: historyValue, source: "history" };
+  }
+
+  const relaxedSeriesValue = relaxedWithAnchor(candidates.latestForwardSeriesValue);
+  if (relaxedSeriesValue !== null) {
+    return { value: relaxedSeriesValue, source: "series" };
+  }
+
+  const relaxedHistoryValue = relaxedWithAnchor(candidates.latestHistoryForward);
+  if (relaxedHistoryValue !== null) {
+    return { value: relaxedHistoryValue, source: "history" };
+  }
+
+  return null;
+}
+
+export function pickAnchorForwardPeForTest(
+  indexId: string,
+  anchorPe: number | undefined,
+  candidates: {
+    latestForwardSeriesValue?: number | null;
+    stockAnalysisForward?: number | null;
+    finvizForward?: number | null;
+    wsjForward?: number | null;
+    wsjTrailing?: number | null;
+    officialForward?: number | null;
+    officialTrailing?: number | null;
+    latestHistoryForward?: number | null;
+  }
+): number | null {
+  return pickAnchorForwardPe(indexId, anchorPe, candidates)?.value ?? null;
 }
 
 function pickForwardStartDate(
@@ -3234,6 +4259,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   const historyFallbackMap = buildHistoryFallbackMap(options.previousDataset, effectiveEnd);
   const latestForwardMap = buildLatestForwardMap(options.previousDataset, effectiveEnd);
   const historyForwardStartMap = buildForwardStartMap(options.previousDataset, effectiveEnd);
+  const indexYahooDailyMetricsBySymbol = await loadIndexYahooDailyMetricSnapshotsBySymbol();
   const sp500ForwardPinnedSeries = await loadLocalMetricSeriesFromCsv(SP500_FORWARD_PE_MM_CSV, 2, 120);
   let wsjPeSnapshot = new Map<string, LatestPeSnapshot>();
 
@@ -3273,24 +4299,64 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let ndxForwardBootstrapCount = 0;
   let ndxTtmFactsetBootstrapCount = 0;
   let multplTrailingCount = 0;
+  let multplPbCount = 0;
+  let ychartsPbCount = 0;
   let stockAnalysisForwardCount = 0;
   let finvizForwardCount = 0;
   let historyForwardFallbackCount = 0;
   let localPinnedForwardCount = 0;
   let yahooHistoricalAnchorCount = 0;
+  let yahooLatestSnapshotCount = 0;
   let cachedMultplSp500Series: MonthlyMetricPoint[] | undefined;
+  let cachedMultplSp500PbSeries: MonthlyMetricPoint[] | undefined;
   const fetchErrors: string[] = [];
 
   for (const meta of ALL_INDICES) {
     const startDate = INDEX_START_DATE[meta.id] || "2010-01-04";
     const baseline = BASELINE_BY_INDEX[meta.id];
+    const liveSourceCutoverDate = getIndexLiveSourceCutoverDate(meta.id);
 
     try {
-      const closes = await fetchStooqCloseSeries(meta.symbol, startDate, effectiveEnd);
+      const closes = await fetchIndexCloseSeries(meta.symbol, startDate, effectiveEnd);
       if (closes.length < 120) {
         throw new Error(`insufficient close data: ${meta.id}`);
       }
       const latestCloseDate = closes[closes.length - 1]?.date || effectiveEnd;
+      const yahooFetchResult = await fetchYahooIndexRatioPayload(meta.symbol).catch(
+        () =>
+          ({
+            payload: null,
+            quoteLatestPayload: null,
+            trailingPePayload: null,
+            forwardPePayload: null,
+          }) satisfies IndexYahooRatioPayloadResult
+      );
+      const yahooLatestPayload = mergeIndexRatioPayloads(
+        [yahooFetchResult.quoteLatestPayload, yahooFetchResult.payload].filter(Boolean) as IndexRatioPayload[]
+      );
+      if (yahooFetchResult.trailingPePayload) {
+        yahooHistoricalAnchorCount += upsertIndexYahooAnchorsIntoStore(
+          indexYahooDailyMetricsBySymbol,
+          meta.symbol,
+          closes,
+          yahooFetchResult.trailingPePayload,
+          "pe_ttm"
+        );
+      }
+      if (yahooFetchResult.forwardPePayload) {
+        yahooHistoricalAnchorCount += upsertIndexYahooAnchorsIntoStore(
+          indexYahooDailyMetricsBySymbol,
+          meta.symbol,
+          closes,
+          yahooFetchResult.forwardPePayload,
+          "pe_forward"
+        );
+      }
+      const yahooLatestSnapshot = createComparableIndexYahooDailyMetricSnapshot(latestCloseDate, yahooLatestPayload);
+      if (yahooLatestSnapshot) {
+        upsertIndexYahooDailyMetricSnapshot(indexYahooDailyMetricsBySymbol, meta.symbol, yahooLatestSnapshot);
+        yahooLatestSnapshotCount += 1;
+      }
 
       let anchorPe = baseline.pe;
       let resolvedFrom = "";
@@ -3300,8 +4366,12 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
       let trailingSeries: MonthlyMetricPoint[] | undefined;
       let forwardSeries: MonthlyMetricPoint[] | undefined;
+      let pbSeries: MonthlyMetricPoint[] | undefined;
       let siblisLatestTrailingSnapshot: number | undefined;
       let siblisLatestForwardSnapshot: number | undefined;
+      let officialTrailingApplied = false;
+      let officialForwardApplied = false;
+      let officialPbApplied = false;
       const macroMicroIds = MACROMICRO_CHART_IDS[meta.id];
       const pinnedForwardSeries = meta.id === "sp500" ? sp500ForwardPinnedSeries : undefined;
       const hasPinnedForwardSeries = Boolean(pinnedForwardSeries?.length);
@@ -3393,23 +4463,27 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           isSeriesStale(trailingSeries, effectiveEnd, 45);
 
         if (shouldFetchTrendTrailing) {
-          const trendTrailing = await fetchTrendonifySeries(trendRoutes.trailing);
-          if (trendTrailing?.length) {
-            if (!trailingSeries?.length) {
-              trailingSeries = trendTrailing;
-            } else if (trendPrimaryForTrailing) {
-              trailingSeries = mergeMonthlySeries(trendTrailing, trailingSeries);
-            } else if (preferRecentOverride) {
-              trailingSeries = mergeMonthlySeriesRecentOverride(trailingSeries, trendTrailing, 900);
-            } else {
-              trailingSeries = mergeMonthlySeries(trailingSeries, trendTrailing);
+          try {
+            const trendTrailing = await fetchTrendonifySeries(trendRoutes.trailing);
+            if (trendTrailing?.length) {
+              if (!trailingSeries?.length) {
+                trailingSeries = trendTrailing;
+              } else if (trendPrimaryForTrailing) {
+                trailingSeries = mergeMonthlySeries(trendTrailing, trailingSeries);
+              } else if (preferRecentOverride) {
+                trailingSeries = mergeMonthlySeriesRecentOverride(trailingSeries, trendTrailing, 900);
+              } else {
+                trailingSeries = mergeMonthlySeries(trailingSeries, trendTrailing);
+              }
+              trendonifyTrailingCount += 1;
+              const latestTrailing = trailingSeries?.[trailingSeries.length - 1]?.value;
+              if (isReasonablePe(latestTrailing)) {
+                anchorPe = Number(latestTrailing);
+                resolvedFrom = "trendonify";
+              }
             }
-            trendonifyTrailingCount += 1;
-            const latestTrailing = trailingSeries?.[trailingSeries.length - 1]?.value;
-            if (isReasonablePe(latestTrailing)) {
-              anchorPe = Number(latestTrailing);
-              resolvedFrom = "trendonify";
-            }
+          } catch {
+            // ignore flaky trendonify trailing source
           }
         }
       }
@@ -3435,25 +4509,53 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           }
         }
       }
+      if (meta.id === "sp500") {
+        try {
+          if (!cachedMultplSp500PbSeries) {
+            cachedMultplSp500PbSeries = await fetchMultplSp500PbSeries();
+          }
+        } catch {
+          // ignore
+        }
+
+        if (cachedMultplSp500PbSeries?.length) {
+          pbSeries = cachedMultplSp500PbSeries;
+          multplPbCount += 1;
+        }
+      }
+      try {
+        const ychartsPbSeries = await fetchYchartsPbSeries(meta.symbol);
+        if (ychartsPbSeries?.length) {
+          pbSeries = pbSeries?.length ? mergeMonthlySeries(ychartsPbSeries, pbSeries) : ychartsPbSeries;
+          ychartsPbCount += 1;
+        }
+      } catch {
+        // ignore
+      }
 
       if (trendRoutes) {
         const preferRecentOverride = RECENT_OVERRIDE_INDEX_IDS.has(meta.id);
-        const allowForwardOverlayFromTrend = !FORWARD_LOCKED_INDEX_IDS.has(meta.id);
+        const allowForwardOverlayFromTrend =
+          !FORWARD_LOCKED_INDEX_IDS.has(meta.id) && !TRENDONIFY_FORWARD_DISABLED_INDEX_IDS.has(meta.id);
         const shouldFetchTrendForward =
           allowForwardOverlayFromTrend &&
           !hasPinnedForwardSeries &&
           (!forwardSeries?.length || preferRecentOverride || isSeriesStale(forwardSeries, effectiveEnd, 45));
         if (shouldFetchTrendForward) {
-          const trendForward = await fetchTrendonifySeries(trendRoutes.forward);
-          if (trendForward?.length) {
-            if (!forwardSeries?.length) {
-              forwardSeries = trendForward;
-            } else if (preferRecentOverride) {
-              forwardSeries = mergeMonthlySeriesRecentOverride(forwardSeries, trendForward, 900);
-            } else {
-              forwardSeries = mergeMonthlySeries(forwardSeries, trendForward);
+          try {
+            const trendForward = await fetchTrendonifySeries(trendRoutes.forward);
+            if (trendForward?.length) {
+              if (!forwardSeries?.length) {
+                forwardSeries = trendForward;
+              } else if (preferRecentOverride) {
+                forwardSeries = mergeMonthlySeriesRecentOverride(forwardSeries, trendForward, 900);
+              } else {
+                forwardSeries = mergeMonthlySeries(forwardSeries, trendForward);
+              }
+              trendonifyForwardCount += 1;
             }
-            trendonifyForwardCount += 1;
+          } catch {
+            // ignore flaky trendonify forward source
           }
         }
       }
@@ -3519,39 +4621,170 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
       }
 
+      let stockAnalysisForwardCandidate: number | undefined;
+      let finvizForwardCandidate: number | undefined;
+      let officialAnchorTrailing: number | undefined;
+      let officialAnchorForward: number | undefined;
+      const officialLatest = await fetchOfficialIndexLatestSnapshot(meta.id).catch(() => null);
+      if (officialLatest) {
+        let appliedOfficialSnapshot = false;
+        const officialEffectiveDate =
+          officialLatest.date && officialLatest.date <= effectiveEnd
+            ? alignDateToCloseAtOrBefore(closes, officialLatest.date) || latestCloseDate
+            : latestCloseDate;
+        const officialTrailing = isReasonablePe(officialLatest.pe_ttm ?? undefined)
+          ? Number(officialLatest.pe_ttm)
+          : undefined;
+        const officialForward = isReasonableForwardPe(officialLatest.pe_forward ?? undefined)
+          ? Number(officialLatest.pe_forward)
+          : undefined;
+        const officialPb = isReasonablePb(officialLatest.pb ?? undefined) ? Number(officialLatest.pb) : undefined;
+        officialAnchorTrailing = officialTrailing;
+        officialAnchorForward = officialForward;
+
+        const canApplyOfficialTrailing = isLatestSnapshotDeviationAcceptable(
+          trailingSeries,
+          officialEffectiveDate,
+          officialTrailing,
+          isReasonablePe,
+          { maxDeviationRatio: OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO }
+        );
+        const canApplyOfficialForward = isLatestSnapshotDeviationAcceptable(
+          forwardSeries,
+          officialEffectiveDate,
+          officialForward,
+          isReasonableForwardPe,
+          { maxDeviationRatio: OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO }
+        );
+        const canApplyOfficialPb = isLatestSnapshotDeviationAcceptable(
+          pbSeries,
+          officialEffectiveDate,
+          officialPb,
+          isReasonablePb,
+          { maxDeviationRatio: OFFICIAL_INDEX_LATEST_PB_MAX_DEVIATION_RATIO }
+        );
+
+        if (!prefersWsjLatestSnapshot && canApplyOfficialTrailing) {
+          trailingSeries = upsertSeriesValueAtDate(trailingSeries, officialEffectiveDate, Number(officialTrailing));
+          anchorPe = Number(officialTrailing);
+          resolvedFrom = officialLatest.source;
+          officialTrailingApplied = true;
+          appliedOfficialSnapshot = true;
+        }
+
+        if (
+          !prefersWsjLatestSnapshot &&
+          !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
+          !hasPinnedForwardSeries &&
+          isPlausibleForwardPair(officialTrailing, officialForward) &&
+          canApplyOfficialForward
+        ) {
+          forwardSeries = upsertSeriesValueAtDate(forwardSeries, officialEffectiveDate, Number(officialForward));
+          officialForwardApplied = true;
+          appliedOfficialSnapshot = true;
+        }
+
+        if (canApplyOfficialPb) {
+          pbSeries = upsertSeriesValueAtDate(pbSeries, officialEffectiveDate, Number(officialPb));
+          officialPbApplied = true;
+          appliedOfficialSnapshot = true;
+        }
+
+        if (appliedOfficialSnapshot) {
+          upsertIndexYahooDailyMetricSnapshot(indexYahooDailyMetricsBySymbol, meta.symbol, {
+            date: officialEffectiveDate,
+            pe_ttm:
+              !prefersWsjLatestSnapshot && canApplyOfficialTrailing && isReasonablePe(officialTrailing)
+                ? officialTrailing
+                : null,
+            pe_forward:
+              !prefersWsjLatestSnapshot &&
+              !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
+              !hasPinnedForwardSeries &&
+              isPlausibleForwardPair(officialTrailing, officialForward) &&
+              canApplyOfficialForward &&
+              isReasonableForwardPe(officialForward)
+                ? officialForward
+                : null,
+            pb: canApplyOfficialPb && isReasonablePb(officialPb) ? officialPb : null,
+            source: officialLatest.source,
+            capturedAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      let wsjAnchorTrailing: number | undefined;
+      let wsjAnchorForward: number | undefined;
       const wsjLatest = wsjPeSnapshot.get(meta.id);
       if (wsjLatest) {
         let appliedWsjSnapshot = false;
-        const hasExplicitWsjDate = /^\d{4}-\d{2}-\d{2}$/.test(String(wsjLatest.asOfDate || ""));
         const wsjEffectiveDate =
-          wsjLatest.asOfDate && wsjLatest.asOfDate <= effectiveEnd ? wsjLatest.asOfDate : effectiveEnd;
+          wsjLatest.asOfDate && wsjLatest.asOfDate <= effectiveEnd
+            ? alignDateToCloseAtOrBefore(closes, wsjLatest.asOfDate) || latestCloseDate
+            : latestCloseDate;
+        if (prefersWsjLatestSnapshot) {
+          indexYahooDailyMetricsBySymbol.set(
+            meta.symbol,
+            discardFutureWsjSnapshots(indexYahooDailyMetricsBySymbol.get(meta.symbol) || [], wsjEffectiveDate)
+          );
+        }
         const wsjTrailing = isReasonablePe(wsjLatest.trailing) ? Number(wsjLatest.trailing) : undefined;
         const wsjForward = isReasonableForwardPe(wsjLatest.forward) ? Number(wsjLatest.forward) : undefined;
-        const canApplyWsjTrailing = hasExplicitWsjDate
+        wsjAnchorTrailing = wsjTrailing;
+        wsjAnchorForward = wsjForward;
+        const canApplyWsjTrailing = prefersWsjLatestSnapshot
           ? isReasonablePe(wsjTrailing)
-          : isLatestSnapshotDeviationAcceptable(trailingSeries, wsjEffectiveDate, wsjTrailing, isReasonablePe);
-        const canApplyWsjForward = hasExplicitWsjDate
+          : isLatestSnapshotDeviationAcceptable(
+              trailingSeries,
+              wsjEffectiveDate,
+              wsjTrailing,
+              isReasonablePe
+            );
+        const canApplyWsjForward = prefersWsjLatestSnapshot
           ? isReasonableForwardPe(wsjForward)
-          : isLatestSnapshotDeviationAcceptable(forwardSeries, wsjEffectiveDate, wsjForward, isReasonableForwardPe, {
-              maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO,
-            });
+          : isLatestSnapshotDeviationAcceptable(
+              forwardSeries,
+              wsjEffectiveDate,
+              wsjForward,
+              isReasonableForwardPe,
+              {
+                maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO,
+              }
+            );
+        const shouldApplyWsjTrailing = (prefersWsjLatestSnapshot || !officialTrailingApplied) && canApplyWsjTrailing;
+        const shouldApplyWsjForward =
+          (prefersWsjLatestSnapshot || !officialForwardApplied) &&
+          isPlausibleForwardPair(wsjTrailing, wsjForward) &&
+          canApplyWsjForward;
 
-        if (canApplyWsjTrailing) {
+        if (shouldApplyWsjTrailing) {
           trailingSeries = upsertSeriesValueAtDate(trailingSeries, wsjEffectiveDate, wsjTrailing);
           anchorPe = wsjTrailing;
           resolvedFrom = "wsj";
           appliedWsjSnapshot = true;
-        } else if (isReasonablePe(wsjTrailing)) {
+        } else if (!officialTrailingApplied && isReasonablePe(wsjTrailing)) {
           wsjSnapshotSkippedCount += 1;
         }
 
-        if (isPlausibleForwardPair(wsjTrailing, wsjForward) && canApplyWsjForward) {
+        if (shouldApplyWsjForward) {
           if (!FORWARD_LOCKED_INDEX_IDS.has(meta.id) && !hasPinnedForwardSeries) {
             forwardSeries = upsertSeriesValueAtDate(forwardSeries, wsjEffectiveDate, Number(wsjForward));
+            officialForwardApplied = true;
             appliedWsjSnapshot = true;
           }
-        } else if (isPlausibleForwardPair(wsjTrailing, wsjForward)) {
+        } else if (!officialForwardApplied && isPlausibleForwardPair(wsjTrailing, wsjForward)) {
           wsjSnapshotSkippedCount += 1;
+        }
+        if (shouldApplyWsjTrailing || shouldApplyWsjForward) {
+          upsertIndexYahooDailyMetricSnapshot(indexYahooDailyMetricsBySymbol, meta.symbol, {
+            date: wsjEffectiveDate,
+            pe_ttm: shouldApplyWsjTrailing && isReasonablePe(wsjTrailing) ? wsjTrailing : null,
+            pe_forward:
+              shouldApplyWsjForward && isReasonableForwardPe(wsjForward) ? wsjForward : null,
+            pb: null,
+            source: "wsj-latest",
+            capturedAt: new Date().toISOString(),
+          });
         }
         if (appliedWsjSnapshot) {
           wsjSnapshotCount += 1;
@@ -3588,12 +4821,17 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       }
 
       if (
-        (meta.id === "sp500" || meta.id === "nasdaq100" || meta.id === "russell2000") &&
+        (meta.id === "sp500" ||
+          meta.id === "nasdaq100" ||
+          meta.id === "russell2000" ||
+          meta.id === "sp400" ||
+          meta.id === "us_total_market") &&
         !prefersWsjLatestSnapshot
       ) {
         let appliedStockAnalysisSnapshot = false;
         let stockTrailing: number | undefined;
         let stockForward: number | undefined;
+        let finvizForward: number | undefined;
 
         try {
           stockTrailing = await fetchStockAnalysisPe(meta.symbol);
@@ -3617,7 +4855,8 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
         if (!isReasonableForwardPe(stockForward)) {
           try {
-            stockForward = await fetchFinvizForwardPe(meta.symbol);
+            finvizForward = await fetchFinvizForwardPe(meta.symbol);
+            stockForward = finvizForward;
           } catch {
             // ignore
           }
@@ -3633,13 +4872,18 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         if (
           isReasonablePe(stockTrailing) &&
           !(meta.id === "nasdaq100" && ndxCuratedTtmApplied) &&
+          !officialTrailingApplied &&
           canApplyStockTrailing
         ) {
           trailingSeries = upsertSeriesValueAtDate(trailingSeries, effectiveEnd, Number(stockTrailing));
           anchorPe = Number(stockTrailing);
           resolvedFrom = "stockanalysis";
           appliedStockAnalysisSnapshot = true;
-        } else if (isReasonablePe(stockTrailing) && !(meta.id === "nasdaq100" && ndxCuratedTtmApplied)) {
+        } else if (
+          isReasonablePe(stockTrailing) &&
+          !(meta.id === "nasdaq100" && ndxCuratedTtmApplied) &&
+          !officialTrailingApplied
+        ) {
           stockAnalysisSnapshotSkippedCount += 1;
         }
 
@@ -3656,6 +4900,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         if (
           !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
           !hasPinnedForwardSeries &&
+          !officialForwardApplied &&
           isPlausibleForwardPair(trailingForPair, stockForward) &&
           canApplyStockForward
         ) {
@@ -3664,14 +4909,46 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         } else if (
           !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
           !hasPinnedForwardSeries &&
+          !officialForwardApplied &&
           isPlausibleForwardPair(trailingForPair, stockForward)
         ) {
           stockAnalysisSnapshotSkippedCount += 1;
+        }
+        if (
+          (isReasonablePe(stockTrailing) && !officialTrailingApplied && canApplyStockTrailing) ||
+          (!FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
+            !hasPinnedForwardSeries &&
+            !officialForwardApplied &&
+            isPlausibleForwardPair(trailingForPair, stockForward) &&
+            canApplyStockForward)
+        ) {
+          upsertIndexYahooDailyMetricSnapshot(indexYahooDailyMetricsBySymbol, meta.symbol, {
+            date: latestCloseDate,
+            pe_ttm:
+              isReasonablePe(stockTrailing) && !officialTrailingApplied && canApplyStockTrailing
+                ? Number(stockTrailing)
+                : null,
+            pe_forward:
+              !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
+              !hasPinnedForwardSeries &&
+              !officialForwardApplied &&
+              isPlausibleForwardPair(trailingForPair, stockForward) &&
+              canApplyStockForward &&
+              isReasonableForwardPe(stockForward)
+                ? Number(stockForward)
+                : null,
+            pb: null,
+            source: "stockanalysis-latest",
+            capturedAt: new Date().toISOString(),
+          });
         }
 
         if (appliedStockAnalysisSnapshot) {
           stockAnalysisSnapshotCount += 1;
         }
+
+        stockAnalysisForwardCandidate = isReasonableForwardPe(stockForward) ? Number(stockForward) : undefined;
+        finvizForwardCandidate = isReasonableForwardPe(finvizForward) ? Number(finvizForward) : undefined;
       }
 
       if (meta.id === "nasdaq100" && !trailingSeries?.length) {
@@ -3724,38 +5001,53 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       else if (resolvedFrom === "stockanalysis") stockAnalysisAnchorCount += 1;
 
       const latestForward = forwardSeries?.length ? forwardSeries[forwardSeries.length - 1]?.value : undefined;
-      let anchorForwardPe = isReasonableForwardPe(latestForward) ? Number(latestForward) : undefined;
-
-      if (!anchorForwardPe) {
+      const historyFallbackPoints = historyFallbackMap.get(meta.id) || [];
+      const previousHistoryLatestForward = latestForwardMap.get(meta.id) ?? (() => {
+        const latestHistoryPoint = [...historyFallbackPoints].reverse().find((point) => point.date <= effectiveEnd);
+        return isReasonableForwardPe(latestHistoryPoint?.pe_forward ?? undefined)
+          ? Number(latestHistoryPoint?.pe_forward)
+          : undefined;
+      })();
+      if (!stockAnalysisForwardCandidate) {
         try {
           const stockAnalysisForward = await fetchStockAnalysisForwardPe(meta.symbol);
           if (isReasonableForwardPe(stockAnalysisForward)) {
-            anchorForwardPe = Number(stockAnalysisForward);
-            stockAnalysisForwardCount += 1;
+            stockAnalysisForwardCandidate = Number(stockAnalysisForward);
           }
         } catch {
           // ignore
         }
       }
 
-      if (!anchorForwardPe) {
+      if (!finvizForwardCandidate) {
         try {
           const finvizForward = await fetchFinvizForwardPe(meta.symbol);
           if (isReasonableForwardPe(finvizForward)) {
-            anchorForwardPe = Number(finvizForward);
-            finvizForwardCount += 1;
+            finvizForwardCandidate = Number(finvizForward);
           }
         } catch {
           // ignore
         }
       }
 
-      if (!anchorForwardPe) {
-        const latestHistoryForward = latestForwardMap.get(meta.id);
-        if (isReasonableForwardPe(latestHistoryForward)) {
-          anchorForwardPe = Number(latestHistoryForward);
-          historyForwardFallbackCount += 1;
-        }
+      const pickedAnchorForwardPe = pickAnchorForwardPe(meta.id, anchorPe, {
+        latestForwardSeriesValue: latestForward,
+        stockAnalysisForward: stockAnalysisForwardCandidate,
+        finvizForward: finvizForwardCandidate,
+        wsjForward: wsjAnchorForward,
+        wsjTrailing: wsjAnchorTrailing,
+        officialForward: officialAnchorForward,
+        officialTrailing: officialAnchorTrailing,
+        latestHistoryForward: previousHistoryLatestForward,
+      });
+      const anchorForwardPe = pickedAnchorForwardPe?.value;
+
+      if (pickedAnchorForwardPe?.source === "stockanalysis") {
+        stockAnalysisForwardCount += 1;
+      } else if (pickedAnchorForwardPe?.source === "finviz") {
+        finvizForwardCount += 1;
+      } else if (pickedAnchorForwardPe?.source === "history") {
+        historyForwardFallbackCount += 1;
       }
 
       if (!anchorForwardPe) {
@@ -3764,7 +5056,10 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
       const forwardStartDate = pickForwardStartDate(closes, forwardSeries, historyForwardStartMap.get(meta.id));
 
-      const anchorPb = clamp(baseline.pb * Math.pow(anchorPe / baseline.pe, 0.72), 0.5, 16);
+      const latestPb = pbSeries?.length ? pbSeries[pbSeries.length - 1]?.value : undefined;
+      const anchorPb = isReasonablePb(latestPb)
+        ? Number(latestPb)
+        : clamp(baseline.pb * Math.pow(anchorPe / baseline.pe, 0.72), 0.5, 16);
       const proxyPoints = buildProxySeriesFromClose(closes, {
         anchorPe,
         anchorForwardPe,
@@ -3791,6 +5086,81 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         trailingMaxSegmentSpanDays: meta.id === "nasdaq100" ? 540 : 720,
         forwardMaxSegmentSpanDays: meta.id === "nasdaq100" ? 540 : 365,
       });
+      const cleanedYahooSnapshots = pruneInvalidExplicitIndexSnapshots(
+        indexYahooDailyMetricsBySymbol.get(meta.symbol) || [],
+        trailingSeries || [],
+        forwardSeries || [],
+        pbSeries || []
+      );
+      const effectiveYahooSnapshots = collapseRedundantExplicitLatestSnapshots(
+        buildEffectiveIndexYahooDailyMetricSnapshots(closes, cleanedYahooSnapshots)
+      );
+      indexYahooDailyMetricsBySymbol.set(meta.symbol, effectiveYahooSnapshots);
+      const explicitLatestYahooSnapshots = effectiveYahooSnapshots.filter(
+        (snapshot) => snapshot.date > liveSourceCutoverDate && isExplicitIndexYahooLatestMetricSource(snapshot.source || "")
+      );
+      points = applyPostCutoverMetricSources(
+        points,
+        "pe_ttm",
+        extractExplicitMetricSnapshots(effectiveYahooSnapshots, "pe_ttm", liveSourceCutoverDate),
+        trailingSeries || [],
+        liveSourceCutoverDate,
+        {
+          minValue: 2.4,
+          maxValue: meta.id === "nasdaq100" ? 240 : 180,
+        }
+      );
+      points = applyPostCutoverMetricSources(
+        points,
+        "pe_forward",
+        extractExplicitMetricSnapshots(effectiveYahooSnapshots, "pe_forward", liveSourceCutoverDate),
+        forwardSeries || [],
+        liveSourceCutoverDate,
+        {
+          minValue: 2,
+          maxValue: meta.id === "nasdaq100" ? 180 : 140,
+        }
+      );
+      points = applyPostCutoverMetricSources(
+        points,
+        "pb",
+        extractExplicitMetricSnapshots(effectiveYahooSnapshots, "pb", liveSourceCutoverDate),
+        pbSeries || [],
+        liveSourceCutoverDate,
+        {
+          minValue: 0.2,
+          maxValue: 28,
+          maxInterpolationSpanDays: 180,
+          maxForwardFillDays: 120,
+        }
+      );
+      points = applyYahooSnapshotCarryToMetric(points, closes, explicitLatestYahooSnapshots, "pe_ttm", {
+        minValue: 2.4,
+        maxValue: meta.id === "nasdaq100" ? 240 : 180,
+        backfillLookbackPoints: INDEX_YAHOO_RECENT_REPAIR_LOOKBACK_POINTS,
+        minDate: liveSourceCutoverDate,
+      });
+      points = applyYahooSnapshotCarryToMetric(points, closes, explicitLatestYahooSnapshots, "pe_forward", {
+        minValue: 2,
+        maxValue: meta.id === "nasdaq100" ? 180 : 140,
+        backfillLookbackPoints: INDEX_YAHOO_RECENT_REPAIR_LOOKBACK_POINTS,
+        minDate: liveSourceCutoverDate,
+      });
+      points = applyRecentCloseCarryWindowToMetric(points, closes, effectiveYahooSnapshots, "pb", {
+        minValue: 0.2,
+        maxValue: 28,
+        lookbackPoints: INDEX_PB_RECENT_CARRY_LOOKBACK_POINTS,
+      });
+
+      const previousPoints = historyFallbackMap.get(meta.id) || [];
+      points = extendSeriesWithRebasedPreviousTail(previousPoints, points, liveSourceCutoverDate);
+      points = mergeHistoricalSeriesAtCutover(previousPoints, points, liveSourceCutoverDate);
+      if (effectiveEnd > liveSourceCutoverDate) {
+        const latestPointDate = points[points.length - 1]?.date || "";
+        if (!latestPointDate || latestPointDate <= liveSourceCutoverDate) {
+          throw new ReliableSourceError(`missing post-cutover live data for ${meta.id}`);
+        }
+      }
 
       liveSeriesCount += 1;
 
@@ -3809,16 +5179,26 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         continue;
       }
       const historyPoints = historyFallbackMap.get(meta.id);
-      if (historyPoints?.length) {
+      const historyLatestDate = historyPoints?.[historyPoints.length - 1]?.date || "";
+      const canReuseHistoryFallback =
+        !!historyPoints?.length &&
+        !(effectiveEnd > liveSourceCutoverDate && historyLatestDate <= liveSourceCutoverDate);
+      if (canReuseHistoryFallback && historyPoints) {
         historyFallbackCount += 1;
+        const repairedHistoryPoints = repairHistoryFallbackPoints(
+          historyPoints,
+          indexYahooDailyMetricsBySymbol.get(meta.symbol) || [],
+          liveSourceCutoverDate
+        );
         indices.push({
           id: meta.id,
           symbol: meta.symbol,
           group: meta.group,
           displayName: meta.displayName,
           description: meta.description,
-          forwardStartDate: historyForwardStartMap.get(meta.id) || historyPoints[historyPoints.length - 1]?.date,
-          points: historyPoints,
+          forwardStartDate:
+            historyForwardStartMap.get(meta.id) || repairedHistoryPoints[repairedHistoryPoints.length - 1]?.date,
+          points: repairedHistoryPoints,
         });
         continue;
       }
@@ -3855,6 +5235,12 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   }
   if (multplTrailingCount > 0) {
     source += `+multpl-pe-${multplTrailingCount}`;
+  }
+  if (multplPbCount > 0) {
+    source += `+multpl-pb-${multplPbCount}`;
+  }
+  if (ychartsPbCount > 0) {
+    source += `+ycharts-pb-${ychartsPbCount}`;
   }
   if (trendonifyTrailingCount > 0) {
     source += `+trendonify-pe-${trendonifyTrailingCount}`;
@@ -3910,6 +5296,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (yahooHistoricalAnchorCount > 0) {
     source += `+yahoo-historical-anchor-${yahooHistoricalAnchorCount}`;
   }
+  if (yahooLatestSnapshotCount > 0) {
+    source += `+yahoo-latest-snapshot-${yahooLatestSnapshotCount}`;
+  }
   source += `+${yieldSource}`;
 
   const dataset = {
@@ -3919,6 +5308,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   };
 
   await mkdir(OUTPUT_DIR, { recursive: true });
+  await writeFile(
+    INDEX_YAHOO_DAILY_METRICS_FILE,
+    `${JSON.stringify(serializeIndexYahooDailyMetricSnapshots(indexYahooDailyMetricsBySymbol), null, 2)}\n`,
+    "utf8"
+  );
 
   return dataset;
 }
