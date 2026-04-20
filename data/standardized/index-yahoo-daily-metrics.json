@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-18T04:50:38.591Z",
+  "generatedAt": "2026-04-20T22:10:53.349Z",
   "symbols": {
     "DIA": [
       {
@@ -11,12 +11,12 @@
         "capturedAt": "2026-04-17T17:52:06.180Z"
       },
       {
-        "date": "2026-04-17",
+        "date": "2026-04-20",
         "pe_ttm": 23.7,
         "pe_forward": 20.68,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-04-18T04:44:22.264Z"
+        "capturedAt": "2026-04-20T22:07:17.979Z"
       }
     ],
     "IJH": [
@@ -27,6 +27,14 @@
         "pb": 2.67,
         "source": "ishares-official-latest",
         "capturedAt": "2026-04-18T04:45:21.365Z"
+      },
+      {
+        "date": "2026-04-17",
+        "pe_ttm": 22.27,
+        "pe_forward": null,
+        "pb": 2.69,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-04-20T22:08:03.270Z"
       }
     ],
     "IWM": [
@@ -58,9 +66,9 @@
         "date": "2026-04-17",
         "pe_ttm": 38.05,
         "pe_forward": 25.74,
-        "pb": null,
+        "pb": 2.27,
         "source": "wsj-latest",
-        "capturedAt": "2026-04-18T04:44:43.826Z"
+        "capturedAt": "2026-04-20T22:07:30.760Z"
       }
     ],
     "QQQ": [
@@ -78,7 +86,7 @@
         "pe_forward": 24.62,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-04-18T04:44:09.143Z"
+        "capturedAt": "2026-04-20T22:07:11.985Z"
       }
     ],
     "SPY": [
@@ -96,7 +104,7 @@
         "pe_forward": 21.59,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-04-18T04:43:48.270Z"
+        "capturedAt": "2026-04-20T22:07:00.196Z"
       }
     ],
     "VTI": [
@@ -107,6 +115,14 @@
         "pb": 4.66,
         "source": "ishares-official-latest",
         "capturedAt": "2026-04-18T04:46:05.872Z"
+      },
+      {
+        "date": "2026-04-17",
+        "pe_ttm": 27.68,
+        "pe_forward": null,
+        "pb": 4.69,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-04-20T22:08:33.091Z"
       }
     ],
     "XLB": [
