@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-22T22:13:16.852Z",
+  "generatedAt": "2026-04-23T22:10:04.267Z",
   "symbols": {
     "DIA": [
       {
@@ -33,6 +33,14 @@
         "pb": null,
         "source": "wsj-latest",
         "capturedAt": "2026-04-22T22:09:29.123Z"
+      },
+      {
+        "date": "2026-04-23",
+        "pe_ttm": 23.72,
+        "pe_forward": 20.68,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-04-23T22:06:30.326Z"
       }
     ],
     "IJH": [
@@ -67,6 +75,14 @@
         "pb": 2.75,
         "source": "ishares-official-latest",
         "capturedAt": "2026-04-22T22:10:23.570Z"
+      },
+      {
+        "date": "2026-04-22",
+        "pe_ttm": 22.66,
+        "pe_forward": null,
+        "pb": 2.73,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-04-23T22:07:19.181Z"
       }
     ],
     "IWM": [
@@ -100,7 +116,7 @@
         "pe_forward": 25.74,
         "pb": 2.27,
         "source": "wsj-latest",
-        "capturedAt": "2026-04-22T22:09:47.745Z"
+        "capturedAt": "2026-04-23T22:06:44.021Z"
       },
       {
         "date": "2026-04-20",
@@ -117,6 +133,14 @@
         "pb": 2.32,
         "source": "ishares-official-latest",
         "capturedAt": "2026-04-22T22:09:47.745Z"
+      },
+      {
+        "date": "2026-04-22",
+        "pe_ttm": null,
+        "pe_forward": null,
+        "pb": 2.31,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-04-23T22:06:44.021Z"
       }
     ],
     "QQQ": [
@@ -134,7 +158,7 @@
         "pe_forward": 24.62,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-04-22T22:09:21.680Z"
+        "capturedAt": "2026-04-23T22:06:25.923Z"
       }
     ],
     "SPY": [
@@ -152,7 +176,7 @@
         "pe_forward": 21.59,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-04-22T22:09:09.177Z"
+        "capturedAt": "2026-04-23T22:06:14.255Z"
       }
     ],
     "VTI": [
@@ -187,6 +211,14 @@
         "pb": 4.73,
         "source": "ishares-official-latest",
         "capturedAt": "2026-04-22T22:10:56.739Z"
+      },
+      {
+        "date": "2026-04-22",
+        "pe_ttm": 27.89,
+        "pe_forward": null,
+        "pb": 4.74,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-04-23T22:07:44.984Z"
       }
     ],
     "XLB": [
