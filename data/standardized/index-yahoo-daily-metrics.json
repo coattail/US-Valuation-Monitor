@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-24T22:12:05.671Z",
+  "generatedAt": "2026-04-25T11:13:09.379Z",
   "symbols": {
     "DIA": [
       {
@@ -48,7 +48,7 @@
         "pe_forward": 20.54,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-04-24T22:07:41.797Z"
+        "capturedAt": "2026-04-25T11:04:10.012Z"
       }
     ],
     "IJH": [
@@ -98,7 +98,7 @@
         "pe_forward": null,
         "pb": 2.72,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-04-24T22:08:33.449Z"
+        "capturedAt": "2026-04-25T11:05:15.627Z"
       }
     ],
     "IWM": [
@@ -156,7 +156,15 @@
         "pe_forward": null,
         "pb": 2.31,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-04-24T22:07:58.258Z"
+        "capturedAt": "2026-04-25T11:04:32.914Z"
+      },
+      {
+        "date": "2026-04-24",
+        "pe_ttm": 38.75,
+        "pe_forward": 27.27,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-04-25T11:04:32.914Z"
       }
     ],
     "QQQ": [
@@ -175,6 +183,14 @@
         "pb": null,
         "source": "wsj-latest",
         "capturedAt": "2026-04-24T22:07:34.683Z"
+      },
+      {
+        "date": "2026-04-24",
+        "pe_ttm": 33.38,
+        "pe_forward": 25.15,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-04-25T11:03:51.772Z"
       }
     ],
     "SPY": [
@@ -193,6 +209,14 @@
         "pb": null,
         "source": "wsj-latest",
         "capturedAt": "2026-04-24T22:07:19.879Z"
+      },
+      {
+        "date": "2026-04-24",
+        "pe_ttm": 25.41,
+        "pe_forward": 21.79,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-04-25T11:03:15.054Z"
       }
     ],
     "VTI": [
@@ -242,7 +266,7 @@
         "pe_forward": null,
         "pb": 4.73,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-04-24T22:09:09.771Z"
+        "capturedAt": "2026-04-25T11:06:22.021Z"
       }
     ],
     "XLB": [
