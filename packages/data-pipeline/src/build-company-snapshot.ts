@@ -2352,6 +2352,8 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
   const latestTtmDate = getLatestMetricAnchorDate(trailingPePayload, "pe_ttm");
   const latestForwardDate = getLatestMetricAnchorDate(forwardPePayload, "pe_forward");
   const latestPegDate = getLatestMetricAnchorDate(trailingPegPayload, "peg");
+  const quoteLatestTtmDates = getMetricAnchorDates(quoteLatestPayload, "pe_ttm");
+  const quoteLatestForwardDates = getMetricAnchorDates(quoteLatestPayload, "pe_forward");
   return {
     payload,
     quoteLatestPayload,
@@ -2368,8 +2370,11 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
       peg: getMetricAnchorValueOnDate(trailingPegPayload, "peg", latestPegDate),
     },
     metricAnchorDates: {
-      pe_ttm: getMetricAnchorDates(trailingPePayload, "pe_ttm"),
-      pe_forward: getMetricAnchorDates(forwardPePayload, "pe_forward"),
+      pe_ttm: mergeMetricAnchorDates(getMetricAnchorDates(trailingPePayload, "pe_ttm"), quoteLatestTtmDates),
+      pe_forward: mergeMetricAnchorDates(
+        getMetricAnchorDates(forwardPePayload, "pe_forward"),
+        quoteLatestForwardDates
+      ),
       peg: getMetricAnchorDates(trailingPegPayload, "peg"),
     },
   };
@@ -2811,6 +2816,17 @@ function getMetricAnchorDates(payload: RatioPayload | null, metric: RatioMetricK
   ];
 }
 
+function mergeMetricAnchorDates(...dateLists: string[][]): string[] {
+  return [
+    ...new Set(
+      dateLists
+        .flat()
+        .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+        .sort((a, b) => a.localeCompare(b))
+    ),
+  ];
+}
+
 function minIsoDate(a: string, b: string): string {
   const normalizedA = /^\d{4}-\d{2}-\d{2}$/.test(a) ? a : "";
   const normalizedB = /^\d{4}-\d{2}-\d{2}$/.test(b) ? b : "";
@@ -3113,17 +3129,18 @@ function createYahooDailyMetricSnapshots(
   }
 
   for (const metric of metrics) {
+    const directLatestValue = valuesByMetric[metric] ?? null;
     const value =
       (metric === "pe_ttm" || metric === "pe_forward")
-        ? sanitizeSignedRatio(latestMetricValues?.[metric] ?? null)
-        : valuesByMetric[metric];
+        ? sanitizeSignedRatio(latestMetricValues?.[metric] ?? directLatestValue)
+        : directLatestValue;
     if (value === null || value === undefined) continue;
 
     const hintDate = String(latestMetricDates?.[metric] || "").trim();
     // For PE metrics we only write a snapshot on Yahoo's actual update date.
     const targetDate =
       metric === "pe_ttm" || metric === "pe_forward"
-        ? (/^\d{4}-\d{2}-\d{2}$/.test(hintDate) ? hintDate : "")
+        ? (/^\d{4}-\d{2}-\d{2}$/.test(hintDate) ? hintDate : directLatestValue !== null ? effectiveFallbackDate : "")
         : /^\d{4}-\d{2}-\d{2}$/.test(hintDate)
           ? hintDate
           : effectiveFallbackDate;
