@@ -550,6 +550,29 @@ function toIsoDateFromText(rawDate: unknown): string | null {
   return new Date(ts).toISOString().slice(0, 10);
 }
 
+function toIsoDateFromYahooAsOfText(rawDate: unknown): string | null {
+  const value = String(rawDate || "").trim();
+  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return toIsoDateFromText(value);
+
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  const year = Number(match[3]);
+  if (
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(year) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 function quarterKeyFromDate(dateText: string): string {
   const date = toIsoDateFromText(dateText);
   if (!date) return "";
@@ -1798,6 +1821,12 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
     return resolved;
   };
 
+  const asOfDate =
+    toIsoDateFromYahooAsOfText(
+      normalizedPlain.match(/\bAs of\s+(\d{1,2}\/\d{1,2}\/\d{4})\b/i)?.[1] ||
+        raw.match(/\bAs of\s+(\d{1,2}\/\d{1,2}\/\d{4})\b/i)?.[1] ||
+        ""
+    ) || "";
   const peTtm = parseLabelMetric(["Trailing P/E"], 2, 400);
   const peForward = parseLabelMetric(["Forward P/E"], 2, 400);
   const pb = parseLabelMetric(["Price/Book"], 0.01, 400);
@@ -1812,13 +1841,23 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
 
   if (!peTtm && !peForward && !pb && !peg) return null;
 
+  const datedAnchor = asOfDate
+    ? {
+        date: asOfDate,
+        pe_ttm: peTtm,
+        pe_forward: peForward,
+        pb,
+        peg,
+      }
+    : null;
+
   return {
-    anchors: [],
+    anchors: datedAnchor ? [datedAnchor] : [],
     latest: {
-      pe_ttm: peTtm,
-      pe_forward: peForward,
-      pb,
-      peg,
+      pe_ttm: datedAnchor ? null : peTtm,
+      pe_forward: datedAnchor ? null : peForward,
+      pb: datedAnchor ? null : pb,
+      peg: datedAnchor ? null : peg,
     },
     source: "yahoo-key-statistics-valuation-measures",
   };
@@ -2348,8 +2387,7 @@ function applyLatestRatioOverrideAtLastDate(
   const overrideLatest = {
     pe_ttm: sanitizeYahooMetricValue("pe_ttm", latestOverride.latest.pe_ttm, overrideSource),
     pe_forward: sanitizeYahooMetricValue("pe_forward", latestOverride.latest.pe_forward, overrideSource),
-    // Yahoo PB may have mixed share-class/ADR basis on certain tickers; keep existing PB source for stability.
-    pb: null,
+    pb: sanitizeYahooMetricValue("pb", latestOverride.latest.pb, overrideSource),
     peg: sanitizeYahooMetricValue("peg", latestOverride.latest.peg, overrideSource),
   };
 
@@ -2944,8 +2982,9 @@ function applyLatestRatioOverrideToLastPoint(
   const overrideSource = String(latestOverride.source || "").trim();
   const overridePeTtm = sanitizeYahooMetricValue("pe_ttm", latestOverride.latest.pe_ttm, overrideSource);
   const overridePeForward = sanitizeYahooMetricValue("pe_forward", latestOverride.latest.pe_forward, overrideSource);
+  const overridePb = sanitizeYahooMetricValue("pb", latestOverride.latest.pb, overrideSource);
   const overridePeg = sanitizeYahooMetricValue("peg", latestOverride.latest.peg, overrideSource);
-  if (!overridePeTtm && !overridePeForward && !overridePeg) {
+  if (!overridePeTtm && !overridePeForward && !overridePb && !overridePeg) {
     return valuationPoints;
   }
 
@@ -2978,6 +3017,13 @@ function applyLatestRatioOverrideToLastPoint(
     nextLastPoint = {
       ...effectivePoint,
       peg: effectivePeg,
+    };
+  }
+
+  if (overridePb && overridePb !== sanitizeSignedRatio(currentLastPoint.pb)) {
+    nextLastPoint = {
+      ...(nextLastPoint || currentLastPoint),
+      pb: roundTo(overridePb, 4),
     };
   }
 
@@ -3036,6 +3082,36 @@ function createYahooDailyMetricSnapshots(
   const metrics: RatioMetricKey[] = ["pe_ttm", "pe_forward", "pb", "peg"];
   const effectiveFallbackDate = /^\d{4}-\d{2}-\d{2}$/.test(fallbackDate) ? fallbackDate : "";
 
+  const setMetric = (targetDate: string, metric: RatioMetricKey, value: number): void => {
+    const current = byDate.get(targetDate) || {
+      date: targetDate,
+      pe_ttm: null,
+      pe_forward: null,
+      pb: null,
+      peg: null,
+      source,
+      capturedAt: new Date().toISOString(),
+    };
+
+    if (metric === "pe_ttm") current.pe_ttm = value;
+    else if (metric === "pe_forward") current.pe_forward = value;
+    else if (metric === "pb") current.pb = value;
+    else current.peg = value;
+
+    byDate.set(targetDate, current);
+  };
+
+  for (const anchor of payload.anchors || []) {
+    const targetDate = String(anchor?.date || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) continue;
+
+    for (const metric of metrics) {
+      const value = sanitizeYahooMetricValue(metric, getRatioAnchorMetricValue(anchor, metric), source);
+      if (value === null) continue;
+      setMetric(targetDate, metric, value);
+    }
+  }
+
   for (const metric of metrics) {
     const value =
       (metric === "pe_ttm" || metric === "pe_forward")
@@ -3053,22 +3129,7 @@ function createYahooDailyMetricSnapshots(
           : effectiveFallbackDate;
     if (!targetDate) continue;
 
-    const current = byDate.get(targetDate) || {
-      date: targetDate,
-      pe_ttm: null,
-      pe_forward: null,
-      pb: null,
-      peg: null,
-      source,
-      capturedAt: new Date().toISOString(),
-    };
-
-    if (metric === "pe_ttm") current.pe_ttm = value;
-    else if (metric === "pe_forward") current.pe_forward = value;
-    else if (metric === "pb") current.pb = value;
-    else current.peg = value;
-
-    byDate.set(targetDate, current);
+    setMetric(targetDate, metric, value);
   }
 
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -6743,7 +6804,14 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+export {
+  createYahooDailyMetricSnapshots,
+  parseYahooValuationMeasuresFromHtml,
+};
+
+if (process.argv[1] && path.resolve(process.argv[1]) === CURRENT_FILE) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
