@@ -1573,9 +1573,25 @@ function normalizeLookupText(input: string): string {
     .replace(/[^a-z0-9&]+/g, "");
 }
 
-function parseWsjRowPeValues(cells: string[]): LatestPeSnapshot | undefined {
+function stripWsjIndexLabelFromText(raw: string, indexId?: string): string {
+  const text = String(raw || "").trim();
+  if (!text || !indexId) return text;
+
+  const labelPatterns: Partial<Record<string, RegExp>> = {
+    sp500: /^\s*S\s*&\s*P\s*500\s+Index\b/i,
+    nasdaq100: /^\s*NASDAQ\s*-?\s*100\s+Index\b/i,
+    dow30: /^\s*(?:Dow\s+Jones\s+Industrial\s+Average|Dow\s+Industrial\s+Average|DJIA)\b/i,
+    russell2000: /^\s*Russell\s*2000\s+Index\b/i,
+  };
+
+  return text.replace(labelPatterns[indexId] || /$a/, "").trim();
+}
+
+export function parseWsjRowPeValues(cells: string[], indexId?: string): LatestPeSnapshot | undefined {
   const values: number[] = [];
-  for (const cell of cells) {
+
+  const metricCells = cells.length > 1 ? cells.slice(1) : [stripWsjIndexLabelFromText(cells[0] || "", indexId)];
+  for (const cell of metricCells) {
     const matches = String(cell || "").match(/[0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]+)?/g) || [];
     for (const raw of matches) {
       const value = Number(raw.replace(/,/g, ""));
@@ -1665,7 +1681,7 @@ function parseWsjPeSnapshotFromHtml(html: string): Map<string, LatestPeSnapshot>
     for (const [indexId, keywords] of Object.entries(WSJ_ROW_KEYWORDS)) {
       if (result.has(indexId)) continue;
       if (!keywords.some((keyword) => rowKey.includes(normalizeLookupText(keyword)))) continue;
-      const values = parseWsjRowPeValues(cells);
+      const values = parseWsjRowPeValues(cells, indexId);
       if (values) result.set(indexId, values);
     }
   }
@@ -1700,7 +1716,7 @@ function parseWsjPeSnapshotFromText(text: string): Map<string, LatestPeSnapshot>
     for (const [indexId, keywords] of Object.entries(WSJ_ROW_KEYWORDS)) {
       if (result.has(indexId)) continue;
       if (!keywords.some((keyword) => lineKey.includes(normalizeLookupText(keyword)))) continue;
-      const values = parseWsjRowPeValues(cells);
+      const values = parseWsjRowPeValues(cells, indexId);
       if (!values) continue;
       result.set(indexId, currentAsOfDate ? { ...values, asOfDate: currentAsOfDate } : values);
     }
