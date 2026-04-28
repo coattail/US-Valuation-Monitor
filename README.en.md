@@ -62,6 +62,7 @@ This project follows a **multi-source merge with reliability guardrails** strate
 - Forward PE availability is tracked per index via `forwardStartDate` and enforced in API responses.
 - Latest index snapshots include an anti-spike deviation guard to reduce one-day source-regime jumps.
 - Company `PE(FWD)` latest values prefer Yahoo trusted sources; when a daily Yahoo snapshot is untrusted for `pe_forward`, that day is stored as `null` (no manual fill).
+- Company `PE(FWD)` can be backfilled from licensed point-in-time vendor data. The default import path is `data/vendor/company-forward-pe-history.csv`; override it with `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv`. The import only supplies anchors before the existing company forward PE source start date, so it does not overwrite the StockAnalysis/YCharts/Yahoo-calibrated range.
 - For source-regime transitions (previous trading day unavailable, latest day available), historical `forward PE` is rebased using a fixed factor that includes the latest-day price move:
   - factor = `latestYahooForward / (previousForward × latestClose/previousClose)`
   - this keeps historical forward PE and latest Yahoo forward PE connected under the same basis.
@@ -239,6 +240,31 @@ To trigger manually:
 - Runtime alerts: `data/runtime/alerts.json`
 - Alert states: `data/runtime/alert-state.json`
 - S&P 500 forward PE bootstrap: `data/bootstrap/sp500-forward-pe-macromicro.csv`
+- Licensed company historical Forward PE import: `data/vendor/company-forward-pe-history.csv` (not committed); sample file: `data/vendor/company-forward-pe-history.example.csv`
+
+The company historical Forward PE CSV accepts:
+
+```csv
+symbol,date,pe_forward,eps_fy1,source
+AAPL,2020-01-02,19.75,,factset-pit-consensus
+AAPL,2020-01-03,,4.25,factset-pit-consensus
+```
+
+- `symbol` / `ticker`: ticker.
+- `date` / `as_of_date`: point-in-time observation date, `YYYY-MM-DD`.
+- `pe_forward` / `forward_pe` / `forward_pe_ratio`: direct vendor forward PE, preferred when present.
+- `eps_fy1` / `forward_eps` / `ntm_eps`: forward EPS; the pipeline computes `PE(FWD) = close / forward EPS` with same-day close.
+- `source` / `provider`: vendor tag, for example `factset-pit-consensus`, `sp-capital-iq-estimates`, or `lseg-ibes`.
+
+Experimental FMP import:
+
+```bash
+FMP_API_KEY=your_key npm run import:fmp-forward-pe -- --symbols AAPL,MSFT --dry-run
+FMP_API_KEY=your_key npm run import:fmp-forward-pe -- --symbols AAPL,MSFT
+npm run build:data:company
+```
+
+The FMP importer writes `source=fmp-analyst-estimates-non-pit`. It is useful for a free integration trial, but it is not strict point-in-time history and should not replace FactSet / LSEG I/B/E/S / S&P Capital IQ for production PIT backfills.
 
 ## 10) Testing and Validation
 

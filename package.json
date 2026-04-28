@@ -13,11 +13,12 @@
     "build:data:company": "node packages/data-pipeline/src/build-company-snapshot.ts && node packages/data-pipeline/src/split-company-dataset.ts",
     "build:data": "npm run build:data:index && npm run build:data:company",
     "build:site": "node scripts/build-static-site.mjs",
+    "import:fmp-forward-pe": "node scripts/import-fmp-forward-pe.mjs",
     "refresh:data:local": "bash scripts/refresh-local-data.sh",
     "install:local-refresh": "bash scripts/install-local-refresh-launchd.sh",
     "start:api": "node cloudfunctions/server.ts",
     "start:web": "python3 -m http.server 9030",
-    "test": "node --test packages/core/tests/*.test.ts packages/data-pipeline/tests/*.test.ts cloudfunctions/tests/*.test.ts scripts/*.test.mjs",
+    "test": "node --test packages/core/tests/*.test.ts packages/data-pipeline/tests/*.test.ts cloudfunctions/tests/*.test.ts apps/web/*.test.mjs scripts/*.test.mjs",
     "dev": "node cloudfunctions/server.ts"
   }
 }

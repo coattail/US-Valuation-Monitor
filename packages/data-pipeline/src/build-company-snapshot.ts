@@ -156,11 +156,22 @@ interface YahooRatioPayloadResult {
   metricAnchorDates: Partial<Record<RatioMetricKey, string[]>>;
 }
 
+interface VendorCompanyForwardPePoint {
+  symbol: string;
+  date: string;
+  pe_forward: number | null;
+  eps_forward: number | null;
+  source: string;
+}
+
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const ROOT_DIR = path.resolve(path.dirname(CURRENT_FILE), "../../..");
 const OUTPUT_DIR = path.join(ROOT_DIR, "data", "standardized");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "company-valuation-history.json");
 const YAHOO_DAILY_METRICS_FILE = path.join(OUTPUT_DIR, "company-yahoo-daily-metrics.json");
+const DEFAULT_VENDOR_COMPANY_FORWARD_PE_FILE = path.join(ROOT_DIR, "data", "vendor", "company-forward-pe-history.csv");
+const VENDOR_COMPANY_FORWARD_PE_FILE =
+  process.env.COMPANY_FORWARD_PE_HISTORY_FILE || DEFAULT_VENDOR_COMPANY_FORWARD_PE_FILE;
 const execFileAsync = promisify(execFile);
 let companiesMarketCapFetchChain: Promise<unknown> = Promise.resolve();
 let yahooSplitFetchChain: Promise<unknown> = Promise.resolve();
@@ -1288,6 +1299,152 @@ function mergeMetricSeriesWithPreference(primary: MetricPoint[], secondary: Metr
   }
 
   return [...byDate.values()].sort((a, b) => a.ts - b.ts);
+}
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+    if (char === '"' && inQuotes && nextChar === '"') {
+      current += '"';
+      i += 1;
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (char === "," && !inQuotes) {
+      out.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  out.push(current.trim());
+  return out;
+}
+
+function normalizeCsvHeader(value: string): string {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^\uFEFF/, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function pickCsvValue(row: Record<string, string>, names: string[]): string {
+  for (const name of names) {
+    const normalized = normalizeCsvHeader(name);
+    const value = row[normalized];
+    if (String(value || "").trim()) return value;
+  }
+  return "";
+}
+
+function parseVendorCompanyForwardPeCsv(csvText: string): Map<string, VendorCompanyForwardPePoint[]> {
+  const lines = String(csvText || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  if (lines.length < 2) return new Map();
+
+  const headers = parseCsvLine(lines[0]).map(normalizeCsvHeader);
+  const bySymbol = new Map<string, VendorCompanyForwardPePoint[]>();
+
+  for (const line of lines.slice(1)) {
+    const cells = parseCsvLine(line);
+    const row: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      row[header] = cells[index] || "";
+    });
+
+    const symbol = pickCsvValue(row, ["symbol", "ticker"]).trim().toUpperCase();
+    const date = pickCsvValue(row, ["date", "as_of_date", "asof_date", "as_of"]).slice(0, 10);
+    if (!symbol || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+
+    const directForwardPe = sanitizeSignedRatio(
+      pickCsvValue(row, ["pe_forward", "forward_pe", "forward_pe_ratio", "fwd_pe", "ntm_pe"])
+    );
+    const epsForward = sanitizeSignedRatio(
+      pickCsvValue(row, ["eps_forward", "forward_eps", "eps_fy1", "fy1_eps", "ntm_eps", "consensus_eps"])
+    );
+    const rowClose = sanitizeSignedRatio(pickCsvValue(row, ["close", "price"]));
+    const derivedForwardPe =
+      directForwardPe === null &&
+      Number.isFinite(epsForward) &&
+      Math.abs(Number(epsForward)) > 1e-8 &&
+      Number.isFinite(rowClose) &&
+      Number(rowClose) > 0
+        ? roundTo(Number(rowClose) / Number(epsForward), 4)
+        : null;
+    const peForward = directForwardPe ?? derivedForwardPe;
+    if (peForward === null && epsForward === null) continue;
+
+    const source = pickCsvValue(row, ["source", "provider"]).trim() || "vendor-pit-company-forward-pe";
+    const rows = bySymbol.get(symbol) || [];
+    rows.push({
+      symbol,
+      date,
+      pe_forward: peForward,
+      eps_forward: epsForward,
+      source,
+    });
+    bySymbol.set(symbol, rows);
+  }
+
+  for (const [symbol, rows] of bySymbol.entries()) {
+    bySymbol.set(
+      symbol,
+      rows.sort((a, b) => a.date.localeCompare(b.date))
+    );
+  }
+
+  return bySymbol;
+}
+
+function buildVendorCompanyForwardPeSeries(
+  vendorRows: VendorCompanyForwardPePoint[],
+  closePoints: ClosePoint[]
+): MetricPoint[] {
+  if (!vendorRows.length || !closePoints.length) return [];
+
+  const closeByDate = new Map(closePoints.map((point) => [point.date, point.close]));
+  const byDate = new Map<string, MetricPoint>();
+
+  for (const row of vendorRows) {
+    const ts = toTs(row.date);
+    if (!ts) continue;
+    let value = sanitizeSignedRatio(row.pe_forward);
+    if (value === null && Number.isFinite(row.eps_forward) && Math.abs(Number(row.eps_forward)) > 1e-8) {
+      const close = Number(closeByDate.get(row.date));
+      if (Number.isFinite(close) && close > 0) {
+        value = roundTo(close / Number(row.eps_forward), 4);
+      }
+    }
+    if (value === null) continue;
+    byDate.set(row.date, {
+      date: row.date,
+      ts,
+      value: roundTo(clamp(value, -METRIC_MAX.pe_forward, METRIC_MAX.pe_forward), 4),
+    });
+  }
+
+  return [...byDate.values()].sort((a, b) => a.ts - b.ts);
+}
+
+function filterVendorForwardPeSeriesBeforeExistingStart(
+  vendorSeries: MetricPoint[],
+  existingForwardStartDate: string
+): MetricPoint[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(existingForwardStartDate || ""))) return vendorSeries;
+  return vendorSeries.filter((point) => point.date < existingForwardStartDate);
 }
 
 function metricPointsToCloseSeries(points: MetricPoint[]): ClosePoint[] {
@@ -6333,6 +6490,16 @@ async function loadYahooDailyMetricSnapshotsBySymbol(): Promise<Map<string, Yaho
   return bySymbol;
 }
 
+async function loadVendorCompanyForwardPeHistoryBySymbol(): Promise<Map<string, VendorCompanyForwardPePoint[]>> {
+  try {
+    const raw = await readFile(VENDOR_COMPANY_FORWARD_PE_FILE, "utf8");
+    return parseVendorCompanyForwardPeCsv(raw);
+  } catch (error) {
+    if ((error as { code?: string })?.code === "ENOENT") return new Map();
+    throw error;
+  }
+}
+
 function serializeYahooDailyMetricSnapshots(
   bySymbol: Map<string, YahooDailyMetricSnapshot[]>
 ): { generatedAt: string; symbols: Record<string, YahooDailyMetricSnapshot[]> } {
@@ -6371,6 +6538,7 @@ function stripGrowthOnlyFieldsFromSnapshotPoints(points: SnapshotPoint[]): Array
 async function main(): Promise<void> {
   const previousSeriesBySymbol = await loadPreviousSeriesBySymbol();
   const yahooDailyMetricsBySymbol = await loadYahooDailyMetricSnapshotsBySymbol();
+  const vendorForwardPeHistoryBySymbol = await loadVendorCompanyForwardPeHistoryBySymbol();
   const symbolFilter = parseSymbolFilterFromEnv();
   const symbolFilterSet = symbolFilter.length ? new Set(symbolFilter) : null;
 
@@ -6401,6 +6569,9 @@ async function main(): Promise<void> {
   console.log(`[company] yahoo market latest date: ${yahooMarketLatestDate || "unavailable"}`);
   const companySeriesCapDate = getLastCompletedUsMarketDate();
   console.log(`[company] company series cap date: ${companySeriesCapDate}`);
+  console.log(
+    `[company] vendor forward PE rows: symbols=${vendorForwardPeHistoryBySymbol.size} file=${VENDOR_COMPANY_FORWARD_PE_FILE}`
+  );
 
   console.log(`[company] parsed ${companies.length} companies, building series...`);
 
@@ -6410,6 +6581,7 @@ async function main(): Promise<void> {
   let yahooLatestOverrideTargetCount = 0;
   let yahooLatestOverrideAppliedCount = 0;
   let yahooLatestOverrideMissingCount = 0;
+  let vendorForwardBackfillPointCount = 0;
 
   const built = await mapLimit(companies, CONCURRENCY, async (company, index) => {
     console.log(`[company] ${String(index + 1).padStart(3, "0")}/${companies.length} ${company.symbol}`);
@@ -6504,11 +6676,28 @@ async function main(): Promise<void> {
       stockForwardAnchorCount < MIN_FORWARD_ANCHORS_FOR_HISTORY &&
       ychartsForwardSeries.length >= MIN_FORWARD_ANCHORS_FOR_HISTORY;
     let mergedLongForwardSeries = useYchartsForwardFallback ? ychartsForwardSeries : [];
+    const existingForwardStartDate = minIsoDate(
+      getEarliestMetricAnchorDate(stockPayload, "pe_forward"),
+      ychartsForwardSeries[0]?.date || ""
+    );
+    const vendorForwardSeries = filterVendorForwardPeSeriesBeforeExistingStart(
+      buildVendorCompanyForwardPeSeries(vendorForwardPeHistoryBySymbol.get(company.symbol) || [], closePoints),
+      existingForwardStartDate
+    );
+    if (vendorForwardSeries.length) {
+      vendorForwardBackfillPointCount += vendorForwardSeries.length;
+      mergedLongForwardSeries = mergeMetricSeriesWithPreference(mergedLongForwardSeries, vendorForwardSeries);
+    }
 
     const sourceHints = {
       pe: (ychartsSeries?.pe_ttm || []).length ? "ycharts-pe-ratio" : "companiesmarketcap-pe-ratio",
       pb: (ychartsSeries?.pb || []).length ? "ycharts-price-to-book-value" : "companiesmarketcap-pb-ratio",
-      forward: useYchartsForwardFallback ? "ycharts-forward-pe-ratio-fallback" : "stockanalysis-forward-ratios-primary",
+      forward: [
+        useYchartsForwardFallback ? "ycharts-forward-pe-ratio-fallback" : "stockanalysis-forward-ratios-primary",
+        vendorForwardSeries.length ? "vendor-pit-company-forward-pe-backfill" : "",
+      ]
+        .filter(Boolean)
+        .join("+"),
     };
 
     if (!closePoints.length) {
@@ -6773,6 +6962,7 @@ async function main(): Promise<void> {
       "ycharts-fund-data-pe-ratio",
       "ycharts-fund-data-forward-pe-ratio",
       "ycharts-fund-data-price-to-book-value",
+      vendorForwardPeHistoryBySymbol.size ? "vendor-pit-company-forward-pe-history" : "",
       "companiesmarketcap-pe-ratio",
       "companiesmarketcap-pb-ratio",
       "stockanalysis-quarterly-ratios",
@@ -6792,11 +6982,12 @@ async function main(): Promise<void> {
       "sec-companyfacts-quarterly-eps",
       "sec-companyfacts-quarterly-net-income",
       "anchor-interval-daily-return-projection",
+      `vendor-forward-backfill-points-${vendorForwardBackfillPointCount}`,
       `fallback-anchor-${fallbackAnchorCount}`,
       `reused-previous-series-${reusedPreviousCount}`,
       `skipped-${skippedCount}`,
       `history-start-${HISTORY_START_DATE}`,
-    ].join("+"),
+    ].filter(Boolean).join("+"),
     indices: serializedIndices,
   };
 
@@ -6813,6 +7004,7 @@ async function main(): Promise<void> {
   console.log(`[company] generatedAt: ${dataset.generatedAt}`);
   console.log(`[company] series count: ${indices.length}`);
   console.log(`[company] fallback anchors: ${fallbackAnchorCount}`);
+  console.log(`[company] vendor forward backfill points: ${vendorForwardBackfillPointCount}`);
   console.log(`[company] reused previous: ${reusedPreviousCount}`);
   console.log(`[company] skipped: ${skippedCount}`);
   console.log(
@@ -6822,7 +7014,10 @@ async function main(): Promise<void> {
 }
 
 export {
+  buildVendorCompanyForwardPeSeries as buildVendorCompanyForwardPeSeriesForTest,
   createYahooDailyMetricSnapshots,
+  filterVendorForwardPeSeriesBeforeExistingStart as filterVendorForwardPeSeriesBeforeExistingStartForTest,
+  parseVendorCompanyForwardPeCsv as parseVendorCompanyForwardPeCsvForTest,
   parseYahooValuationMeasuresFromHtml,
 };
 

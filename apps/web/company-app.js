@@ -360,6 +360,26 @@ function subtractYears(dateText, years) {
   return formatDate(d);
 }
 
+function rangeYears(rangeCode) {
+  const years = Number(String(rangeCode || "").replace("y", ""));
+  return Number.isFinite(years) && years > 0 ? years : null;
+}
+
+function buildMetricAvailabilityNote({ metric, range, rows }) {
+  if (metric !== "pe_forward") return "";
+  const years = rangeYears(range);
+  if (!years || !Array.isArray(rows) || rows.length < 2) return "";
+
+  const start = rows[0]?.date || "";
+  const end = rows[rows.length - 1]?.date || "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return "";
+
+  const requestedStart = subtractYears(end, years);
+  if (start <= requestedStart) return "";
+
+  return `PE(Forward) 最早可用 ${start}；${String(range).toUpperCase()} 按实际可用区间展示。`;
+}
+
 function percentileWindow(values, startIndex, endIndex, current) {
   const start = Math.max(0, startIndex);
   const end = Math.min(values.length - 1, endIndex);
@@ -1624,7 +1644,15 @@ function renderDetailChart(indexMeta, rows) {
 
   const start = rows[0]?.date || "--";
   const end = rows[rows.length - 1]?.date || "--";
-  elements.detailRange.textContent = `${indexMeta.displayName} · ${start} ~ ${end}`;
+  const availabilityNote = buildMetricAvailabilityNote({
+    metric: state.detail.metric,
+    range: state.detail.range,
+    rows,
+  });
+  elements.detailRange.textContent = [
+    `${indexMeta.displayName} · ${start} ~ ${end}`,
+    availabilityNote,
+  ].filter(Boolean).join(" · ");
 }
 
 function renderDetailPercentileChart(rows) {
@@ -2774,4 +2802,8 @@ async function bootstrap() {
   }
 }
 
-bootstrap();
+if (!window.__USVM_COMPANY_APP_TEST__) {
+  bootstrap();
+}
+
+export { buildMetricAvailabilityNote as buildMetricAvailabilityNoteForTest };

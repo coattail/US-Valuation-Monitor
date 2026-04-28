@@ -1,0 +1,4 @@
+symbol,date,pe_forward,eps_fy1,source
+AAPL,2020-01-02,19.75,,factset-pit-consensus
+AAPL,2020-01-03,,4.25,factset-pit-consensus
+MSFT,2020-01-02,24.10,,sp-capital-iq-estimates

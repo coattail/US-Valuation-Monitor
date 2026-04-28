@@ -62,6 +62,7 @@ us-valuation-monitor/
 - 每个指数的前瞻估值起始可用日由 `forwardStartDate` 标记，API 会在查询时严格处理。
 - 指数最新快照值有“防跳变阈值”校验，避免单日源口径切换造成异常尖刺。
 - 企业 `PE(FWD)` 最新值优先使用 Yahoo 可信来源；若当日 Yahoo 快照来源不可信，则该日 `pe_forward` 记为 `null`（不做人为补值）。
+- 企业 `PE(FWD)` 支持从授权的 point-in-time 机构数据回补早期历史：默认读取 `data/vendor/company-forward-pe-history.csv`，也可用 `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv` 指定文件。该文件只用于填补现有公司 forward PE 起点之前的历史锚点，不覆盖 StockAnalysis/YCharts/Yahoo 已校准区间。
 - 当企业 `PE(FWD)` 出现“前一交易日不可用、最新交易日恢复可用”的口径切换时，会按**固定系数重基准**衔接历史：
   - 系数 = `Yahoo最新FWD / (上一有效FWD × 最新收盘价/上一有效收盘价)`
   - 用于把历史 `forward PE` 与 Yahoo 最新值在同一口径下衔接，避免源切换导致的突变断层。
@@ -240,6 +241,31 @@ npx wrangler pages deploy .pages --project-name us-valuation-monitor --branch ma
 - 提醒存储：`data/runtime/alerts.json`
 - 提醒状态：`data/runtime/alert-state.json`
 - 标普500前瞻 PE 引导数据：`data/bootstrap/sp500-forward-pe-macromicro.csv`
+- 企业历史 Forward PE 授权数据导入：`data/vendor/company-forward-pe-history.csv`（不提交仓库）；示例文件为 `data/vendor/company-forward-pe-history.example.csv`
+
+企业历史 Forward PE CSV 支持列名：
+
+```csv
+symbol,date,pe_forward,eps_fy1,source
+AAPL,2020-01-02,19.75,,factset-pit-consensus
+AAPL,2020-01-03,,4.25,factset-pit-consensus
+```
+
+- `symbol` / `ticker`：股票代码。
+- `date` / `as_of_date`：point-in-time 观察日，格式 `YYYY-MM-DD`。
+- `pe_forward` / `forward_pe` / `forward_pe_ratio`：若供应商直接提供 forward PE，优先使用。
+- `eps_fy1` / `forward_eps` / `ntm_eps`：若只提供 forward EPS，管线会用同日收盘价计算 `PE(FWD) = close / forward EPS`。
+- `source` / `provider`：供应商标签，建议写 `factset-pit-consensus`、`sp-capital-iq-estimates`、`lseg-ibes` 等。
+
+FMP 试验性导入：
+
+```bash
+FMP_API_KEY=你的key npm run import:fmp-forward-pe -- --symbols AAPL,MSFT --dry-run
+FMP_API_KEY=你的key npm run import:fmp-forward-pe -- --symbols AAPL,MSFT
+npm run build:data:company
+```
+
+FMP 导入脚本会写入 `source=fmp-analyst-estimates-non-pit`。它适合免费试跑接入链路，但不是严格 point-in-time 历史快照，不能替代 FactSet / LSEG I/B/E/S / S&P Capital IQ 等正式 PIT 数据。
 
 ## 10）测试与验证
 
