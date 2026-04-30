@@ -1,5 +1,5 @@
 import path from "node:path";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -169,6 +169,8 @@ const ROOT_DIR = path.resolve(path.dirname(CURRENT_FILE), "../../..");
 const OUTPUT_DIR = path.join(ROOT_DIR, "data", "standardized");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "company-valuation-history.json");
 const YAHOO_DAILY_METRICS_FILE = path.join(OUTPUT_DIR, "company-yahoo-daily-metrics.json");
+const COMPANY_SERIES_DIR = path.join(OUTPUT_DIR, "company-series");
+const PREVIOUS_COMPANY_SERIES_DIR = process.env.PREVIOUS_COMPANY_SERIES_DIR || COMPANY_SERIES_DIR;
 const DEFAULT_VENDOR_COMPANY_FORWARD_PE_FILE = path.join(ROOT_DIR, "data", "vendor", "company-forward-pe-history.csv");
 const VENDOR_COMPANY_FORWARD_PE_FILE =
   process.env.COMPANY_FORWARD_PE_HISTORY_FILE || DEFAULT_VENDOR_COMPANY_FORWARD_PE_FILE;
@@ -581,7 +583,17 @@ function toIsoDateFromYahooAsOfText(rawDate: unknown): string | null {
     return null;
   }
 
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const toIso = (nextMonth: number, nextDay: number): string =>
+    `${String(year).padStart(4, "0")}-${String(nextMonth).padStart(2, "0")}-${String(nextDay).padStart(2, "0")}`;
+  const maxAcceptedDate = addDays(new Date().toISOString().slice(0, 10), MAX_REASONABLE_DATA_DATE_OFFSET_DAYS);
+  const monthFirstDate = toIso(month, day);
+  if (monthFirstDate <= maxAcceptedDate) return monthFirstDate;
+  if (day <= 12) {
+    const dayFirstDate = toIso(day, month);
+    if (dayFirstDate <= maxAcceptedDate) return dayFirstDate;
+  }
+
+  return null;
 }
 
 function quarterKeyFromDate(dateText: string): string {
@@ -2832,6 +2844,17 @@ function buildLatestRatioOverrideFromYahooDailySnapshot(
   };
 }
 
+function selectLatestYahooRatioOverride(
+  snapshots: YahooDailyMetricSnapshot[],
+  effectiveSnapshots: YahooDailyMetricSnapshot[],
+  targetDate: string
+): RatioPayload | null {
+  return (
+    buildLatestRatioOverrideFromYahooDailySnapshot(snapshots, targetDate) ||
+    buildLatestRatioOverrideFromYahooDailySnapshot(effectiveSnapshots, targetDate)
+  );
+}
+
 function buildEffectiveYahooDailyMetricSnapshots(
   closePoints: ClosePoint[],
   snapshots: YahooDailyMetricSnapshot[]
@@ -3024,10 +3047,7 @@ function mergeYahooDrivenRatioPayload(
     : null;
 
   const cutoverByMetric: Record<RatioMetricKey, string> = {
-    pe_ttm: minIsoDate(
-      getEarliestMetricAnchorDate(sanitizedTrailingPePayload, "pe_ttm"),
-      getEarliestMetricAnchorDate(yahooSnapshotPayload, "pe_ttm")
-    ),
+    pe_ttm: getEarliestMetricAnchorDate(yahooSnapshotPayload, "pe_ttm"),
     pe_forward: minIsoDate(
       getEarliestMetricAnchorDate(sanitizedForwardPePayload, "pe_forward"),
       getEarliestMetricAnchorDate(yahooSnapshotPayload, "pe_forward")
@@ -3066,9 +3086,7 @@ function mergeYahooDrivenRatioPayload(
     }
   }
 
-  const yahooPayloads = [sanitizedTrailingPePayload, sanitizedForwardPePayload, yahooSnapshotPayload].filter(
-    Boolean
-  ) as RatioPayload[];
+  const yahooPayloads = [sanitizedForwardPePayload, yahooSnapshotPayload].filter(Boolean) as RatioPayload[];
 
   for (const payload of yahooPayloads) {
     for (const anchor of payload.anchors || []) {
@@ -3106,7 +3124,6 @@ function mergeYahooDrivenRatioPayload(
     latest,
     source: [
       basePayload?.source || "",
-      sanitizedTrailingPePayload?.anchors.length ? "yahoo-trailing-pe-anchor-carry" : "",
       sanitizedForwardPePayload?.anchors.length ? "yahoo-forward-pe-anchor-carry" : "",
       sanitizedSnapshotAnchors.length ? "yahoo-daily-anchor-carry" : "",
     ]
@@ -3214,6 +3231,8 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
   const item = raw as Record<string, unknown>;
   const date = String(item.date || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const maxAcceptedDate = addDays(new Date().toISOString().slice(0, 10), MAX_REASONABLE_DATA_DATE_OFFSET_DAYS);
+  if (date > maxAcceptedDate) return null;
 
   const source = String(item.source || "").trim();
   const peTtm = sanitizeYahooMetricValue("pe_ttm", item.pe_ttm, source);
@@ -3496,6 +3515,46 @@ function preserveRecordedYahooDailyPoints(
 
   if (!changed) return generatedPoints;
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function preserveExistingPeTtmHistory(
+  generatedPoints: SnapshotPoint[],
+  previousPoints: SnapshotPoint[],
+  preserveBeforeDate = ""
+): SnapshotPoint[] {
+  if (!Array.isArray(generatedPoints) || !generatedPoints.length) return generatedPoints;
+  if (!Array.isArray(previousPoints) || !previousPoints.length) return generatedPoints;
+  const normalizedPreserveBeforeDate = /^\d{4}-\d{2}-\d{2}$/.test(preserveBeforeDate) ? preserveBeforeDate : "";
+
+  const previousByDate = new Map<string, SnapshotPoint>();
+  for (const point of previousPoints) {
+    const date = String(point?.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    previousByDate.set(date, point);
+  }
+  if (!previousByDate.size) return generatedPoints;
+
+  let changed = false;
+  const nextPoints = generatedPoints.map((point) => {
+    if (normalizedPreserveBeforeDate && point.date >= normalizedPreserveBeforeDate) return point;
+    const previousPoint = previousByDate.get(point.date);
+    if (!previousPoint) return point;
+
+    const previousPeTtm = sanitizeSignedRatio(previousPoint.pe_ttm);
+    if (previousPeTtm === null || previousPeTtm === sanitizeSignedRatio(point.pe_ttm)) {
+      return point;
+    }
+
+    changed = true;
+    const previousPeg = sanitizeSignedRatio(previousPoint.peg);
+    return {
+      ...point,
+      pe_ttm: previousPeTtm,
+      peg: previousPeg ?? point.peg,
+    };
+  });
+
+  return changed ? nextPoints : generatedPoints;
 }
 
 function mergeRatioPayloadList(payloads: RatioPayload[]): RatioPayload | null {
@@ -6424,6 +6483,35 @@ async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>
   const bySymbol = new Map<string, PreviousSeries>();
 
   try {
+    const names = await readdir(PREVIOUS_COMPANY_SERIES_DIR);
+    for (const name of names) {
+      if (!/^company_[a-z0-9_]+\.json$/i.test(name)) continue;
+      const raw = await readFile(path.join(PREVIOUS_COMPANY_SERIES_DIR, name), "utf8");
+      const item = JSON.parse(raw) as {
+        symbol?: string;
+        forwardStartDate?: string;
+        peg?: number | null;
+        points?: SnapshotPoint[];
+        quarterlyEps?: QuarterlyEpsPoint[];
+        quarterlyNetIncome?: QuarterlyNetIncomePoint[];
+      };
+      const symbol = String(item?.symbol || "").trim().toUpperCase();
+      const points = Array.isArray(item?.points) ? item.points : [];
+      if (!symbol || points.length < 24) continue;
+
+      bySymbol.set(symbol, {
+        forwardStartDate: String(item?.forwardStartDate || points[0]?.date || ""),
+        peg: sanitizeSignedRatio(item?.peg),
+        points,
+        quarterlyEps: normalizeQuarterlyEpsRows(item?.quarterlyEps),
+        quarterlyNetIncome: normalizeQuarterlyNetIncomeRows(item?.quarterlyNetIncome),
+      });
+    }
+  } catch {
+    // no previous split dataset yet
+  }
+
+  try {
     const raw = await readFile(OUTPUT_FILE, "utf8");
     const parsed = JSON.parse(raw) as {
       indices?: Array<{
@@ -6440,6 +6528,7 @@ async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>
       const symbol = String(item?.symbol || "").trim().toUpperCase();
       const points = Array.isArray(item?.points) ? item.points : [];
       if (!symbol || points.length < 24) continue;
+      if (bySymbol.has(symbol)) continue;
 
       bySymbol.set(symbol, {
         forwardStartDate: String(item?.forwardStartDate || points[0]?.date || ""),
@@ -6756,7 +6845,7 @@ async function main(): Promise<void> {
     const effectiveYahooSnapshots = buildEffectiveYahooDailyMetricSnapshots(closePoints, yahooDailySnapshots);
     const snapshotLatestRatioOverride =
       shouldUseYahooLatestOverride && lastCloseDate
-        ? buildLatestRatioOverrideFromYahooDailySnapshot(effectiveYahooSnapshots, lastCloseDate)
+        ? selectLatestYahooRatioOverride(yahooDailySnapshots, effectiveYahooSnapshots, lastCloseDate)
         : null;
     const preferredLatestRatioOverride = shouldUseYahooLatestOverride ? snapshotLatestRatioOverride : null;
     if (shouldUseYahooLatestOverride) {
@@ -6851,8 +6940,13 @@ async function main(): Promise<void> {
       pointsWithPreservedYahooDates,
       effectiveYahooSnapshots
     );
-    const pointsWithYahooDailyMetricsCapped = capSnapshotSeriesByDate(
+    const pointsWithPreservedPeTtmHistory = preserveExistingPeTtmHistory(
       pointsWithYahooDailyMetricsRaw,
+      previousSeries?.points || [],
+      lastCloseDate
+    );
+    const pointsWithYahooDailyMetricsCapped = capSnapshotSeriesByDate(
+      pointsWithPreservedPeTtmHistory,
       companySeriesCapDate
     );
     const pointsWithYahooDailyMetrics = carryForwardPeByCloseAcrossMissingPoints(
@@ -7015,10 +7109,14 @@ async function main(): Promise<void> {
 
 export {
   buildVendorCompanyForwardPeSeries as buildVendorCompanyForwardPeSeriesForTest,
+  buildEffectiveYahooDailyMetricSnapshots as buildEffectiveYahooDailyMetricSnapshotsForTest,
   createYahooDailyMetricSnapshots,
   filterVendorForwardPeSeriesBeforeExistingStart as filterVendorForwardPeSeriesBeforeExistingStartForTest,
+  mergeYahooDrivenRatioPayload as mergeYahooDrivenRatioPayloadForTest,
+  preserveExistingPeTtmHistory as preserveExistingPeTtmHistoryForTest,
   parseVendorCompanyForwardPeCsv as parseVendorCompanyForwardPeCsvForTest,
   parseYahooValuationMeasuresFromHtml,
+  selectLatestYahooRatioOverride as selectLatestYahooRatioOverrideForTest,
 };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === CURRENT_FILE) {
