@@ -7,6 +7,7 @@ import {
   mergeYahooDrivenRatioPayloadForTest,
   parseYahooValuationMeasuresFromHtml,
   preserveExistingPeTtmHistoryForTest,
+  carryForwardLatestYahooPeTtmByCloseForTest,
   selectLatestYahooRatioOverrideForTest,
 } from "../src/build-company-snapshot.ts";
 
@@ -235,4 +236,36 @@ test("latest Yahoo TTM PE override uses the unfiltered daily snapshot", () => {
   );
 
   assert.equal(override?.latest.pe_ttm, 26.491991);
+});
+
+test("latest Yahoo TTM PE is carried by close when the next Yahoo snapshot lacks TTM", () => {
+  const points = [
+    { date: "2026-04-28", close: 100, pe_ttm: 37, pe_forward: 25, pb: 10, peg: 2.3, us10y_yield: 0 },
+    { date: "2026-04-29", close: 101, pe_ttm: 37.37, pe_forward: 25.2, pb: 10.1, peg: 2.3, us10y_yield: 0 },
+    { date: "2026-04-30", close: 102, pe_ttm: 40.83, pe_forward: 30.4, pb: 8.78, peg: 2.3, us10y_yield: 0 },
+  ];
+
+  const carried = carryForwardLatestYahooPeTtmByCloseForTest(points, [
+    {
+      date: "2026-04-29",
+      pe_ttm: 26.491991,
+      pe_forward: null,
+      pb: null,
+      peg: 2.376,
+      source: "yahoo-key-statistics-valuation-measures+yahoo-trailing-pe-timeseries",
+      capturedAt: "2026-05-01T01:00:00.000Z",
+    },
+    {
+      date: "2026-04-30",
+      pe_ttm: null,
+      pe_forward: 30.4,
+      pb: 8.78,
+      peg: null,
+      source: "yahoo-key-statistics-valuation-measures+yahoo-trailing-pe-timeseries",
+      capturedAt: "2026-05-01T01:00:00.000Z",
+    },
+  ]);
+
+  assert.equal(carried[1].pe_ttm, 26.491991);
+  assert.equal(carried[2].pe_ttm, 26.754288);
 });

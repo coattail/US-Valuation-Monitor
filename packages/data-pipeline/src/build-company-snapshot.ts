@@ -3473,6 +3473,79 @@ function applyYahooDailyMetricSnapshotsToPoints(
   return changed ? nextPoints : valuationPoints;
 }
 
+function carryForwardLatestYahooPeTtmByClose(
+  valuationPoints: SnapshotPoint[],
+  snapshots: YahooDailyMetricSnapshot[]
+): SnapshotPoint[] {
+  if (!Array.isArray(valuationPoints) || !valuationPoints.length || !Array.isArray(snapshots) || !snapshots.length) {
+    return valuationPoints;
+  }
+
+  const yahooTtmByDate = new Map<string, number>();
+  for (const item of snapshots) {
+    const normalized = normalizeYahooDailyMetricSnapshot(item);
+    if (!normalized) continue;
+    const peTtm = sanitizeSignedRatio(normalized.pe_ttm);
+    if (peTtm === null) continue;
+    yahooTtmByDate.set(normalized.date, peTtm);
+  }
+  if (!yahooTtmByDate.size) return valuationPoints;
+  const latestYahooTtmDate = [...yahooTtmByDate.keys()].sort((a, b) => a.localeCompare(b)).at(-1) || "";
+  if (!latestYahooTtmDate) return valuationPoints;
+
+  let changed = false;
+  let previousPeTtm: number | null = null;
+  let previousClose: number | null = null;
+
+  const nextPoints = valuationPoints.map((point) => {
+    if (point.date < latestYahooTtmDate) return point;
+
+    const currentClose = sanitizeSignedRatio(point.close);
+    const yahooPeTtm = yahooTtmByDate.get(point.date);
+
+    if (yahooPeTtm !== undefined) {
+      if (currentClose && currentClose > 0) {
+        previousPeTtm = yahooPeTtm;
+        previousClose = currentClose;
+      }
+      if (yahooPeTtm !== sanitizeSignedRatio(point.pe_ttm)) {
+        changed = true;
+        return {
+          ...point,
+          pe_ttm: roundTo(yahooPeTtm, 6),
+          peg: resolvePegAfterPeRefresh(point, yahooPeTtm, point.pe_forward),
+        };
+      }
+      return point;
+    }
+
+    if (
+      previousPeTtm === null ||
+      previousClose === null ||
+      !currentClose ||
+      previousClose <= 0 ||
+      currentClose <= 0
+    ) {
+      return point;
+    }
+
+    const nextPeTtm = sanitizeSignedRatio(previousPeTtm * (currentClose / previousClose));
+    if (nextPeTtm === null) return point;
+    previousPeTtm = nextPeTtm;
+    previousClose = currentClose;
+
+    if (nextPeTtm === sanitizeSignedRatio(point.pe_ttm)) return point;
+    changed = true;
+    return {
+      ...point,
+      pe_ttm: roundTo(nextPeTtm, 6),
+      peg: resolvePegAfterPeRefresh(point, nextPeTtm, point.pe_forward),
+    };
+  });
+
+  return changed ? nextPoints : valuationPoints;
+}
+
 function preserveRecordedYahooDailyPoints(
   generatedPoints: SnapshotPoint[],
   previousPoints: SnapshotPoint[],
@@ -6940,8 +7013,12 @@ async function main(): Promise<void> {
       pointsWithPreservedYahooDates,
       effectiveYahooSnapshots
     );
-    const pointsWithPreservedPeTtmHistory = preserveExistingPeTtmHistory(
+    const pointsWithCarriedYahooPeTtm = carryForwardLatestYahooPeTtmByClose(
       pointsWithYahooDailyMetricsRaw,
+      yahooDailySnapshots
+    );
+    const pointsWithPreservedPeTtmHistory = preserveExistingPeTtmHistory(
+      pointsWithCarriedYahooPeTtm,
       previousSeries?.points || [],
       lastCloseDate
     );
@@ -7112,6 +7189,7 @@ export {
   buildEffectiveYahooDailyMetricSnapshots as buildEffectiveYahooDailyMetricSnapshotsForTest,
   createYahooDailyMetricSnapshots,
   filterVendorForwardPeSeriesBeforeExistingStart as filterVendorForwardPeSeriesBeforeExistingStartForTest,
+  carryForwardLatestYahooPeTtmByClose as carryForwardLatestYahooPeTtmByCloseForTest,
   mergeYahooDrivenRatioPayload as mergeYahooDrivenRatioPayloadForTest,
   preserveExistingPeTtmHistory as preserveExistingPeTtmHistoryForTest,
   parseVendorCompanyForwardPeCsv as parseVendorCompanyForwardPeCsvForTest,
