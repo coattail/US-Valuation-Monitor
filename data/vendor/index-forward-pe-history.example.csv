@@ -1,0 +1,3 @@
+index_id,date,pe_forward,source
+nasdaq100,2016-03-31,18.20,factset-index-consensus
+nasdaq100,2019-12-31,23.80,lseg-ibes-index-aggregate

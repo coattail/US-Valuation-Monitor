@@ -22,6 +22,7 @@ import {
   repairHistoryFallbackPointsForTest,
   rebaseHistoryFallbackWithSnapshotsForTest,
   pruneInvalidExplicitIndexSnapshotsForTest,
+  pruneImplausibleForwardSeriesForTest,
   upsertIndexYahooDailyMetricSnapshotForTest,
 } from "../src/generate.ts";
 
@@ -116,7 +117,8 @@ test("parseWsjPeSnapshotFromTextForTest ignores market ticker strips and parses 
 test("getIndexLiveSourceCutoverDateForTest rebuilds russell2000 from 2022 while others keep the default cutover", () => {
   assert.equal(getIndexLiveSourceCutoverDateForTest("russell2000"), "2001-01-03");
   assert.equal(getIndexLiveSourceCutoverDateForTest("dow30"), "1998-01-02");
-  assert.equal(getIndexLiveSourceCutoverDateForTest("sp500"), "2026-03-27");
+  assert.equal(getIndexLiveSourceCutoverDateForTest("nasdaq100"), "2000-01-31");
+  assert.equal(getIndexLiveSourceCutoverDateForTest("sp500"), "2008-01-02");
 });
 
 test("applyPostCutoverMetricSources prefers explicit snapshots and real-series interpolation after cutover", () => {
@@ -336,6 +338,25 @@ test("pickAnchorForwardPeForTest prefers current WSJ forward PE over implausible
   });
 
   assert.equal(picked, 20.68);
+});
+
+test("pruneImplausibleForwardSeriesForTest drops Nasdaq 100 forward anchors that sit far above trailing PE", () => {
+  const trailingSeries = [
+    { date: "2016-03-31", value: 20.25, ts: Date.parse("2016-03-31T00:00:00Z") },
+    { date: "2016-06-30", value: 19.36, ts: Date.parse("2016-06-30T00:00:00Z") },
+    { date: "2019-12-31", value: 22.66, ts: Date.parse("2019-12-31T00:00:00Z") },
+    { date: "2025-12-31", value: 32.32, ts: Date.parse("2025-12-31T00:00:00Z") },
+  ];
+  const forwardSeries = [
+    { date: "2016-03-31", value: 32.19, ts: Date.parse("2016-03-31T00:00:00Z") },
+    { date: "2016-06-30", value: 30.84, ts: Date.parse("2016-06-30T00:00:00Z") },
+    { date: "2019-12-31", value: 35.74, ts: Date.parse("2019-12-31T00:00:00Z") },
+    { date: "2025-12-31", value: 27.44, ts: Date.parse("2025-12-31T00:00:00Z") },
+  ];
+
+  const pruned = pruneImplausibleForwardSeriesForTest("nasdaq100", forwardSeries, trailingSeries);
+
+  assert.deepEqual(pruned, [{ date: "2025-12-31", value: 27.44, ts: Date.parse("2025-12-31T00:00:00Z") }]);
 });
 
 test("extendSeriesWithRebasedPreviousTailForTest keeps newer stored dates but rebases them to the new live anchor", () => {

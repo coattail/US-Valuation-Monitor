@@ -240,7 +240,17 @@ To trigger manually:
 - Runtime alerts: `data/runtime/alerts.json`
 - Alert states: `data/runtime/alert-state.json`
 - S&P 500 forward PE bootstrap: `data/bootstrap/sp500-forward-pe-macromicro.csv`
+- Index historical Forward PE import: `data/vendor/index-forward-pe-history.csv`; sample file: `data/vendor/index-forward-pe-history.example.csv`. Use this for public references or audited index-level PIT/historical consensus sources such as FactSet index aggregates, LSEG I/B/E/S, Bloomberg BEst, or S&P Capital IQ.
 - Licensed company historical Forward PE import: `data/vendor/company-forward-pe-history.csv` (not committed); sample file: `data/vendor/company-forward-pe-history.example.csv`
+
+The index historical Forward PE CSV accepts:
+
+```csv
+index_id,date,pe_forward,source
+nasdaq100,2019-12-31,23.80,factset-index-consensus
+```
+
+Set `INDEX_FORWARD_PE_HISTORY_FILE=/path/to/file.csv` to override the default path.
 
 The company historical Forward PE CSV accepts:
 

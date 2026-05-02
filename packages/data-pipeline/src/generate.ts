@@ -18,6 +18,13 @@ const SP500_FORWARD_PE_MM_CSV = path.join(
   "bootstrap",
   "sp500-forward-pe-macromicro.csv"
 );
+const DEFAULT_VENDOR_INDEX_FORWARD_PE_FILE = path.join(
+  DATA_PIPELINE_ROOT,
+  "data",
+  "vendor",
+  "index-forward-pe-history.csv"
+);
+const VENDOR_INDEX_FORWARD_PE_FILE = process.env.INDEX_FORWARD_PE_HISTORY_FILE || DEFAULT_VENDOR_INDEX_FORWARD_PE_FILE;
 
 const INDEX_START_DATE: Record<string, string> = {
   sp500: "1995-01-03",
@@ -226,7 +233,7 @@ const MACROMICRO_SERIES_ROUTES: Partial<
 };
 
 const RECENT_OVERRIDE_INDEX_IDS = new Set<string>();
-const FORWARD_LOCKED_INDEX_IDS = new Set(["nasdaq100"]);
+const FORWARD_LOCKED_INDEX_IDS = new Set<string>();
 const SIBLIS_FULL_HISTORY_INDEX_IDS = new Set(["nasdaq100", "russell2000"]);
 const TRENDONIFY_FORWARD_DISABLED_INDEX_IDS = new Set(["dow30"]);
 const TRENDONIFY_TRAILING_PRIMARY_INDEX_IDS = new Set(["nasdaq100"]);
@@ -249,6 +256,20 @@ const CURATED_WSJ_TTM_REFERENCES: Partial<Record<string, Array<{ date: string; v
     { date: "2026-04-17", value: 25.38 },
   ],
   nasdaq100: [{ date: "2026-02-20", value: 31.62 }],
+};
+
+const CURATED_PUBLIC_FORWARD_PE_REFERENCES: Partial<Record<string, Array<{ date: string; value: number; source: string }>>> = {
+  sp500: [
+    { date: "2020-01-17", value: 18.7, source: "factset-earnings-insight" },
+    { date: "2020-03-12", value: 14.0, source: "factset-earnings-insight" },
+    { date: "2020-05-07", value: 20.4, source: "factset-earnings-insight" },
+    { date: "2022-01-03", value: 21.4, source: "factset-earnings-insight" },
+    { date: "2022-02-23", value: 18.5, source: "factset-earnings-insight" },
+    { date: "2022-05-05", value: 17.6, source: "factset-earnings-insight" },
+    { date: "2022-05-12", value: 16.6, source: "factset-earnings-insight" },
+    { date: "2026-04-10", value: 21.1, source: "wsj-public-pe-yield" },
+    { date: "2026-04-17", value: 21.59, source: "wsj-public-pe-yield" },
+  ],
 };
 
 const WSJ_PEYIELD_URLS = [
@@ -517,7 +538,9 @@ const INDEX_YAHOO_HISTORY_START_DATE = "1990-01-01";
 const INDEX_LIVE_SOURCE_CUTOVER_DATE = "2026-03-27";
 const INDEX_LIVE_SOURCE_CUTOVER_DATE_OVERRIDES: Partial<Record<string, string>> = {
   dow30: "1998-01-02",
+  nasdaq100: "2000-01-31",
   russell2000: "2001-01-03",
+  sp500: "2008-01-02",
 };
 const YCHARTS_CALC_PB = "price_to_book_value";
 const YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE = 0.01;
@@ -1994,6 +2017,42 @@ async function loadLocalMetricSeriesFromCsv(
   } catch {
     return undefined;
   }
+}
+
+async function loadVendorIndexForwardPeHistory(): Promise<Map<string, MonthlyMetricPoint[]>> {
+  const result = new Map<string, MonthlyMetricPoint[]>();
+  try {
+    const text = await readFile(VENDOR_INDEX_FORWARD_PE_FILE, "utf8");
+    const rows = parseCsv(text);
+    const header = rows[0]?.map((cell) => String(cell || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_"));
+    if (!header?.length) return result;
+    const indexOf = (names: string[]): number => names.map((name) => header.indexOf(name)).find((idx) => idx >= 0) ?? -1;
+    const indexIdIndex = indexOf(["index_id", "index", "id", "symbol"]);
+    const dateIndex = indexOf(["date", "as_of_date"]);
+    const forwardIndex = indexOf(["pe_forward", "forward_pe", "forward_pe_ratio", "fwd_pe"]);
+    if (indexIdIndex < 0 || dateIndex < 0 || forwardIndex < 0) return result;
+
+    for (const row of rows.slice(1)) {
+      const indexId = String(row[indexIdIndex] || "").trim().toLowerCase();
+      const date = String(row[dateIndex] || "").trim();
+      const value = parseNumericText(String(row[forwardIndex] || ""));
+      if (!INDEX_MAP[indexId]) continue;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      if (!isReasonableForwardPe(value)) continue;
+      const points = result.get(indexId) || [];
+      points.push({ date, value: Number(value), ts: parseDate(date).getTime() });
+      result.set(indexId, points);
+    }
+
+    for (const [indexId, points] of result.entries()) {
+      const byDate = new Map<string, MonthlyMetricPoint>();
+      for (const point of points) byDate.set(point.date, point);
+      result.set(indexId, [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)));
+    }
+  } catch {
+    return result;
+  }
+  return result;
 }
 
 async function curlGet(url: string, timeoutMs = 25000, extraHeaders: Record<string, string> = {}): Promise<string> {
@@ -4190,6 +4249,45 @@ function isPlausibleForwardPair(trailing: number | undefined, forward: number | 
   return ratio >= 0.45 && ratio <= 0.95 && trailing - forward >= 0.8;
 }
 
+function pruneImplausibleForwardSeries(
+  indexId: string,
+  forwardSeries: MonthlyMetricPoint[] | undefined,
+  trailingSeries: MonthlyMetricPoint[] | undefined,
+  options: { maxForwardToTrailingRatio?: number; maxAnchorLagDays?: number } = {}
+): MonthlyMetricPoint[] | undefined {
+  if (!forwardSeries?.length || !trailingSeries?.length) return forwardSeries;
+  if (indexId !== "nasdaq100" && indexId !== "sp500") return forwardSeries;
+
+  const maxForwardToTrailingRatio = options.maxForwardToTrailingRatio ?? 1.05;
+  const maxAnchorLagDays = options.maxAnchorLagDays ?? 7;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const trailing = sanitizeMonthlySeries(trailingSeries, 2.4, 240);
+  if (!trailing.length) return forwardSeries;
+
+  const pruned = forwardSeries.filter((point) => {
+    if (!isReasonableForwardPe(point.value)) return false;
+    const nearestTrailing = trailing.reduce<MonthlyMetricPoint | undefined>((best, candidate) => {
+      if (!best) return candidate;
+      return Math.abs(candidate.ts - point.ts) < Math.abs(best.ts - point.ts) ? candidate : best;
+    }, undefined);
+    if (!nearestTrailing) return true;
+    const lagDays = Math.abs(nearestTrailing.ts - point.ts) / dayMs;
+    if (lagDays > maxAnchorLagDays) return true;
+    if (!isReasonablePe(nearestTrailing.value)) return true;
+    return Number(point.value) / Number(nearestTrailing.value) <= maxForwardToTrailingRatio;
+  });
+
+  return pruned.length ? pruned : undefined;
+}
+
+export function pruneImplausibleForwardSeriesForTest(
+  indexId: string,
+  forwardSeries: MonthlyMetricPoint[] | undefined,
+  trailingSeries: MonthlyMetricPoint[] | undefined
+): MonthlyMetricPoint[] | undefined {
+  return pruneImplausibleForwardSeries(indexId, forwardSeries, trailingSeries);
+}
+
 function pickAnchorForwardPe(
   _indexId: string,
   anchorPe: number | undefined,
@@ -4398,6 +4496,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   const historyForwardStartMap = buildForwardStartMap(options.previousDataset, effectiveEnd);
   const indexYahooDailyMetricsBySymbol = await loadIndexYahooDailyMetricSnapshotsBySymbol();
   const sp500ForwardPinnedSeries = await loadLocalMetricSeriesFromCsv(SP500_FORWARD_PE_MM_CSV, 2, 120);
+  const vendorIndexForwardHistory = await loadVendorIndexForwardPeHistory();
   let wsjPeSnapshot = new Map<string, LatestPeSnapshot>();
 
   try {
@@ -4429,6 +4528,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let wsjCuratedTtmCount = 0;
   let stockAnalysisSnapshotCount = 0;
   let stockAnalysisSnapshotSkippedCount = 0;
+  let curatedForwardCount = 0;
   let siblisTrailingCount = 0;
   let siblisForwardCount = 0;
   let siblisSnapshotSkippedCount = 0;
@@ -4442,6 +4542,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let finvizForwardCount = 0;
   let historyForwardFallbackCount = 0;
   let localPinnedForwardCount = 0;
+  let vendorIndexForwardCount = 0;
   let yahooHistoricalAnchorCount = 0;
   let yahooLatestSnapshotCount = 0;
   let sp500WsjCarryCount = 0;
@@ -4513,7 +4614,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       let officialPbApplied = false;
       const sp500WsjCarryAnchors: Array<{ date: string; value: number }> = [];
       const macroMicroIds = MACROMICRO_CHART_IDS[meta.id];
-      const pinnedForwardSeries = meta.id === "sp500" ? sp500ForwardPinnedSeries : undefined;
+      const vendorForwardSeries = meta.id === "sp500" ? undefined : vendorIndexForwardHistory.get(meta.id);
+      const hasVendorForwardSeries = Boolean(vendorForwardSeries?.length);
+      const hasCuratedPublicForward = Boolean(CURATED_PUBLIC_FORWARD_PE_REFERENCES[meta.id]?.length);
+      const pinnedForwardSeries =
+        meta.id === "sp500" && !hasVendorForwardSeries && !hasCuratedPublicForward ? sp500ForwardPinnedSeries : undefined;
       const hasPinnedForwardSeries = Boolean(pinnedForwardSeries?.length);
 
       if (meta.id === "sp500" && effectiveEnd >= SP500_WSJ_TTM_CARRY_START_DATE) {
@@ -4721,6 +4826,21 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           forwardSeries = forwardSeries?.length ? mergeMonthlySeries(forwardSeries, bootstrapForward) : bootstrapForward;
           ndxForwardBootstrapCount += 1;
         }
+      }
+
+      forwardSeries = pruneImplausibleForwardSeries(meta.id, forwardSeries, trailingSeries);
+      const curatedForwardRefs = CURATED_PUBLIC_FORWARD_PE_REFERENCES[meta.id] || [];
+      if (curatedForwardRefs.length) {
+        for (const ref of curatedForwardRefs) {
+          if (ref.date <= effectiveEnd && isReasonableForwardPe(ref.value)) {
+            forwardSeries = upsertSeriesValueAtDate(forwardSeries, ref.date, ref.value);
+          }
+        }
+        curatedForwardCount += 1;
+      }
+      if (hasVendorForwardSeries && vendorForwardSeries) {
+        forwardSeries = forwardSeries?.length ? mergeMonthlySeries(vendorForwardSeries, forwardSeries) : vendorForwardSeries;
+        vendorIndexForwardCount += 1;
       }
 
       if (!SIBLIS_FULL_HISTORY_INDEX_IDS.has(meta.id) && !prefersWsjLatestSnapshot) {
@@ -5424,6 +5544,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (stockAnalysisSnapshotSkippedCount > 0) {
     source += `+stockanalysis-snap-skipped-${stockAnalysisSnapshotSkippedCount}`;
   }
+  if (curatedForwardCount > 0) {
+    source += `+curated-public-fpe-${curatedForwardCount}`;
+  }
   if (siblisTrailingCount > 0) {
     source += `+siblis-pe-${siblisTrailingCount}`;
   }
@@ -5438,6 +5561,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   }
   if (localPinnedForwardCount > 0) {
     source += `+local-mm-fpe-${localPinnedForwardCount}`;
+  }
+  if (vendorIndexForwardCount > 0) {
+    source += `+vendor-index-fpe-${vendorIndexForwardCount}`;
   }
   if (ndxForwardBootstrapCount > 0) {
     source += `+ndx-fpe-bootstrap-${ndxForwardBootstrapCount}`;

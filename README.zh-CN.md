@@ -241,7 +241,17 @@ npx wrangler pages deploy .pages --project-name us-valuation-monitor --branch ma
 - 提醒存储：`data/runtime/alerts.json`
 - 提醒状态：`data/runtime/alert-state.json`
 - 标普500前瞻 PE 引导数据：`data/bootstrap/sp500-forward-pe-macromicro.csv`
+- 指数历史 Forward PE 导入：`data/vendor/index-forward-pe-history.csv`；示例文件为 `data/vendor/index-forward-pe-history.example.csv`。可用于公开参考点，或 FactSet 指数聚合、LSEG I/B/E/S、Bloomberg BEst、S&P Capital IQ 等可审计的指数级 PIT/历史一致预期数据。
 - 企业历史 Forward PE 授权数据导入：`data/vendor/company-forward-pe-history.csv`（不提交仓库）；示例文件为 `data/vendor/company-forward-pe-history.example.csv`
+
+指数历史 Forward PE CSV 支持列名：
+
+```csv
+index_id,date,pe_forward,source
+nasdaq100,2019-12-31,23.80,factset-index-consensus
+```
+
+可用 `INDEX_FORWARD_PE_HISTORY_FILE=/path/to/file.csv` 覆盖默认路径。
 
 企业历史 Forward PE CSV 支持列名：
 
