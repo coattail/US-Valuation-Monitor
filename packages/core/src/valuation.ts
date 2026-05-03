@@ -26,6 +26,10 @@ function rankMetricValue(metric: MetricId, value: number): number {
   return metricUsesNegativeAwareRanking(metric) ? valuationRankValue(value) : value;
 }
 
+function finiteMetricValue(value: number | null | undefined): number | null {
+  return Number.isFinite(value) ? Number(value) : null;
+}
+
 export function enrichSeries(points: RawValuationPoint[]): ValuationPoint[] {
   const result: ValuationPoint[] = [];
   const peSeries: number[] = [];
@@ -36,15 +40,16 @@ export function enrichSeries(points: RawValuationPoint[]): ValuationPoint[] {
 
   for (let i = 0; i < points.length; i += 1) {
     const point = points[i];
-    peSeries.push(point.pe_ttm);
-    const peRankValue = valuationRankValue(point.pe_ttm);
+    const peTtm = finiteMetricValue(point.pe_ttm);
+    const peRankValue = peTtm === null ? (peRankSeries.at(-1) ?? 0) : valuationRankValue(peTtm);
+    peSeries.push(peTtm ?? (peSeries.at(-1) ?? 0));
     peRankSeries.push(peRankValue);
 
     const percentile5y = percentileRankWindow(peRankSeries, i - window5 + 1, i, peRankValue);
     const percentile10y = percentileRankWindow(peRankSeries, i - window10 + 1, i, peRankValue);
     const percentileFull = percentileRankWindow(peRankSeries, 0, i, peRankValue);
 
-    const earningsYield = point.pe_ttm > 0 ? 1 / point.pe_ttm : 0;
+    const earningsYield = peTtm !== null && peTtm > 0 ? 1 / peTtm : 0;
     const erpProxy = earningsYield - point.us10y_yield;
 
     result.push({
@@ -53,7 +58,7 @@ export function enrichSeries(points: RawValuationPoint[]): ValuationPoint[] {
       percentile_5y: percentile5y,
       percentile_10y: percentile10y,
       percentile_full: percentileFull,
-      z_score_3y: zScoreWindow(peSeries, i - window3 + 1, i, point.pe_ttm),
+      z_score_3y: zScoreWindow(peSeries, i - window3 + 1, i, peTtm ?? 0),
       regime: resolveRegime(percentileFull),
     });
   }
@@ -61,8 +66,8 @@ export function enrichSeries(points: RawValuationPoint[]): ValuationPoint[] {
   return result;
 }
 
-function pickMetricValue(point: ValuationPoint, metric: MetricId): number {
-  return point[metric];
+function pickMetricValue(point: ValuationPoint, metric: MetricId): number | null {
+  return finiteMetricValue(point[metric]);
 }
 
 export function buildMetricSeries(
@@ -85,6 +90,9 @@ export function buildMetricSeries(
     }
 
     const metricValue = pickMetricValue(point, metric);
+    if (metricValue === null) {
+      continue;
+    }
     const rankValue = rankMetricValue(metric, metricValue);
     values.push(metricValue);
     rankValues.push(rankValue);

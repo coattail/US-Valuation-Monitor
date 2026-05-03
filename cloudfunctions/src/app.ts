@@ -38,6 +38,17 @@ const WATCHLIST_FILE = ["data", "runtime", "watchlists.json"];
 const ALERTS_FILE = ["data", "runtime", "alerts.json"];
 const ALERT_STATE_FILE = ["data", "runtime", "alert-state.json"];
 const execFileAsync = promisify(execFile);
+
+function resolveRowsDateRange(rows: Array<{ date: string }>): { startDate: string; endDate: string; pointCount: number } {
+  if (!rows.length) {
+    return { startDate: "", endDate: "", pointCount: 0 };
+  }
+  return {
+    startDate: rows[0].date,
+    endDate: rows[rows.length - 1].date,
+    pointCount: rows.length,
+  };
+}
 type CompanyMetricId = MetricId;
 const METRIC_SET = new Set<MetricId>([
   "pe_ttm",
@@ -443,7 +454,7 @@ export function buildSeriesPayload(
   const effectiveFrom = metric === "pe_forward" ? (fromDate && forwardStartDate ? (fromDate > forwardStartDate ? fromDate : forwardStartDate) : fromDate || forwardStartDate) : fromDate;
 
   const rows = buildMetricSeries(points, metric, effectiveFrom, toDate);
-  const range = resolveDateRange(points);
+  const range = resolveRowsDateRange(rows);
   return {
     generatedAt: dataset.generatedAt,
     indexId,
@@ -691,7 +702,7 @@ export function buildCompanySeriesPayload(
       : fromDate;
 
   const rows = buildMetricSeries(index.points, metric, effectiveFrom, toDate);
-  const range = resolveDateRange(index.points);
+  const range = resolveRowsDateRange(rows);
   return {
     generatedAt: dataset.generatedAt,
     indexId,

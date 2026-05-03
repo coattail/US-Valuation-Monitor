@@ -15,9 +15,9 @@ export interface IndexMeta {
 
 export interface RawValuationPoint {
   date: string;
-  pe_ttm: number;
-  pe_forward: number;
-  pb: number;
+  pe_ttm: number | null;
+  pe_forward: number | null;
+  pb: number | null;
   us10y_yield: number;
 }
 

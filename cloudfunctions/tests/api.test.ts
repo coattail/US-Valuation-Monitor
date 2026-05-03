@@ -36,6 +36,16 @@ test("series payload defaults to index full history", async () => {
   assert.equal(payload.rows[payload.rows.length - 1].date, payload.availableRange.endDate);
 });
 
+test("series payload exposes metric-specific PB history", async () => {
+  const dataset = await loadDataset(ROOT_DIR);
+  const payload = buildSeriesPayload(dataset, "sp500", "pb");
+
+  assert.equal(payload.rows.length, payload.availableRange.pointCount);
+  assert.equal(payload.availableRange.startDate, "1999-12-31");
+  assert.equal(payload.rows[0].date, "1999-12-31");
+  assert.equal(payload.rows[0].value, 5.19);
+});
+
 test("company dataset exposes top100 meta and snapshot", async () => {
   const dataset = await loadCompanyDataset(ROOT_DIR);
   const meta = buildCompanyMeta(dataset);

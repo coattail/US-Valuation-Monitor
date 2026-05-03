@@ -30,6 +30,18 @@ test("buildMetricSeries supports pe_forward", () => {
   assert.ok(rows.every((item) => item.value > 0));
 });
 
+test("buildMetricSeries skips dates where the selected metric is missing", () => {
+  const rows = buildMetricSeries(
+    [
+      { date: "1999-12-31", pe_ttm: null, pe_forward: null, pb: 5.19, us10y_yield: 0.0645 },
+      { date: "2005-02-25", pe_ttm: 19.99, pe_forward: 10.31, pb: 2.92, us10y_yield: 0.0427 },
+    ],
+    "pe_ttm"
+  );
+
+  assert.deepEqual(rows.map((row) => row.date), ["2005-02-25"]);
+});
+
 test("buildMetricSeries percentile uses filtered range only", () => {
   const points = [
     { date: "2026-01-02", pe_ttm: 50, pe_forward: 48, pb: 6, us10y_yield: 0.03 },

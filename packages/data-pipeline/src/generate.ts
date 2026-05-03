@@ -28,9 +28,11 @@ const DEFAULT_VENDOR_INDEX_FORWARD_PE_FILE = path.join(
   "index-forward-pe-history.csv"
 );
 const VENDOR_INDEX_FORWARD_PE_FILE = process.env.INDEX_FORWARD_PE_HISTORY_FILE || DEFAULT_VENDOR_INDEX_FORWARD_PE_FILE;
+const SP500_PB_PREFIX_START_DATE = "1999-12-31";
+const SP500_PB_PREFIX_END_DATE = "2005-02-24";
 
 const INDEX_START_DATE: Record<string, string> = {
-  sp500: "1995-01-03",
+  sp500: "2005-02-25",
   nasdaq100: "1999-03-10",
   dow30: "1998-01-02",
   russell2000: "2001-01-03",
@@ -211,10 +213,11 @@ const MACROMICRO_CHART_IDS: Partial<
     {
       trailing?: number[];
       forward?: number[];
+      pb?: number[];
     }
   >
 > = {
-  sp500: { trailing: [1633], forward: [20052] },
+  sp500: { trailing: [1633], forward: [20052], pb: [6938] },
   nasdaq100: { trailing: [1637], forward: [23955, 15115] },
 };
 
@@ -224,6 +227,7 @@ const MACROMICRO_SERIES_ROUTES: Partial<
     {
       trailing?: string[];
       forward?: string[];
+      pb?: string[];
     }
   >
 > = {
@@ -236,6 +240,7 @@ const MACROMICRO_SERIES_ROUTES: Partial<
       "https://en.macromicro.me/series/20052/sp500-forward-pe-ratio",
       "https://en.macromicro.me/series/20052/us-sp500-forward-pe-ratio",
     ],
+    pb: ["https://en.macromicro.me/series/6938/us-sp500-pb-ratio"],
   },
   sector_communication: {
     forward: ["https://en.macromicro.me/series/20518/s5tels-forward-pe-ratio"],
@@ -485,6 +490,10 @@ const NASDAQ100_TTM_BUBBLE_FACTSET_BOOTSTRAP: Array<{ date: string; value: numbe
   { date: "1999-12-31", value: 104.0 },
   { date: "2000-03-31", value: 150.0 },
   { date: "2000-12-31", value: 113.0 },
+];
+
+const SP500_MACROMICRO_PB_PREFIX_BOOTSTRAP: Array<{ date: string; value: number }> = [
+  { date: "1999-12-31", value: 5.19 },
 ];
 
 interface ClosePoint {
@@ -2184,6 +2193,61 @@ export function applyMetricCloseCarryFromAnchorSeriesForTest(
   return applyMetricCloseCarryFromAnchorSeries(points, closes, metric, anchorSeries, options);
 }
 
+function prependHistoricalPbPrefix(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  pbAnchors: MonthlyMetricPoint[],
+  options: {
+    startDate: string;
+    endDate: string;
+  }
+): RawValuationPoint[] {
+  if (!points.length || !closes.length || !pbAnchors.length) return points;
+
+  const firstExisting = points[0];
+  const prefixCloses = closes.filter((close) => close.date >= options.startDate && close.date <= options.endDate);
+  if (!firstExisting || !prefixCloses.length) return points;
+
+  const prefixPoints = prefixCloses.map((close) => ({
+    date: close.date,
+    pe_ttm: null,
+    pe_forward: null,
+    pb: firstExisting.pb,
+    us10y_yield: firstExisting.us10y_yield,
+  }));
+
+  const carriedPrefix = applyMetricCloseCarryFromAnchorSeries(prefixPoints, prefixCloses, "pb", pbAnchors, {
+    minValue: 0.2,
+    maxValue: 28,
+    maxAnchorLagDays: 5,
+    maxForwardFillDays: 2200,
+  });
+
+  const byDate = new Map<string, RawValuationPoint>();
+  for (const point of carriedPrefix) {
+    if (point.date >= options.startDate && point.date <= options.endDate) {
+      byDate.set(point.date, point);
+    }
+  }
+  for (const point of points) {
+    byDate.set(point.date, point);
+  }
+
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function prependHistoricalPbPrefixForTest(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  pbAnchors: MonthlyMetricPoint[],
+  options: {
+    startDate: string;
+    endDate: string;
+  }
+): RawValuationPoint[] {
+  return prependHistoricalPbPrefix(points, closes, pbAnchors, options);
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error || "unknown error");
@@ -3081,6 +3145,13 @@ export function parseYchartsPbSeriesForTest(jsonText: string): MonthlyMetricPoin
 
 export function getMultplSp500PbUrlForTest(): string {
   return MULTPL_SP500_PB_URL;
+}
+
+export function getMacroMicroSp500PbRoutesForTest(): { ids: number[]; routes: string[] } {
+  return {
+    ids: MACROMICRO_CHART_IDS.sp500?.pb || [],
+    routes: MACROMICRO_SERIES_ROUTES.sp500?.pb || [],
+  };
 }
 
 export function shouldFetchMultplSp500PeFallbackForTest(trailingSeries: MonthlyMetricPoint[] | undefined): boolean {
@@ -4846,6 +4917,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let guruFocusAnchorCount = 0;
   let macroMicroAnchorCount = 0;
   let macroMicroTrailingSeriesCount = 0;
+  let macroMicroPbSeriesCount = 0;
   let trendonifyTrailingCount = 0;
   let trendonifyForwardCount = 0;
   let wsjSnapshotCount = 0;
@@ -4871,6 +4943,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let vendorIndexForwardCount = 0;
   let yahooHistoricalAnchorCount = 0;
   let yahooLatestSnapshotCount = 0;
+  let sp500PbPrefixCount = 0;
   let sp500WsjCarryCount = 0;
   let cachedStockMarketPeRatioSp500Series: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500Series: MonthlyMetricPoint[] | undefined;
@@ -5020,6 +5093,14 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
       }
 
+      if (macroMicroIds?.pb?.length) {
+        const macroPb = await fetchMacroMicroSeriesByCandidates(macroMicroIds.pb);
+        if (macroPb?.length) {
+          pbSeries = pbSeries?.length ? mergeMonthlySeries(macroPb, pbSeries) : macroPb;
+          macroMicroPbSeriesCount += 1;
+        }
+      }
+
       const macroMicroSeriesRoutes = MACROMICRO_SERIES_ROUTES[meta.id];
       if (macroMicroSeriesRoutes?.trailing?.length) {
         const macroTrailingBySeriesPage = await fetchMacroMicroSeriesByPageRoutes(macroMicroSeriesRoutes.trailing);
@@ -5045,6 +5126,13 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
               : macroForwardBySeriesPage;
             macroMicroForwardCount += 1;
           }
+        }
+      }
+      if (macroMicroSeriesRoutes?.pb?.length) {
+        const macroPbBySeriesPage = await fetchMacroMicroSeriesByPageRoutes(macroMicroSeriesRoutes.pb);
+        if (macroPbBySeriesPage?.length) {
+          pbSeries = pbSeries?.length ? mergeMonthlySeries(macroPbBySeriesPage, pbSeries) : macroPbBySeriesPage;
+          macroMicroPbSeriesCount += 1;
         }
       }
 
@@ -5139,6 +5227,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           pbSeries = cachedMultplSp500PbSeries;
           multplPbCount += 1;
         }
+      }
+      if (meta.id === "sp500") {
+        pbSeries = mergeMonthlySeries(buildBootstrapSeries(SP500_MACROMICRO_PB_PREFIX_BOOTSTRAP), pbSeries || []);
       }
       try {
         const ychartsPbSeries = await fetchYchartsPbSeries(meta.symbol);
@@ -5857,6 +5948,20 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           maxForwardFillDays: 120,
         });
       }
+      if (meta.id === "sp500" && pbSeries?.length) {
+        try {
+          const sp500IndexCloses = await fetchYahooCloseSeries("^GSPC", SP500_PB_PREFIX_START_DATE, SP500_PB_PREFIX_END_DATE);
+          if (sp500IndexCloses.length) {
+            points = prependHistoricalPbPrefix(points, sp500IndexCloses, pbSeries, {
+              startDate: SP500_PB_PREFIX_START_DATE,
+              endDate: SP500_PB_PREFIX_END_DATE,
+            });
+            sp500PbPrefixCount += 1;
+          }
+        } catch {
+          // keep the main post-2005 S&P 500 history if early index closes are unavailable
+        }
+      }
       if (effectiveEnd > liveSourceCutoverDate) {
         const latestPointDate = points[points.length - 1]?.date || "";
         if (!latestPointDate || latestPointDate <= liveSourceCutoverDate) {
@@ -5935,6 +6040,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (macroMicroTrailingSeriesCount > 0) {
     source += `+macromicro-pe-series-${macroMicroTrailingSeriesCount}`;
   }
+  if (macroMicroPbSeriesCount > 0) {
+    source += `+macromicro-pb-series-${macroMicroPbSeriesCount}`;
+  }
   if (stockMarketPeRatioTrailingCount > 0) {
     source += `+stockmarketperatio-pe-${stockMarketPeRatioTrailingCount}`;
   }
@@ -6010,6 +6118,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (yahooLatestSnapshotCount > 0) {
     source += `+yahoo-latest-snapshot-${yahooLatestSnapshotCount}`;
   }
+  if (sp500PbPrefixCount > 0) {
+    source += `+sp500-pb-prefix-${sp500PbPrefixCount}`;
+  }
   if (sp500WsjCarryCount > 0) {
     source += `+sp500-wsj-carry-${sp500WsjCarryCount}`;
   }
@@ -6060,8 +6171,11 @@ export function validateDataset(dataset: ValuationDataset): void {
       }
       prevDate = point.date;
 
-      const numberFields = [point.pe_ttm, point.pe_forward, point.pb, point.us10y_yield];
-      if (numberFields.some((value) => !Number.isFinite(value))) {
+      const optionalRatioFields = [point.pe_ttm, point.pe_forward, point.pb];
+      if (optionalRatioFields.some((value) => value !== null && value !== undefined && !Number.isFinite(value))) {
+        throw new Error(`Invalid numeric value: ${indexData.id}`);
+      }
+      if (!Number.isFinite(point.us10y_yield)) {
         throw new Error(`Invalid numeric value: ${indexData.id}`);
       }
     }

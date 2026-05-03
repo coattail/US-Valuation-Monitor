@@ -13,6 +13,7 @@ import {
   buildYahooChartUrlsForTest,
   collapseRedundantExplicitLatestSnapshotsForTest,
   extendSeriesWithRebasedPreviousTailForTest,
+  getMacroMicroSp500PbRoutesForTest,
   getMultplSp500PbUrlForTest,
   getIndexLiveSourceCutoverDateForTest,
   mergeHistoricalSeriesAtCutover,
@@ -29,6 +30,7 @@ import {
   rebaseHistoryFallbackWithSnapshotsForTest,
   pruneInvalidExplicitIndexSnapshotsForTest,
   pruneImplausibleForwardSeriesForTest,
+  prependHistoricalPbPrefixForTest,
   shouldFetchMultplSp500PeFallbackForTest,
   upsertIndexYahooDailyMetricSnapshotForTest,
 } from "../src/generate.ts";
@@ -214,6 +216,37 @@ test("applyMetricCloseCarryFromAnchorSeriesForTest seeds from the latest anchor 
 
   assert.equal(repaired[0].pe_ttm, 20);
   assert.equal(repaired[1].pe_ttm, 20.11);
+});
+
+test("prependHistoricalPbPrefixForTest prepends only the requested pre-2005 S&P 500 PB window", () => {
+  const existing = [
+    { date: "2005-02-25", pe_ttm: 19.99, pe_forward: 10.31, pb: 2.92, us10y_yield: 0.0427 },
+    { date: "2005-02-28", pe_ttm: 20.11, pe_forward: 11.84, pb: 2.9, us10y_yield: 0.0436 },
+  ];
+  const closes = [
+    { date: "1999-12-30", close: 100 },
+    { date: "1999-12-31", close: 101 },
+    { date: "2000-01-03", close: 102 },
+    { date: "2005-02-24", close: 110 },
+    { date: "2005-02-25", close: 111 },
+  ];
+  const pbAnchors = [
+    { date: "1999-12-31", value: 4, ts: Date.parse("1999-12-31T00:00:00Z") },
+    { date: "2000-03-31", value: 4.1, ts: Date.parse("2000-03-31T00:00:00Z") },
+  ];
+
+  const merged = prependHistoricalPbPrefixForTest(existing, closes, pbAnchors, {
+    startDate: "1999-12-31",
+    endDate: "2005-02-24",
+  });
+
+  assert.deepEqual(merged.map((point) => point.date), ["1999-12-31", "2000-01-03", "2005-02-24", "2005-02-25", "2005-02-28"]);
+  assert.equal(merged[0].pb, 4);
+  assert.equal(merged[0].pe_ttm, null);
+  assert.equal(merged[0].pe_forward, null);
+  assert.equal(merged[1].pb, 4.0396);
+  assert.equal(merged[2].pb, 4.3564);
+  assert.equal(merged[3].pb, 2.92);
 });
 
 test("parseYahooChartCloseSeries returns sorted daily closes from Yahoo chart payload", () => {
@@ -724,7 +757,11 @@ test("parseMultplTableSeriesForTest parses dated rows from Multpl tables", () =>
   ]);
 });
 
-test("S&P 500 PB uses the stable Multpl quarterly anchor table", () => {
+test("S&P 500 PB uses MacroMicro quarterly anchors before Multpl fallback", () => {
+  assert.deepEqual(getMacroMicroSp500PbRoutesForTest(), {
+    ids: [6938],
+    routes: ["https://en.macromicro.me/series/6938/us-sp500-pb-ratio"],
+  });
   assert.equal(getMultplSp500PbUrlForTest(), "https://www.multpl.com/s-p-500-price-to-book/table/by-quarter");
 });
 
