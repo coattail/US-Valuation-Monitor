@@ -46,14 +46,17 @@ test("series payload exposes metric-specific PB history", async () => {
   assert.equal(payload.rows[0].value, 5.19);
 });
 
-test("series payload starts S&P 500 forward PE at MacroMicro prefix", async () => {
+test("series payload starts S&P 500 forward PE at Yardeni/Refinitiv prefix", async () => {
   const dataset = await loadDataset(ROOT_DIR);
   const payload = buildSeriesPayload(dataset, "sp500", "pe_forward");
 
   assert.equal(payload.rows.length, payload.availableRange.pointCount);
-  assert.equal(payload.availableRange.startDate, "2008-01-02");
-  assert.equal(payload.rows[0].date, "2008-01-02");
-  assert.equal(payload.rows[0].value, 27.8117);
+  assert.equal(payload.availableRange.startDate, "1999-12-31");
+  assert.equal(payload.rows[0].date, "1999-12-31");
+  assert.ok(Number(payload.rows[0].value) > 25);
+  assert.ok(Number(payload.rows[0].value) < 26);
+  assert.ok(Number(payload.rows.find((row) => row.date === "2020-01-16")?.value) > 18);
+  assert.ok(Number(payload.rows.find((row) => row.date === "2020-01-16")?.value) < 19);
   assert.equal(payload.rows.find((row) => row.date === "2020-01-17")?.value, 18.7);
 });
 

@@ -12,9 +12,14 @@ const CURRENT_FILE = fileURLToPath(import.meta.url);
 const DATA_PIPELINE_ROOT = path.resolve(path.dirname(CURRENT_FILE), "../../..");
 const OUTPUT_DIR = path.join(DATA_PIPELINE_ROOT, "data", "standardized");
 const INDEX_YAHOO_DAILY_METRICS_FILE = path.join(OUTPUT_DIR, "index-yahoo-daily-metrics.json");
-const SP500_FORWARD_PE_PUBLIC_START_DATE = "2008-01-02";
+const SP500_FORWARD_PE_PUBLIC_START_DATE = "1999-12-31";
 const SP500_FORWARD_PE_FACTSET_CUTOVER_DATE = "2020-01-17";
-const SP500_FORWARD_PE_MACROMICRO_FILE = path.join(DATA_PIPELINE_ROOT, "data", "bootstrap", "sp500-forward-pe-macromicro.csv");
+const SP500_FORWARD_PE_YARDENI_REFINITIV_FILE = path.join(
+  DATA_PIPELINE_ROOT,
+  "data",
+  "bootstrap",
+  "sp500-forward-pe-yardeni-refinitiv.csv"
+);
 const STOCKMARKETPERATIO_SP500_URL = "https://www.stockmarketperatio.com/";
 const STOCKMARKETPERATIO_SP500_HISTORY_JS_URL =
   "https://www.stockmarketperatio.com/js/historical-sp-500-pe-ratio-since-1990.js";
@@ -257,6 +262,8 @@ const CURATED_PUBLIC_FORWARD_ANCHOR_INDEX_IDS = new Set(["sector_communication"]
 
 const RECENT_OVERRIDE_INDEX_IDS = new Set<string>();
 const FORWARD_LOCKED_INDEX_IDS = new Set<string>();
+const FORWARD_CUTOVER_HISTORY_CARRY_INDEX_IDS = new Set(["us_total_market"]);
+const TTM_CUTOVER_HISTORY_CARRY_INDEX_IDS = new Set(["us_total_market"]);
 const SIBLIS_FULL_HISTORY_INDEX_IDS = new Set(["nasdaq100", "russell2000"]);
 const TRENDONIFY_FORWARD_DISABLED_INDEX_IDS = new Set(["dow30"]);
 const TRENDONIFY_TRAILING_PRIMARY_INDEX_IDS = new Set(["nasdaq100"]);
@@ -1914,6 +1921,18 @@ function extractExplicitMetricSnapshots(
     .filter((item): item is { date: string; value: number } => !!item)
     .filter((item) => !minDate || item.date > minDate)
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function mergeExplicitMetricSnapshotsIntoSeries(
+  series: MonthlyMetricPoint[] | undefined,
+  snapshots: Array<{ date: string; value: number }>
+): MonthlyMetricPoint[] | undefined {
+  let next = series;
+  for (const snapshot of snapshots) {
+    if (!snapshot.date || !Number.isFinite(snapshot.value)) continue;
+    next = upsertSeriesValueAtDate(next, snapshot.date, snapshot.value);
+  }
+  return next;
 }
 
 function pruneInvalidExplicitIndexSnapshots(
@@ -4650,6 +4669,72 @@ export function applyMetricCloseCarryWithAnchorsForTest(
   return applyMetricCloseCarryWithAnchors(points, closes, previousPoints, metric, anchors, options);
 }
 
+function carryMetricFromPreviousHistoryAcrossCutover(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  previousPoints: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  cutoverDate: string,
+  options: {
+    minValue: number;
+    maxValue: number;
+    maxDate?: string;
+  }
+): RawValuationPoint[] {
+  if (!points.length || !closes.length || !previousPoints.length) return points;
+
+  const previousAnchor = [...previousPoints]
+    .filter((point) => point.date < cutoverDate && sanitizeSignedRatio(point[metric]) !== null)
+    .at(-1);
+  const previousValue = sanitizeSignedRatio(previousAnchor?.[metric]);
+  if (!previousAnchor || previousValue === null) return points;
+
+  const anchorClose = findCloseAtOrBeforeDate(closes, previousAnchor.date);
+  if (!anchorClose || !Number.isFinite(anchorClose.close) || anchorClose.close <= 0) return points;
+
+  const closeByDate = new Map<string, number>();
+  for (const close of closes) {
+    if (Number.isFinite(close.close) && close.close > 0) {
+      closeByDate.set(close.date, close.close);
+    }
+  }
+
+  let activeValue = roundTo(clamp(previousValue, options.minValue, options.maxValue), 4);
+  let activeClose = Number(anchorClose.close);
+
+  return points.map((point) => {
+    if (point.date < cutoverDate) return point;
+    if (options.maxDate && point.date >= options.maxDate) return point;
+
+    const currentClose = closeByDate.get(point.date);
+    if (!Number.isFinite(currentClose) || Number(currentClose) <= 0 || activeClose <= 0) return point;
+
+    const nextValue = roundTo(clamp(activeValue * (Number(currentClose) / activeClose), options.minValue, options.maxValue), 4);
+    activeValue = nextValue;
+    activeClose = Number(currentClose);
+
+    return {
+      ...point,
+      [metric]: nextValue,
+    };
+  });
+}
+
+export function carryMetricFromPreviousHistoryAcrossCutoverForTest(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  previousPoints: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  cutoverDate: string,
+  options: {
+    minValue: number;
+    maxValue: number;
+    maxDate?: string;
+  }
+): RawValuationPoint[] {
+  return carryMetricFromPreviousHistoryAcrossCutover(points, closes, previousPoints, metric, cutoverDate, options);
+}
+
 function isReasonablePe(value: number | undefined): value is number {
   return Number.isFinite(value) && value > 4 && value < 80;
 }
@@ -4982,9 +5067,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let yahooLatestSnapshotCount = 0;
   let sp500PbPrefixCount = 0;
   let sp500WsjCarryCount = 0;
-  let sp500MacroMicroForwardPrefixCount = 0;
+  let sp500YardeniRefinitivForwardPrefixCount = 0;
   let cachedStockMarketPeRatioSp500Series: MonthlyMetricPoint[] | undefined;
-  let cachedSp500MacroMicroForwardPrefixSeries: MonthlyMetricPoint[] | undefined;
+  let cachedSp500YardeniRefinitivForwardPrefixSeries: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500Series: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500PbSeries: MonthlyMetricPoint[] | undefined;
   const fetchErrors: string[] = [];
@@ -5313,21 +5398,21 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
       if (meta.id === "sp500") {
         try {
-          if (!cachedSp500MacroMicroForwardPrefixSeries) {
-            cachedSp500MacroMicroForwardPrefixSeries = filterMetricSeriesBeforeDate(
-              await loadLocalMetricSeriesFromCsv(SP500_FORWARD_PE_MACROMICRO_FILE, 2, 140),
+          if (!cachedSp500YardeniRefinitivForwardPrefixSeries) {
+            cachedSp500YardeniRefinitivForwardPrefixSeries = filterMetricSeriesBeforeDate(
+              await loadLocalMetricSeriesFromCsv(SP500_FORWARD_PE_YARDENI_REFINITIV_FILE, 2, 140),
               SP500_FORWARD_PE_FACTSET_CUTOVER_DATE
             );
           }
         } catch {
-          // keep the FactSet/WSJ segment if the local MacroMicro prefix is unavailable
+          // keep the FactSet/WSJ segment if the local Yardeni/Refinitiv prefix is unavailable
         }
 
-        if (cachedSp500MacroMicroForwardPrefixSeries?.length) {
+        if (cachedSp500YardeniRefinitivForwardPrefixSeries?.length) {
           forwardSeries = forwardSeries?.length
-            ? mergeMonthlySeries(forwardSeries, cachedSp500MacroMicroForwardPrefixSeries)
-            : cachedSp500MacroMicroForwardPrefixSeries;
-          sp500MacroMicroForwardPrefixCount += 1;
+            ? mergeMonthlySeries(cachedSp500YardeniRefinitivForwardPrefixSeries, forwardSeries)
+            : cachedSp500YardeniRefinitivForwardPrefixSeries;
+          sp500YardeniRefinitivForwardPrefixCount += 1;
         }
       }
 
@@ -5885,6 +5970,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       const explicitLatestYahooSnapshots = effectiveYahooSnapshots.filter(
         (snapshot) => snapshot.date > liveSourceCutoverDate && isExplicitIndexYahooLatestMetricSource(snapshot.source || "")
       );
+      const explicitForwardMetricSnapshots = extractExplicitMetricSnapshots(
+        effectiveYahooSnapshots,
+        "pe_forward",
+        liveSourceCutoverDate
+      );
       points = applyPostCutoverMetricSources(
         points,
         "pe_ttm",
@@ -5965,6 +6055,33 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
       points = extendSeriesWithRebasedPreviousTail(previousPoints, points, liveSourceCutoverDate);
       points = mergeHistoricalSeriesAtCutover(previousPoints, points, liveSourceCutoverDate);
+      if (TTM_CUTOVER_HISTORY_CARRY_INDEX_IDS.has(meta.id)) {
+        points = carryMetricFromPreviousHistoryAcrossCutover(
+          points,
+          closes,
+          previousPoints,
+          "pe_ttm",
+          liveSourceCutoverDate,
+          {
+            minValue: 2.4,
+            maxValue: meta.id === "nasdaq100" ? 240 : 180,
+            maxDate: meta.id === "us_total_market" ? "2026-04-16" : undefined,
+          }
+        );
+      }
+      if (FORWARD_CUTOVER_HISTORY_CARRY_INDEX_IDS.has(meta.id) && !explicitForwardMetricSnapshots.length) {
+        points = carryMetricFromPreviousHistoryAcrossCutover(
+          points,
+          closes,
+          previousPoints,
+          "pe_forward",
+          liveSourceCutoverDate,
+          {
+            minValue: 2,
+            maxValue: 140,
+          }
+        );
+      }
       if (meta.id === "sp500" && cachedStockMarketPeRatioSp500Series?.length) {
         points = applyMetricCloseCarryFromAnchorSeries(
           points,
@@ -5997,6 +6114,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         });
       }
       if (meta.id === "sp500" && forwardSeries?.length) {
+        forwardSeries = mergeExplicitMetricSnapshotsIntoSeries(forwardSeries, explicitForwardMetricSnapshots);
         points = clearMetricBeforeDate(points, "pe_forward", SP500_FORWARD_PE_PUBLIC_START_DATE);
         points = applyCloseAnchoredOverrides(points, closes, undefined, forwardSeries, {
           minForward: 2,
@@ -6014,6 +6132,21 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
               startDate: SP500_PB_PREFIX_START_DATE,
               endDate: SP500_PB_PREFIX_END_DATE,
             });
+            if (forwardSeries?.length) {
+              const closeByDate = new Map<string, ClosePoint>();
+              for (const close of [...sp500IndexCloses, ...closes]) {
+                closeByDate.set(close.date, close);
+              }
+              forwardSeries = mergeExplicitMetricSnapshotsIntoSeries(forwardSeries, explicitForwardMetricSnapshots);
+              points = clearMetricBeforeDate(points, "pe_forward", SP500_FORWARD_PE_PUBLIC_START_DATE);
+              points = applyCloseAnchoredOverrides(points, [...closeByDate.values()], undefined, forwardSeries, {
+                minForward: 2,
+                maxForward: 140,
+                maxAnchorLagDays: 5,
+                forwardMaxSegmentSpanDays: 900,
+                forwardSegmentMode: "daily_return_path",
+              });
+            }
             sp500PbPrefixCount += 1;
           }
         } catch {
@@ -6179,8 +6312,8 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (sp500WsjCarryCount > 0) {
     source += `+sp500-wsj-carry-${sp500WsjCarryCount}`;
   }
-  if (sp500MacroMicroForwardPrefixCount > 0) {
-    source += `+sp500-mm-fpe-prefix-${sp500MacroMicroForwardPrefixCount}`;
+  if (sp500YardeniRefinitivForwardPrefixCount > 0) {
+    source += `+sp500-yardeni-refinitiv-fpe-prefix-${sp500YardeniRefinitivForwardPrefixCount}`;
   }
   source += `+${yieldSource}`;
 

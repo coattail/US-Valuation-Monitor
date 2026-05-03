@@ -12,6 +12,7 @@ import {
   applyMetricAnchorSeriesForTest,
   buildEffectiveIndexYahooDailyMetricSnapshotsForTest,
   buildYahooChartUrlsForTest,
+  carryMetricFromPreviousHistoryAcrossCutoverForTest,
   collapseRedundantExplicitLatestSnapshotsForTest,
   extendSeriesWithRebasedPreviousTailForTest,
   getMacroMicroSp500PbRoutesForTest,
@@ -308,8 +309,9 @@ test("applyCloseAnchoredOverrides keeps missing forward PE as null outside ancho
   assert.equal(repaired[2].pe_forward, 21.1);
 });
 
-test("applyCloseAnchoredOverrides joins MacroMicro pre-2020 S&P 500 forward PE to FactSet anchors", () => {
+test("applyCloseAnchoredOverrides joins Yardeni/Refinitiv pre-2020 S&P 500 forward PE to FactSet anchors", () => {
   const points = [
+    { date: "2019-11-15", pe_ttm: 22.1, pe_forward: null, pb: 3.45, us10y_yield: 0.0183 },
     { date: "2019-12-31", pe_ttm: 22.78, pe_forward: null, pb: 3.53, us10y_yield: 0.0192 },
     { date: "2020-01-02", pe_ttm: 22.99, pe_forward: null, pb: 3.56, us10y_yield: 0.0188 },
     { date: "2020-01-16", pe_ttm: 23.42, pe_forward: null, pb: 3.63, us10y_yield: 0.0181 },
@@ -317,6 +319,7 @@ test("applyCloseAnchoredOverrides joins MacroMicro pre-2020 S&P 500 forward PE t
     { date: "2020-01-21", pe_ttm: 23.45, pe_forward: null, pb: 3.63, us10y_yield: 0.0178 },
   ];
   const closes = [
+    { date: "2019-11-15", close: 3120.46 },
     { date: "2019-12-31", close: 3230.78 },
     { date: "2020-01-02", close: 3257.85 },
     { date: "2020-01-16", close: 3316.81 },
@@ -324,8 +327,8 @@ test("applyCloseAnchoredOverrides joins MacroMicro pre-2020 S&P 500 forward PE t
     { date: "2020-01-21", close: 3320.79 },
   ];
   const anchors = [
-    { date: "2019-12-31", value: 26.1877, ts: Date.parse("2019-12-31T00:00:00Z") },
-    { date: "2020-01-16", value: 27.1048, ts: Date.parse("2020-01-16T00:00:00Z") },
+    { date: "2019-11-15", value: 17.63, ts: Date.parse("2019-11-15T00:00:00Z") },
+    { date: "2020-01-16", value: 18.61, ts: Date.parse("2020-01-16T00:00:00Z") },
     { date: "2020-01-17", value: 18.7, ts: Date.parse("2020-01-17T00:00:00Z") },
   ];
 
@@ -337,10 +340,57 @@ test("applyCloseAnchoredOverrides joins MacroMicro pre-2020 S&P 500 forward PE t
     forwardSegmentMode: "daily_return_path",
   });
 
-  assert.equal(repaired[0].pe_forward, 26.1877);
-  assert.ok(Number(repaired[1].pe_forward) > 26);
-  assert.equal(repaired[2].pe_forward, 27.1048);
-  assert.equal(repaired[3].pe_forward, 18.7);
+  assert.ok(Number(repaired[0].pe_forward) > 17);
+  assert.ok(Number(repaired[0].pe_forward) < 19);
+  assert.ok(Number(repaired[1].pe_forward) > 17);
+  assert.ok(Number(repaired[1].pe_forward) < 19);
+  assert.ok(Number(repaired[2].pe_forward) > 17);
+  assert.ok(Number(repaired[2].pe_forward) < 19);
+  assert.equal(repaired[3].pe_forward, 18.61);
+  assert.equal(repaired[4].pe_forward, 18.7);
+  assert.ok(Math.abs(Number(repaired[4].pe_forward) / Number(repaired[3].pe_forward) - 1) < 0.01);
+});
+
+test("S&P 500 forward PE keeps explicit WSJ anchors after close-anchored rebuild", () => {
+  const points = [
+    { date: "2026-04-17", pe_ttm: 25.38, pe_forward: null, pb: 5.6, us10y_yield: 0.043 },
+    { date: "2026-04-20", pe_ttm: 25.33, pe_forward: null, pb: 5.6, us10y_yield: 0.043 },
+    { date: "2026-04-21", pe_ttm: 25.16, pe_forward: null, pb: 5.56, us10y_yield: 0.043 },
+    { date: "2026-04-22", pe_ttm: 25.42, pe_forward: null, pb: 5.62, us10y_yield: 0.043 },
+    { date: "2026-04-23", pe_ttm: 25.32, pe_forward: null, pb: 5.6, us10y_yield: 0.043 },
+    { date: "2026-04-24", pe_ttm: 25.41, pe_forward: null, pb: 5.64, us10y_yield: 0.043 },
+  ];
+  const closes = [
+    { date: "2026-04-17", close: 650.0 },
+    { date: "2026-04-20", close: 643.8 },
+    { date: "2026-04-21", close: 634.75 },
+    { date: "2026-04-22", close: 636.35 },
+    { date: "2026-04-23", close: 629.1 },
+    { date: "2026-04-24", close: 632.7 },
+  ];
+  const sourceAnchors = [
+    { date: "2026-04-17", value: 21.59, ts: Date.parse("2026-04-17T00:00:00Z") },
+  ];
+  const explicitWsjAnchors = [{ date: "2026-04-24", value: 21.79 }];
+
+  let next = applyPostCutoverMetricSources(
+    points,
+    "pe_forward",
+    explicitWsjAnchors,
+    sourceAnchors,
+    "2026-03-27",
+    { minValue: 2, maxValue: 140 }
+  );
+  next = applyCloseAnchoredOverridesForTest(next, closes, undefined, sourceAnchors, {
+    minForward: 2,
+    maxForward: 140,
+    maxAnchorLagDays: 5,
+    forwardMaxSegmentSpanDays: 900,
+    forwardSegmentMode: "daily_return_path",
+  });
+
+  assert.equal(next.find((point) => point.date === "2026-04-24")?.pe_forward, 21.79);
+  assert.ok(Number(next.find((point) => point.date === "2026-04-23")?.pe_forward) < 21.79);
 });
 
 test("applyCloseAnchoredOverrides rebuilds S&P 500 forward PE between FactSet and WSJ anchors", () => {
@@ -582,6 +632,74 @@ test("applyMetricCloseCarryWithAnchorsForTest prefers previous rebuilt values af
   assert.equal(next[0].pe_ttm, 25.38);
   assert.equal(next[1].pe_ttm, 25.4888);
   assert.equal(next[2].pe_ttm, 25.7426);
+});
+
+test("carryMetricFromPreviousHistoryAcrossCutoverForTest prevents unsupported forward PE cutover resets", () => {
+  const previous = [
+    { date: "2026-03-25", pe_ttm: 27.4, pe_forward: 24.5, pb: 4.4, us10y_yield: 0.04 },
+    { date: "2026-03-26", pe_ttm: 26.8, pe_forward: 24.0462, pb: 4.36, us10y_yield: 0.04 },
+  ];
+  const points = [
+    { date: "2026-03-26", pe_ttm: 26.8, pe_forward: 24.0462, pb: 4.36, us10y_yield: 0.04 },
+    { date: "2026-03-27", pe_ttm: 23.5, pe_forward: 17.7738, pb: 4.28, us10y_yield: 0.04 },
+    { date: "2026-03-30", pe_ttm: 24.8, pe_forward: 17.6247, pb: 4.25, us10y_yield: 0.04 },
+  ];
+  const closes = [
+    { date: "2026-03-26", close: 300 },
+    { date: "2026-03-27", close: 294 },
+    { date: "2026-03-30", close: 291.5 },
+  ];
+
+  const carried = carryMetricFromPreviousHistoryAcrossCutoverForTest(
+    points,
+    closes,
+    previous,
+    "pe_forward",
+    "2026-03-27",
+    {
+      minValue: 2,
+      maxValue: 140,
+    }
+  );
+
+  assert.equal(carried[0].pe_forward, 24.0462);
+  assert.equal(carried[1].pe_forward, 23.5653);
+  assert.equal(carried[2].pe_forward, 23.3649);
+});
+
+test("carryMetricFromPreviousHistoryAcrossCutoverForTest stops before official anchor dates", () => {
+  const previous = [
+    { date: "2026-03-26", pe_ttm: 26.7941, pe_forward: 24.0462, pb: 4.3633, us10y_yield: 0.04 },
+  ];
+  const points = [
+    { date: "2026-03-26", pe_ttm: 26.7941, pe_forward: 24.0462, pb: 4.3633, us10y_yield: 0.04 },
+    { date: "2026-03-27", pe_ttm: 23.5002, pe_forward: 23.5601, pb: 4.276, us10y_yield: 0.04 },
+    { date: "2026-04-15", pe_ttm: 25.0, pe_forward: 24.0, pb: 4.6, us10y_yield: 0.04 },
+    { date: "2026-04-16", pe_ttm: 27.57, pe_forward: null, pb: 4.66, us10y_yield: 0.04 },
+  ];
+  const closes = [
+    { date: "2026-03-26", close: 319.55 },
+    { date: "2026-03-27", close: 313.09 },
+    { date: "2026-04-15", close: 345.24 },
+    { date: "2026-04-16", close: 346.03 },
+  ];
+
+  const carried = carryMetricFromPreviousHistoryAcrossCutoverForTest(
+    points,
+    closes,
+    previous,
+    "pe_ttm",
+    "2026-03-27",
+    {
+      minValue: 2.4,
+      maxValue: 180,
+      maxDate: "2026-04-16",
+    }
+  );
+
+  assert.equal(carried[1].pe_ttm, 26.2524);
+  assert.equal(carried[2].pe_ttm, 28.9482);
+  assert.equal(carried[3].pe_ttm, 27.57);
 });
 
 test("buildEffectiveIndexYahooDailyMetricSnapshotsForTest keeps newer explicit snapshots even when value is unchanged", () => {
