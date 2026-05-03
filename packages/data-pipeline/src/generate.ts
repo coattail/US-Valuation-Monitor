@@ -5040,7 +5040,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       let officialPbApplied = false;
       const sp500WsjCarryAnchors: Array<{ date: string; value: number }> = [];
       const macroMicroIds = MACROMICRO_CHART_IDS[meta.id];
-      const vendorForwardSeries = meta.id === "sp500" ? undefined : vendorIndexForwardHistory.get(meta.id);
+      const vendorForwardSeries = vendorIndexForwardHistory.get(meta.id);
       const hasVendorForwardSeries = Boolean(vendorForwardSeries?.length);
 
       if (meta.id === "sp500" && effectiveEnd >= SP500_WSJ_TTM_CARRY_START_DATE) {
@@ -5311,6 +5311,13 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       if (hasVendorForwardSeries && vendorForwardSeries) {
         forwardSeries = forwardSeries?.length ? mergeMonthlySeries(vendorForwardSeries, forwardSeries) : vendorForwardSeries;
         vendorIndexForwardCount += 1;
+      }
+      if (meta.id === "sp500" && curatedForwardRefs.length) {
+        for (const ref of curatedForwardRefs) {
+          if (ref.date <= effectiveEnd && isReasonableForwardPe(ref.value)) {
+            forwardSeries = upsertSeriesValueAtDate(forwardSeries, ref.date, ref.value);
+          }
+        }
       }
 
       if (!SIBLIS_FULL_HISTORY_INDEX_IDS.has(meta.id) && !prefersWsjLatestSnapshot) {
@@ -5956,9 +5963,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           maxForwardFillDays: 120,
         });
       }
-      if (meta.id === "sp500" && curatedForwardRefs.length) {
+      if (meta.id === "sp500" && forwardSeries?.length) {
         points = clearMetricBeforeDate(points, "pe_forward", SP500_FORWARD_PE_PUBLIC_START_DATE);
-        points = applyCloseAnchoredOverrides(points, closes, undefined, buildBootstrapSeries(curatedForwardRefs), {
+        points = applyCloseAnchoredOverrides(points, closes, undefined, forwardSeries, {
           minForward: 2,
           maxForward: 140,
           maxAnchorLagDays: 5,
