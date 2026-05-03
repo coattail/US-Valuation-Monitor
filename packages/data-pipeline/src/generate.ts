@@ -12,7 +12,9 @@ const CURRENT_FILE = fileURLToPath(import.meta.url);
 const DATA_PIPELINE_ROOT = path.resolve(path.dirname(CURRENT_FILE), "../../..");
 const OUTPUT_DIR = path.join(DATA_PIPELINE_ROOT, "data", "standardized");
 const INDEX_YAHOO_DAILY_METRICS_FILE = path.join(OUTPUT_DIR, "index-yahoo-daily-metrics.json");
-const SP500_FORWARD_PE_PUBLIC_START_DATE = "2020-01-17";
+const SP500_FORWARD_PE_PUBLIC_START_DATE = "2008-01-02";
+const SP500_FORWARD_PE_FACTSET_CUTOVER_DATE = "2020-01-17";
+const SP500_FORWARD_PE_MACROMICRO_FILE = path.join(DATA_PIPELINE_ROOT, "data", "bootstrap", "sp500-forward-pe-macromicro.csv");
 const STOCKMARKETPERATIO_SP500_URL = "https://www.stockmarketperatio.com/";
 const STOCKMARKETPERATIO_SP500_HISTORY_JS_URL =
   "https://www.stockmarketperatio.com/js/historical-sp-500-pe-ratio-since-1990.js";
@@ -3461,6 +3463,15 @@ function mergeMonthlySeries(primary: MonthlyMetricPoint[], secondary: MonthlyMet
     .map(([date, value]) => ({ date, value, ts: parseDate(date).getTime() }));
 }
 
+function filterMetricSeriesBeforeDate(
+  series: MonthlyMetricPoint[] | undefined,
+  cutoffDate: string
+): MonthlyMetricPoint[] | undefined {
+  if (!series?.length || !/^\d{4}-\d{2}-\d{2}$/.test(cutoffDate)) return undefined;
+  const filtered = series.filter((point) => point.date < cutoffDate);
+  return filtered.length ? filtered : undefined;
+}
+
 function mergeMonthlySeriesRecentOverride(
   baseSeries: MonthlyMetricPoint[] | undefined,
   overlaySeries: MonthlyMetricPoint[] | undefined,
@@ -4971,7 +4982,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let yahooLatestSnapshotCount = 0;
   let sp500PbPrefixCount = 0;
   let sp500WsjCarryCount = 0;
+  let sp500MacroMicroForwardPrefixCount = 0;
   let cachedStockMarketPeRatioSp500Series: MonthlyMetricPoint[] | undefined;
+  let cachedSp500MacroMicroForwardPrefixSeries: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500Series: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500PbSeries: MonthlyMetricPoint[] | undefined;
   const fetchErrors: string[] = [];
@@ -5295,6 +5308,26 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         if (bootstrapForward.length && (!forwardSeries?.length || forwardSeries[0].date > "2001-12-31")) {
           forwardSeries = forwardSeries?.length ? mergeMonthlySeries(forwardSeries, bootstrapForward) : bootstrapForward;
           ndxForwardBootstrapCount += 1;
+        }
+      }
+
+      if (meta.id === "sp500") {
+        try {
+          if (!cachedSp500MacroMicroForwardPrefixSeries) {
+            cachedSp500MacroMicroForwardPrefixSeries = filterMetricSeriesBeforeDate(
+              await loadLocalMetricSeriesFromCsv(SP500_FORWARD_PE_MACROMICRO_FILE, 2, 140),
+              SP500_FORWARD_PE_FACTSET_CUTOVER_DATE
+            );
+          }
+        } catch {
+          // keep the FactSet/WSJ segment if the local MacroMicro prefix is unavailable
+        }
+
+        if (cachedSp500MacroMicroForwardPrefixSeries?.length) {
+          forwardSeries = forwardSeries?.length
+            ? mergeMonthlySeries(forwardSeries, cachedSp500MacroMicroForwardPrefixSeries)
+            : cachedSp500MacroMicroForwardPrefixSeries;
+          sp500MacroMicroForwardPrefixCount += 1;
         }
       }
 
@@ -6145,6 +6178,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   }
   if (sp500WsjCarryCount > 0) {
     source += `+sp500-wsj-carry-${sp500WsjCarryCount}`;
+  }
+  if (sp500MacroMicroForwardPrefixCount > 0) {
+    source += `+sp500-mm-fpe-prefix-${sp500MacroMicroForwardPrefixCount}`;
   }
   source += `+${yieldSource}`;
 

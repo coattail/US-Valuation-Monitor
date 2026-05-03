@@ -308,6 +308,41 @@ test("applyCloseAnchoredOverrides keeps missing forward PE as null outside ancho
   assert.equal(repaired[2].pe_forward, 21.1);
 });
 
+test("applyCloseAnchoredOverrides joins MacroMicro pre-2020 S&P 500 forward PE to FactSet anchors", () => {
+  const points = [
+    { date: "2019-12-31", pe_ttm: 22.78, pe_forward: null, pb: 3.53, us10y_yield: 0.0192 },
+    { date: "2020-01-02", pe_ttm: 22.99, pe_forward: null, pb: 3.56, us10y_yield: 0.0188 },
+    { date: "2020-01-16", pe_ttm: 23.42, pe_forward: null, pb: 3.63, us10y_yield: 0.0181 },
+    { date: "2020-01-17", pe_ttm: 23.49, pe_forward: 18.7, pb: 3.64, us10y_yield: 0.0183 },
+    { date: "2020-01-21", pe_ttm: 23.45, pe_forward: null, pb: 3.63, us10y_yield: 0.0178 },
+  ];
+  const closes = [
+    { date: "2019-12-31", close: 3230.78 },
+    { date: "2020-01-02", close: 3257.85 },
+    { date: "2020-01-16", close: 3316.81 },
+    { date: "2020-01-17", close: 3329.62 },
+    { date: "2020-01-21", close: 3320.79 },
+  ];
+  const anchors = [
+    { date: "2019-12-31", value: 26.1877, ts: Date.parse("2019-12-31T00:00:00Z") },
+    { date: "2020-01-16", value: 27.1048, ts: Date.parse("2020-01-16T00:00:00Z") },
+    { date: "2020-01-17", value: 18.7, ts: Date.parse("2020-01-17T00:00:00Z") },
+  ];
+
+  const repaired = applyCloseAnchoredOverridesForTest(points, closes, undefined, anchors, {
+    minForward: 2,
+    maxForward: 140,
+    maxAnchorLagDays: 5,
+    forwardMaxSegmentSpanDays: 900,
+    forwardSegmentMode: "daily_return_path",
+  });
+
+  assert.equal(repaired[0].pe_forward, 26.1877);
+  assert.ok(Number(repaired[1].pe_forward) > 26);
+  assert.equal(repaired[2].pe_forward, 27.1048);
+  assert.equal(repaired[3].pe_forward, 18.7);
+});
+
 test("applyCloseAnchoredOverrides rebuilds S&P 500 forward PE between FactSet and WSJ anchors", () => {
   const points = [
     { date: "2022-05-12", pe_ttm: 20, pe_forward: 16.6, pb: 4, us10y_yield: 0.03 },
