@@ -208,6 +208,7 @@ function roundTo(value, digits = 2) {
 }
 
 function toFiniteNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -723,19 +724,21 @@ function getMetricSeries(indexId, metric) {
   }
 
   const indexData = getIndexData(indexId);
+  const result = buildMetricSeriesFromIndexData(indexData, metric);
+  state.caches.metricSeries.set(cacheKey, result);
+  return result;
+}
+
+function buildMetricSeriesFromIndexData(indexData, metric) {
   if (!indexData) return [];
   const points = Array.isArray(indexData.points) ? indexData.points : [];
   if (!points.length) return [];
 
-  const forwardStartDate = metric === "pe_forward" ? (indexData.forwardStartDate || points[points.length - 1]?.date || "") : "";
   const values = [];
   const result = [];
 
   for (let i = 0; i < points.length; i += 1) {
     const point = points[i];
-    if (metric === "pe_forward" && forwardStartDate && point.date < forwardStartDate) {
-      continue;
-    }
     const value = metricValueFromRaw(point, metric);
     if (!Number.isFinite(value)) {
       continue;
@@ -758,7 +761,6 @@ function getMetricSeries(indexId, metric) {
     });
   }
 
-  state.caches.metricSeries.set(cacheKey, result);
   return result;
 }
 
@@ -2370,4 +2372,11 @@ async function bootstrap() {
   }
 }
 
-bootstrap();
+if (!window.__USVM_APP_TEST__) {
+  bootstrap();
+}
+
+export {
+  buildMetricSeriesFromIndexData as getMetricSeriesForTest,
+  toFiniteNumber as toFiniteNumberForTest,
+};

@@ -55,10 +55,10 @@ This project follows a **multi-source merge with reliability guardrails** strate
 ### Main source categories
 - Price and market proxy series: Stooq
 - US 10Y yield: FRED (`DGS10`)
-- Valuation history supplements: MacroMicro, Trendonify, and other public references used by adapters
+- Valuation history supplements: MacroMicro, Trendonify, FactSet/WSJ public references, and other public references used by adapters
 
 ### Important implementation notes
-- S&P 500 forward PE includes a pinned bootstrap series from MacroMicro in `data/bootstrap/sp500-forward-pe-macromicro.csv`.
+- S&P 500 forward PE uses verified public FactSet/WSJ anchors from 2020-01-17 onward; days between anchors are close-aware carry paths.
 - Forward PE availability is tracked per index via `forwardStartDate` and enforced in API responses.
 - Latest index snapshots include an anti-spike deviation guard to reduce one-day source-regime jumps.
 - Company `PE(FWD)` latest values prefer Yahoo trusted sources; when a daily Yahoo snapshot is untrusted for `pe_forward`, that day is stored as `null` (no manual fill).
@@ -239,7 +239,6 @@ To trigger manually:
 - Runtime watchlists: `data/runtime/watchlists.json`
 - Runtime alerts: `data/runtime/alerts.json`
 - Alert states: `data/runtime/alert-state.json`
-- S&P 500 forward PE bootstrap: `data/bootstrap/sp500-forward-pe-macromicro.csv`
 - Index historical Forward PE import: `data/vendor/index-forward-pe-history.csv`; sample file: `data/vendor/index-forward-pe-history.example.csv`. Use this for public references or audited index-level PIT/historical consensus sources such as FactSet index aggregates, LSEG I/B/E/S, Bloomberg BEst, or S&P Capital IQ.
 - Licensed company historical Forward PE import: `data/vendor/company-forward-pe-history.csv` (not committed); sample file: `data/vendor/company-forward-pe-history.example.csv`
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-03T11:25:46.688Z",
+  "generatedAt": "2026-05-03T13:18:41.586Z",
   "symbols": {
     "DIA": [
       {
@@ -291,8 +291,8 @@
         "pe_ttm": 39.1,
         "pe_forward": 27.35,
         "pb": 2.33,
-        "source": "wsj-latest",
-        "capturedAt": "2026-05-03T11:19:07.563Z"
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-05-03T13:17:17.102Z"
       }
     ],
     "QQQ": [

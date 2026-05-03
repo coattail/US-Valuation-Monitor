@@ -451,9 +451,8 @@ export function buildSeriesPayload(
   const points = findIndexSeries(dataset, indexId);
   const meta = dataset.indices.find((item) => item.id === indexId);
   const forwardStartDate = metric === "pe_forward" ? meta?.forwardStartDate : undefined;
-  const effectiveFrom = metric === "pe_forward" ? (fromDate && forwardStartDate ? (fromDate > forwardStartDate ? fromDate : forwardStartDate) : fromDate || forwardStartDate) : fromDate;
 
-  const rows = buildMetricSeries(points, metric, effectiveFrom, toDate);
+  const rows = buildMetricSeries(points, metric, fromDate, toDate);
   const range = resolveRowsDateRange(rows);
   return {
     generatedAt: dataset.generatedAt,

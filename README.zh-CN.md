@@ -55,10 +55,10 @@ us-valuation-monitor/
 ### 主要来源类别
 - 指数/ETF 价格代理：Stooq
 - 美国 10Y 国债收益率：FRED（`DGS10`）
-- 估值历史补充：MacroMicro、Trendonify 及其他公开可用来源
+- 估值历史补充：MacroMicro、Trendonify、FactSet/WSJ 公开参考点及其他公开可用来源
 
 ### 关键实现说明
-- 标普500前瞻市盈率（Forward PE）包含 MacroMicro 引导序列，文件为 `data/bootstrap/sp500-forward-pe-macromicro.csv`。
+- 标普500前瞻市盈率（Forward PE）从 2020-01-17 起使用可核验的 FactSet/WSJ 公开锚点；锚点之间按交易日收盘路径延展。
 - 每个指数的前瞻估值起始可用日由 `forwardStartDate` 标记，API 会在查询时严格处理。
 - 指数最新快照值有“防跳变阈值”校验，避免单日源口径切换造成异常尖刺。
 - 企业 `PE(FWD)` 最新值优先使用 Yahoo 可信来源；若当日 Yahoo 快照来源不可信，则该日 `pe_forward` 记为 `null`（不做人为补值）。
@@ -240,7 +240,6 @@ npx wrangler pages deploy .pages --project-name us-valuation-monitor --branch ma
 - 自选存储：`data/runtime/watchlists.json`
 - 提醒存储：`data/runtime/alerts.json`
 - 提醒状态：`data/runtime/alert-state.json`
-- 标普500前瞻 PE 引导数据：`data/bootstrap/sp500-forward-pe-macromicro.csv`
 - 指数历史 Forward PE 导入：`data/vendor/index-forward-pe-history.csv`；示例文件为 `data/vendor/index-forward-pe-history.example.csv`。可用于公开参考点，或 FactSet 指数聚合、LSEG I/B/E/S、Bloomberg BEst、S&P Capital IQ 等可审计的指数级 PIT/历史一致预期数据。
 - 企业历史 Forward PE 授权数据导入：`data/vendor/company-forward-pe-history.csv`（不提交仓库）；示例文件为 `data/vendor/company-forward-pe-history.example.csv`
 

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   applyMetricPointAnchorsForTest,
   applyMetricCloseCarryWithAnchorsForTest,
+  applyCloseAnchoredOverridesForTest,
   applyMetricCloseCarryFromAnchorSeriesForTest,
   applyYahooSnapshotCarryToMetricForTest,
   applyRecentCloseCarryWindowToMetricForTest,
@@ -247,6 +248,64 @@ test("prependHistoricalPbPrefixForTest prepends only the requested pre-2005 S&P 
   assert.equal(merged[1].pb, 4.0396);
   assert.equal(merged[2].pb, 4.3564);
   assert.equal(merged[3].pb, 2.92);
+});
+
+test("applyMetricCloseCarryFromAnchorSeriesForTest rebuilds S&P 500 forward PE from public anchors", () => {
+  const points = [
+    { date: "2019-12-31", pe_ttm: 22.78, pe_forward: 26.1877, pb: 3.53, us10y_yield: 0.0192 },
+    { date: "2020-01-02", pe_ttm: 22.99, pe_forward: 26.6229, pb: 3.56, us10y_yield: 0.0188 },
+    { date: "2020-01-17", pe_ttm: 23.49, pe_forward: 27.2094, pb: 3.64, us10y_yield: 0.0183 },
+    { date: "2020-01-21", pe_ttm: 23.45, pe_forward: 27.1373, pb: 3.63, us10y_yield: 0.0178 },
+  ];
+  const closes = [
+    { date: "2019-12-31", close: 3230.78 },
+    { date: "2020-01-02", close: 3257.85 },
+    { date: "2020-01-17", close: 3329.62 },
+    { date: "2020-01-21", close: 3320.79 },
+  ];
+  const anchors = [{ date: "2020-01-17", value: 18.7, ts: Date.parse("2020-01-17T00:00:00Z") }];
+
+  const repaired = applyMetricCloseCarryFromAnchorSeriesForTest(points, closes, "pe_forward", anchors, {
+    minValue: 2,
+    maxValue: 140,
+    maxAnchorLagDays: 5,
+    maxForwardFillDays: 45,
+    minDate: "2020-01-17",
+  });
+
+  assert.equal(repaired[0].pe_forward, 26.1877);
+  assert.equal(repaired[1].pe_forward, 26.6229);
+  assert.equal(repaired[2].pe_forward, 18.7);
+  assert.equal(repaired[3].pe_forward, 18.6504);
+});
+
+test("applyCloseAnchoredOverrides keeps missing forward PE as null outside anchor coverage", () => {
+  const points = [
+    { date: "2022-05-12", pe_ttm: 20, pe_forward: 16.6, pb: 4, us10y_yield: 0.03 },
+    { date: "2023-01-03", pe_ttm: 21, pe_forward: null, pb: 4.2, us10y_yield: 0.035 },
+    { date: "2026-04-10", pe_ttm: 25, pe_forward: 21.1, pb: 5.3, us10y_yield: 0.04 },
+  ];
+  const closes = [
+    { date: "2022-05-12", close: 100 },
+    { date: "2023-01-03", close: 110 },
+    { date: "2026-04-10", close: 150 },
+  ];
+  const anchors = [
+    { date: "2022-05-12", value: 16.6, ts: Date.parse("2022-05-12T00:00:00Z") },
+    { date: "2026-04-10", value: 21.1, ts: Date.parse("2026-04-10T00:00:00Z") },
+  ];
+
+  const repaired = applyCloseAnchoredOverridesForTest(points, closes, undefined, anchors, {
+    minForward: 2,
+    maxForward: 140,
+    maxAnchorLagDays: 5,
+    forwardMaxSegmentSpanDays: 900,
+    forwardSegmentMode: "daily_return_path",
+  });
+
+  assert.equal(repaired[0].pe_forward, 16.6);
+  assert.equal(repaired[1].pe_forward, null);
+  assert.equal(repaired[2].pe_forward, 21.1);
 });
 
 test("parseYahooChartCloseSeries returns sorted daily closes from Yahoo chart payload", () => {

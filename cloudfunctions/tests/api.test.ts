@@ -46,6 +46,16 @@ test("series payload exposes metric-specific PB history", async () => {
   assert.equal(payload.rows[0].value, 5.19);
 });
 
+test("series payload starts S&P 500 forward PE at public FactSet anchor", async () => {
+  const dataset = await loadDataset(ROOT_DIR);
+  const payload = buildSeriesPayload(dataset, "sp500", "pe_forward");
+
+  assert.equal(payload.rows.length, payload.availableRange.pointCount);
+  assert.equal(payload.availableRange.startDate, "2020-01-17");
+  assert.equal(payload.rows[0].date, "2020-01-17");
+  assert.equal(payload.rows[0].value, 18.7);
+});
+
 test("company dataset exposes top100 meta and snapshot", async () => {
   const dataset = await loadCompanyDataset(ROOT_DIR);
   const meta = buildCompanyMeta(dataset);
