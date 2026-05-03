@@ -4,17 +4,22 @@ import assert from "node:assert/strict";
 import {
   applyMetricPointAnchorsForTest,
   applyMetricCloseCarryWithAnchorsForTest,
+  applyMetricCloseCarryFromAnchorSeriesForTest,
   applyYahooSnapshotCarryToMetricForTest,
   applyRecentCloseCarryWindowToMetricForTest,
   applyPostCutoverMetricSources,
+  applyMetricAnchorSeriesForTest,
   buildEffectiveIndexYahooDailyMetricSnapshotsForTest,
   buildYahooChartUrlsForTest,
   collapseRedundantExplicitLatestSnapshotsForTest,
   extendSeriesWithRebasedPreviousTailForTest,
+  getMultplSp500PbUrlForTest,
   getIndexLiveSourceCutoverDateForTest,
   mergeHistoricalSeriesAtCutover,
   parseIsharesPortfolioMetricsForTest,
   parseMultplTableSeriesForTest,
+  parseStockMarketPeRatioCurrentForTest,
+  parseStockMarketPeRatioSeriesForTest,
   parseSsgaIndexMetricsForTest,
   parseWsjPeSnapshotFromTextForTest,
   pickAnchorForwardPeForTest,
@@ -24,8 +29,41 @@ import {
   rebaseHistoryFallbackWithSnapshotsForTest,
   pruneInvalidExplicitIndexSnapshotsForTest,
   pruneImplausibleForwardSeriesForTest,
+  shouldFetchMultplSp500PeFallbackForTest,
   upsertIndexYahooDailyMetricSnapshotForTest,
 } from "../src/generate.ts";
+
+test("parseStockMarketPeRatioSeriesForTest parses monthly S&P 500 TTM PE anchors", () => {
+  const js = `
+    google.visualization.arrayToDataTable([
+      ['Month Ending', 'PE Ratio', 'Average Since 1990'],
+      [new Date(1990,1,1),15.12,23.58],
+      [new Date(1990,12,1),15.41,23.58],
+      [new Date(2026,3,1),25.83,23.58],
+    ]);
+  `;
+
+  const series = parseStockMarketPeRatioSeriesForTest(js);
+
+  assert.deepEqual(series, [
+    { date: "1990-01-31", value: 15.12, ts: Date.parse("1990-01-31T00:00:00Z") },
+    { date: "1990-12-31", value: 15.41, ts: Date.parse("1990-12-31T00:00:00Z") },
+    { date: "2026-03-31", value: 25.83, ts: Date.parse("2026-03-31T00:00:00Z") },
+  ]);
+});
+
+test("parseStockMarketPeRatioCurrentForTest parses current S&P 500 TTM PE anchor", () => {
+  const html = `
+    <td id="trailingPE" class="table-important">25.83</td>
+    <p id="date" class="footnote">Data as of 2026-03-31 15:00 CST</p>
+  `;
+
+  assert.deepEqual(parseStockMarketPeRatioCurrentForTest(html), {
+    date: "2026-03-31",
+    value: 25.83,
+    ts: Date.parse("2026-03-31T00:00:00Z"),
+  });
+});
 
 test("mergeHistoricalSeriesAtCutover keeps prior history before cutover and uses new points from cutover onward", () => {
   const previous = [
@@ -46,6 +84,136 @@ test("mergeHistoricalSeriesAtCutover keeps prior history before cutover and uses
   );
   assert.equal(merged[1].pe_ttm, 30.5);
   assert.equal(merged[2].pe_ttm, 31.2);
+});
+
+test("applyMetricAnchorSeriesForTest repairs pre-cutover PB from real anchor series", () => {
+  const points = [
+    { date: "2007-12-31", pe_ttm: 19.28, pe_forward: 29.48, pb: 9.25, us10y_yield: 0.0404 },
+    { date: "2008-01-02", pe_ttm: 21.27, pe_forward: 19.28, pb: 5.2, us10y_yield: 0.0391 },
+    { date: "2008-03-31", pe_ttm: 22.1, pe_forward: 18.2, pb: 2.75, us10y_yield: 0.035 },
+  ];
+  const anchors = [
+    { date: "2007-12-31", value: 2.82, ts: Date.parse("2007-12-31T00:00:00Z") },
+    { date: "2008-03-31", value: 2.75, ts: Date.parse("2008-03-31T00:00:00Z") },
+  ];
+
+  const repaired = applyMetricAnchorSeriesForTest(points, "pb", anchors, {
+    minValue: 0.2,
+    maxValue: 28,
+    maxInterpolationSpanDays: 180,
+    maxForwardFillDays: 120,
+    maxBackFillDays: 120,
+  });
+
+  assert.equal(repaired[0].pb, 2.82);
+  assert.ok(repaired[1].pb < 3);
+});
+
+test("applyMetricAnchorSeriesForTest repairs PB after history fallback merge", () => {
+  const previous = [
+    { date: "2007-12-31", pe_ttm: 19.28, pe_forward: 29.48, pb: 9.25, us10y_yield: 0.0404 },
+  ];
+  const next = [
+    { date: "2008-01-02", pe_ttm: 21.27, pe_forward: 19.28, pb: 5.2, us10y_yield: 0.0391 },
+    { date: "2008-03-31", pe_ttm: 22.1, pe_forward: 18.2, pb: 2.75, us10y_yield: 0.035 },
+  ];
+  const anchors = [
+    { date: "2007-12-31", value: 2.82, ts: Date.parse("2007-12-31T00:00:00Z") },
+    { date: "2008-03-31", value: 2.75, ts: Date.parse("2008-03-31T00:00:00Z") },
+  ];
+
+  const merged = mergeHistoricalSeriesAtCutover(previous, next, "2008-01-02");
+  const repaired = applyMetricAnchorSeriesForTest(merged, "pb", anchors, {
+    minValue: 0.2,
+    maxValue: 28,
+    maxInterpolationSpanDays: 180,
+    maxForwardFillDays: 120,
+    maxDate: "2008-01-02",
+  });
+
+  assert.equal(repaired[0].pb, 2.82);
+  assert.ok(repaired[1].pb < 3);
+});
+
+test("applyMetricCloseCarryFromAnchorSeriesForTest carries PB by daily close returns between anchors", () => {
+  const points = [
+    { date: "2026-03-30", pe_ttm: 20, pe_forward: 18, pb: 4, us10y_yield: 0.04 },
+    { date: "2026-03-31", pe_ttm: 20, pe_forward: 18, pb: 4, us10y_yield: 0.04 },
+    { date: "2026-04-01", pe_ttm: 20, pe_forward: 18, pb: 4, us10y_yield: 0.04 },
+    { date: "2026-04-02", pe_ttm: 20, pe_forward: 18, pb: 4, us10y_yield: 0.04 },
+  ];
+  const closes = [
+    { date: "2026-03-30", close: 100 },
+    { date: "2026-03-31", close: 102 },
+    { date: "2026-04-01", close: 105 },
+    { date: "2026-04-02", close: 110 },
+  ];
+  const anchors = [
+    { date: "2026-03-31", value: 2, ts: Date.parse("2026-03-31T00:00:00Z") },
+    { date: "2026-04-04", value: 2.1, ts: Date.parse("2026-04-04T00:00:00Z") },
+  ];
+
+  const carried = applyMetricCloseCarryFromAnchorSeriesForTest(points, closes, "pb", anchors, {
+    minValue: 0.2,
+    maxValue: 28,
+    maxAnchorLagDays: 5,
+    maxForwardFillDays: 10,
+  });
+
+  assert.equal(carried[0].pb, 4);
+  assert.equal(carried[1].pb, 2);
+  assert.equal(carried[2].pb, 2.0588);
+  assert.equal(carried[3].pb, 2.1);
+});
+
+test("applyMetricCloseCarryFromAnchorSeriesForTest can rebuild S&P 500 TTM PE before cutover", () => {
+  const points = [
+    { date: "2007-12-31", pe_ttm: 40, pe_forward: 18, pb: 3, us10y_yield: 0.04 },
+    { date: "2008-01-02", pe_ttm: 41, pe_forward: 18, pb: 3, us10y_yield: 0.04 },
+    { date: "2008-01-03", pe_ttm: 42, pe_forward: 18, pb: 3, us10y_yield: 0.04 },
+  ];
+  const closes = [
+    { date: "2007-12-31", close: 100 },
+    { date: "2008-01-02", close: 99 },
+    { date: "2008-01-03", close: 98 },
+  ];
+  const anchors = [{ date: "2007-12-31", value: 21, ts: Date.parse("2007-12-31T00:00:00Z") }];
+
+  const repaired = applyMetricCloseCarryFromAnchorSeriesForTest(points, closes, "pe_ttm", anchors, {
+    minValue: 2.4,
+    maxValue: 180,
+    maxAnchorLagDays: 5,
+    maxForwardFillDays: 30,
+  });
+
+  assert.equal(repaired[0].pe_ttm, 21);
+  assert.equal(repaired[1].pe_ttm, 20.79);
+  assert.equal(repaired[2].pe_ttm, 20.58);
+});
+
+test("applyMetricCloseCarryFromAnchorSeriesForTest seeds from the latest anchor before the first point", () => {
+  const points = [
+    { date: "2005-02-25", pe_ttm: 47.5, pe_forward: 18, pb: 3, us10y_yield: 0.04 },
+    { date: "2005-02-28", pe_ttm: 48, pe_forward: 18, pb: 3, us10y_yield: 0.04 },
+  ];
+  const closes = [
+    { date: "2005-02-25", close: 100 },
+    { date: "2005-02-28", close: 101 },
+  ];
+  const anchors = [
+    { date: "2005-01-31", value: 20, ts: Date.parse("2005-01-31T00:00:00Z") },
+    { date: "2005-02-28", value: 20.11, ts: Date.parse("2005-02-28T00:00:00Z") },
+  ];
+
+  const repaired = applyMetricCloseCarryFromAnchorSeriesForTest(points, closes, "pe_ttm", anchors, {
+    minValue: 2.4,
+    maxValue: 180,
+    maxAnchorLagDays: 5,
+    maxForwardFillDays: 45,
+  });
+
+  assert.equal(repaired[0].pe_ttm, 20);
+  assert.equal(repaired[1].pe_ttm, 20.11);
 });
 
 test("parseYahooChartCloseSeries returns sorted daily closes from Yahoo chart payload", () => {
@@ -556,6 +724,30 @@ test("parseMultplTableSeriesForTest parses dated rows from Multpl tables", () =>
   ]);
 });
 
+test("S&P 500 PB uses the stable Multpl quarterly anchor table", () => {
+  assert.equal(getMultplSp500PbUrlForTest(), "https://www.multpl.com/s-p-500-price-to-book/table/by-quarter");
+});
+
+test("S&P 500 TTM PE only falls back to Multpl when no historical source exists", () => {
+  assert.equal(shouldFetchMultplSp500PeFallbackForTest(undefined), true);
+  assert.equal(shouldFetchMultplSp500PeFallbackForTest([]), true);
+  assert.equal(
+    shouldFetchMultplSp500PeFallbackForTest([
+      { date: "2026-03-31", value: 24.7, ts: Date.parse("2026-03-31T00:00:00Z") },
+    ]),
+    false
+  );
+});
+
+test("S&P 500 TTM PE does not fall back to Multpl when stockmarketperatio history exists", () => {
+  const stockMarketPeRatioSeries = parseStockMarketPeRatioSeriesForTest(`
+    [new Date(2025,12,1),31.02,23.58],
+    [new Date(2026,3,1),25.83,23.58],
+  `);
+
+  assert.equal(shouldFetchMultplSp500PeFallbackForTest(stockMarketPeRatioSeries), false);
+});
+
 test("pruneInvalidExplicitIndexSnapshotsForTest removes explicit outliers against anchor series", () => {
   const snapshots = [
     { date: "2026-04-10", pe_ttm: 24.45, pe_forward: 21.1, pb: null, source: "wsj-latest" },
@@ -627,6 +819,36 @@ test("parseSsgaIndexMetricsForTest extracts TTM PE, forward PE, PB, and date fro
     pe_ttm: 23.13,
     pe_forward: 20.4,
     pb: 5.28,
+    source: "ssga-official-latest",
+  });
+});
+
+test("parseSsgaIndexMetricsForTest accepts XLC style index characteristics with forward PE only on the index section", () => {
+  const html = `
+    <section data-fundComponent="true">
+      <h2 class="comp-title">Fund Characteristics <span class="date">as of Apr 30 2026</span></h2>
+      <div class="section-content">
+        <table class="tb-keyvalue">
+          <tr><td class="label">Price/Book Ratio</td><td class="data">3.35</td></tr>
+        </table>
+      </div>
+    </section>
+    <section data-fundComponent="true">
+      <h2 class="comp-title">Index Characteristics <span class="date">as of Apr 30 2026</span></h2>
+      <div class="section-content">
+        <table class="tb-keyvalue">
+          <tr><td class="label">Price/Earnings</td><td class="data">17.92</td></tr>
+          <tr><td class="label">Price/Earnings Ratio FY1</td><td class="data">16.07</td></tr>
+        </table>
+      </div>
+    </section>
+  `;
+
+  assert.deepEqual(parseSsgaIndexMetricsForTest(html), {
+    date: "2026-04-30",
+    pe_ttm: 17.92,
+    pe_forward: 16.07,
+    pb: 3.35,
     source: "ssga-official-latest",
   });
 });

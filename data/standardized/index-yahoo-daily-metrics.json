@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-02T19:23:50.780Z",
+  "generatedAt": "2026-05-03T08:23:33.801Z",
   "symbols": {
     "DIA": [
       {
@@ -88,7 +88,7 @@
         "pe_forward": 20.47,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-05-02T19:12:47.333Z"
+        "capturedAt": "2026-05-03T08:16:43.744Z"
       }
     ],
     "IJH": [
@@ -179,6 +179,14 @@
         "pb": 2.69,
         "source": "ishares-official-latest",
         "capturedAt": "2026-05-02T19:13:53.736Z"
+      },
+      {
+        "date": "2026-05-01",
+        "pe_ttm": 22.71,
+        "pe_forward": null,
+        "pb": 2.73,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-05-03T08:17:57.768Z"
       }
     ],
     "IWM": [
@@ -282,9 +290,9 @@
         "date": "2026-05-01",
         "pe_ttm": 39.1,
         "pe_forward": 27.35,
-        "pb": null,
+        "pb": 2.33,
         "source": "wsj-latest",
-        "capturedAt": "2026-05-02T19:13:12.187Z"
+        "capturedAt": "2026-05-03T08:17:06.945Z"
       }
     ],
     "QQQ": [
@@ -318,7 +326,7 @@
         "pe_forward": 24.9,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-05-02T19:21:13.186Z"
+        "capturedAt": "2026-05-03T08:16:27.008Z"
       }
     ],
     "SPY": [
@@ -352,7 +360,7 @@
         "pe_forward": 21.74,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-05-02T19:20:31.949Z"
+        "capturedAt": "2026-05-03T08:15:39.765Z"
       }
     ],
     "VTI": [
@@ -443,6 +451,14 @@
         "pb": 4.73,
         "source": "ishares-official-latest",
         "capturedAt": "2026-05-02T19:14:40.634Z"
+      },
+      {
+        "date": "2026-05-01",
+        "pe_ttm": 28.3,
+        "pe_forward": null,
+        "pb": 4.81,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-05-03T08:18:50.405Z"
       }
     ],
     "XLB": [
@@ -453,6 +469,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:57:16.008Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 26.02,
+        "pe_forward": 18.16,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:22:16.612Z"
       }
     ],
     "XLC": [
@@ -463,6 +487,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:45:52.291Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 17.92,
+        "pe_forward": 16.07,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:19:15.422Z"
       }
     ],
     "XLE": [
@@ -473,6 +505,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:55:52.510Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 21.62,
+        "pe_forward": 15.06,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:20:26.483Z"
       }
     ],
     "XLF": [
@@ -483,6 +523,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:56:10.052Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 16.56,
+        "pe_forward": 15.42,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:20:55.228Z"
       }
     ],
     "XLI": [
@@ -493,6 +541,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:57:00.035Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 30.45,
+        "pe_forward": 26.19,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:21:51.628Z"
       }
     ],
     "XLK": [
@@ -503,6 +559,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:58:01.351Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 36.15,
+        "pe_forward": 25.99,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:23:07.001Z"
       }
     ],
     "XLP": [
@@ -513,6 +577,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:55:34.807Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 25.5,
+        "pe_forward": 20.18,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:19:59.459Z"
       }
     ],
     "XLRE": [
@@ -523,6 +595,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:57:39.687Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 34.6,
+        "pe_forward": null,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:22:41.306Z"
       }
     ],
     "XLU": [
@@ -533,6 +613,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:58:17.575Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 22.7,
+        "pe_forward": 19.54,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:23:31.355Z"
       }
     ],
     "XLV": [
@@ -543,6 +631,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:56:42.950Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 27.11,
+        "pe_forward": 17.51,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:21:31.661Z"
       }
     ],
     "XLY": [
@@ -553,6 +649,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:46:09.570Z"
+      },
+      {
+        "date": "2026-04-30",
+        "pe_ttm": 32.78,
+        "pe_forward": 26.92,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-05-03T08:19:38.843Z"
       }
     ]
   }

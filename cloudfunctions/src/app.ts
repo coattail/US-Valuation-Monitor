@@ -43,13 +43,11 @@ const METRIC_SET = new Set<MetricId>([
   "pe_ttm",
   "pe_forward",
   "pb",
-  "earnings_yield",
 ]);
 const COMPANY_METRIC_SET = new Set<CompanyMetricId>([
   "pe_ttm",
   "pe_forward",
   "pb",
-  "earnings_yield",
 ]);
 
 interface CompanyValuationPoint extends RawValuationPoint {

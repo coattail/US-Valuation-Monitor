@@ -49,7 +49,6 @@ export function enrichSeries(points: RawValuationPoint[]): ValuationPoint[] {
 
     result.push({
       ...point,
-      earnings_yield: clamp(earningsYield, -1, 1),
       erp_proxy: clamp(erpProxy, -1, 1),
       percentile_5y: percentile5y,
       percentile_10y: percentile10y,
@@ -128,7 +127,6 @@ export function buildSnapshot(indexId: string, points: RawValuationPoint[]): Sna
     pe_ttm: latest.pe_ttm,
     pe_forward: latest.pe_forward,
     pb: latest.pb,
-    earnings_yield: latest.earnings_yield,
     erp_proxy: latest.erp_proxy,
     percentile_5y: latest.percentile_5y,
     percentile_10y: latest.percentile_10y,

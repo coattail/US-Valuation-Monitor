@@ -18,6 +18,9 @@ const SP500_FORWARD_PE_MM_CSV = path.join(
   "bootstrap",
   "sp500-forward-pe-macromicro.csv"
 );
+const STOCKMARKETPERATIO_SP500_URL = "https://www.stockmarketperatio.com/";
+const STOCKMARKETPERATIO_SP500_HISTORY_JS_URL =
+  "https://www.stockmarketperatio.com/js/historical-sp-500-pe-ratio-since-1990.js";
 const DEFAULT_VENDOR_INDEX_FORWARD_PE_FILE = path.join(
   DATA_PIPELINE_ROOT,
   "data",
@@ -225,6 +228,10 @@ const MACROMICRO_SERIES_ROUTES: Partial<
   >
 > = {
   sp500: {
+    trailing: [
+      "https://en.macromicro.me/series/1633/us-sp500-pe-ratio",
+      "https://en.macromicro.me/series/1633/sp500-pe-ratio",
+    ],
     forward: [
       "https://en.macromicro.me/series/20052/sp500-forward-pe-ratio",
       "https://en.macromicro.me/series/20052/us-sp500-forward-pe-ratio",
@@ -292,7 +299,6 @@ const CURATED_PUBLIC_FORWARD_PE_REFERENCES: Partial<Record<string, Array<{ date:
     { date: "2026-04-10", value: 21.1, source: "wsj-public-pe-yield" },
     { date: "2026-04-17", value: 21.59, source: "wsj-public-pe-yield" },
   ],
-  sector_communication: [{ date: "2026-04-14", value: 20.38, source: "macromicro-spdj-public-series" }],
   sector_energy: [{ date: "2026-04-14", value: 15.85, source: "macromicro-spdj-public-series" }],
   sector_materials: [{ date: "2026-04-14", value: 19.51, source: "macromicro-spdj-public-series" }],
   sector_technology: [{ date: "2026-04-14", value: 21.71, source: "macromicro-spdj-public-series" }],
@@ -356,7 +362,10 @@ const OFFICIAL_INDEX_SNAPSHOT_ROUTES: Partial<
     {
       provider: "ssga",
       source: "ssga-official-latest",
-      urls: ["https://www.ssga.com/us/en/intermediary/etfs/the-communication-services-select-sector-spdr-fund-xlc"],
+      urls: [
+        "https://www.ssga.com/us/en/individual/etfs/the-communication-services-select-sector-spdr-fund-xlc",
+        "https://www.ssga.com/us/en/intermediary/etfs/the-communication-services-select-sector-spdr-fund-xlc",
+      ],
     },
   ],
   sector_consumer_discretionary: [
@@ -573,11 +582,15 @@ const INDEX_LIVE_SOURCE_CUTOVER_DATE_OVERRIDES: Partial<Record<string, string>> 
   sector_technology: "1999-01-04",
 };
 const YCHARTS_CALC_PB = "price_to_book_value";
+const MULTPL_SP500_PB_URL = "https://www.multpl.com/s-p-500-price-to-book/table/by-quarter";
 const YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE = 0.01;
 const INDEX_YAHOO_LATEST_TTM_MAX_DEVIATION_RATIO = 0.06;
 const INDEX_YAHOO_LATEST_FORWARD_MAX_DEVIATION_RATIO = 0.06;
 const OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO = 0.2;
 const OFFICIAL_INDEX_LATEST_PB_MAX_DEVIATION_RATIO = 0.28;
+const OFFICIAL_INDEX_LATEST_FORWARD_MAX_DEVIATION_RATIO_OVERRIDES: Partial<Record<string, number>> = {
+  sector_communication: 0.45,
+};
 const INDEX_YAHOO_RECENT_REPAIR_LOOKBACK_POINTS = 45;
 const INDEX_POST_CUTOVER_MAX_INTERPOLATION_SPAN_DAYS = 45;
 const INDEX_POST_CUTOVER_MAX_FORWARD_FILL_DAYS = 5;
@@ -800,6 +813,10 @@ function clamp(value: number, min: number, max: number): number {
 function roundTo(value: number, digits = 4): number {
   const ratio = 10 ** digits;
   return Math.round(value * ratio) / ratio;
+}
+
+function daysBetween(startDate: string, endDate: string): number {
+  return (parseDate(endDate).getTime() - parseDate(startDate).getTime()) / 86_400_000;
 }
 
 function sanitizeSignedRatio(value: unknown): number | null {
@@ -2005,6 +2022,168 @@ export function applyPostCutoverMetricSources(
   });
 }
 
+function applyMetricAnchorSeries(
+  points: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  anchorSeries: MonthlyMetricPoint[],
+  options: {
+    minValue: number;
+    maxValue: number;
+    maxInterpolationSpanDays?: number;
+    maxForwardFillDays?: number;
+    maxBackFillDays?: number;
+    minDate?: string;
+    maxDate?: string;
+  }
+): RawValuationPoint[] {
+  if (!points.length || !anchorSeries.length) return points;
+
+  const lastAnchorDate = anchorSeries[anchorSeries.length - 1]?.date || "";
+
+  return points.map((point) => {
+    if (!point?.date) return point;
+    if (options.minDate && point.date < options.minDate) return point;
+    if (options.maxDate && point.date > options.maxDate) return point;
+    if (lastAnchorDate && point.date > lastAnchorDate && daysBetween(lastAnchorDate, point.date) > (options.maxForwardFillDays ?? 0)) {
+      return point;
+    }
+
+    const value = interpolateMonthlyMetric(
+      point.date,
+      anchorSeries,
+      options.maxInterpolationSpanDays ?? INDEX_POST_CUTOVER_MAX_INTERPOLATION_SPAN_DAYS,
+      options.maxForwardFillDays ?? INDEX_POST_CUTOVER_MAX_FORWARD_FILL_DAYS
+    );
+
+    if (!Number.isFinite(value) || Number(value) <= 0) return point;
+
+    return {
+      ...point,
+      [metric]: roundTo(clamp(Number(value), options.minValue, options.maxValue), 4),
+    };
+  });
+}
+
+export function applyMetricAnchorSeriesForTest(
+  points: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  anchorSeries: MonthlyMetricPoint[],
+  options: {
+    minValue: number;
+    maxValue: number;
+    maxInterpolationSpanDays?: number;
+    maxForwardFillDays?: number;
+    maxBackFillDays?: number;
+    minDate?: string;
+    maxDate?: string;
+  }
+): RawValuationPoint[] {
+  return applyMetricAnchorSeries(points, metric, anchorSeries, options);
+}
+
+function applyMetricCloseCarryFromAnchorSeries(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  metric: IndexRatioMetricKey,
+  anchorSeries: MonthlyMetricPoint[],
+  options: {
+    minValue: number;
+    maxValue: number;
+    maxAnchorLagDays?: number;
+    maxForwardFillDays?: number;
+    minDate?: string;
+    maxDate?: string;
+  }
+): RawValuationPoint[] {
+  if (!points.length || !closes.length || !anchorSeries.length) return points;
+
+  const maxAnchorLagDays = options.maxAnchorLagDays ?? 5;
+  const maxForwardFillDays = options.maxForwardFillDays ?? 120;
+  const pointDateSet = new Set(points.map((point) => point.date));
+  const anchorByTradeDate = new Map<string, number>();
+
+  for (const anchor of sanitizeMonthlySeries(anchorSeries, options.minValue, options.maxValue)) {
+    const closePoint = findCloseAtOrBeforeDate(closes, anchor.date);
+    if (!closePoint || !pointDateSet.has(closePoint.date)) continue;
+    const lagDays = Math.max(0, daysBetween(closePoint.date, anchor.date));
+    if (lagDays > maxAnchorLagDays) continue;
+    anchorByTradeDate.set(closePoint.date, roundTo(clamp(anchor.value, options.minValue, options.maxValue), 4));
+  }
+
+  if (!anchorByTradeDate.size) return points;
+
+  const closeByDate = new Map<string, number>();
+  for (const close of closes) {
+    if (Number.isFinite(close.close) && close.close > 0) {
+      closeByDate.set(close.date, close.close);
+    }
+  }
+
+  const lastAnchorDate = [...anchorByTradeDate.keys()].sort().at(-1) || "";
+  const firstPointDate = [...points].sort((a, b) => a.date.localeCompare(b.date))[0]?.date || "";
+  const seedAnchor = firstPointDate
+    ? sanitizeMonthlySeries(anchorSeries, options.minValue, options.maxValue)
+        .filter((anchor) => anchor.date < firstPointDate)
+        .at(-1)
+    : undefined;
+  let activeValue: number | null = null;
+  let activeClose: number | null = closeByDate.get(firstPointDate) ?? null;
+  if (seedAnchor && Number.isFinite(activeClose) && Number(activeClose) > 0) {
+    activeValue = roundTo(clamp(seedAnchor.value, options.minValue, options.maxValue), 4);
+  }
+
+  return points.map((point) => {
+    if (options.minDate && point.date < options.minDate) return point;
+    if (options.maxDate && point.date > options.maxDate) return point;
+    if (
+      lastAnchorDate &&
+      point.date > lastAnchorDate &&
+      daysBetween(lastAnchorDate, point.date) > maxForwardFillDays
+    ) {
+      return point;
+    }
+
+    const currentClose = closeByDate.get(point.date);
+    if (!Number.isFinite(currentClose) || Number(currentClose) <= 0) return point;
+
+    const anchorValue = anchorByTradeDate.get(point.date);
+    let nextValue: number | null = null;
+    if (Number.isFinite(anchorValue)) {
+      nextValue = Number(anchorValue);
+    } else if (activeValue !== null && activeClose !== null && Number.isFinite(activeClose) && activeClose > 0) {
+      nextValue = activeValue * (Number(currentClose) / activeClose);
+    }
+
+    if (!Number.isFinite(nextValue) || Number(nextValue) <= 0) return point;
+
+    const sanitizedValue = roundTo(clamp(Number(nextValue), options.minValue, options.maxValue), 4);
+    activeValue = sanitizedValue;
+    activeClose = Number(currentClose);
+
+    return {
+      ...point,
+      [metric]: sanitizedValue,
+    };
+  });
+}
+
+export function applyMetricCloseCarryFromAnchorSeriesForTest(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  metric: IndexRatioMetricKey,
+  anchorSeries: MonthlyMetricPoint[],
+  options: {
+    minValue: number;
+    maxValue: number;
+    maxAnchorLagDays?: number;
+    maxForwardFillDays?: number;
+    minDate?: string;
+    maxDate?: string;
+  }
+): RawValuationPoint[] {
+  return applyMetricCloseCarryFromAnchorSeries(points, closes, metric, anchorSeries, options);
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error || "unknown error");
@@ -2309,7 +2488,7 @@ function extractSectionChunk(html: string, title: string, maxChars = 8_000): str
 function parseSsgaSectionMetricRows(html: string): Map<string, number> {
   const rows = new Map<string, number>();
   const rowRegex =
-    /<tr[\s\S]*?<td[^>]*class="label"[^>]*>([\s\S]*?)<\/td>[\s\S]*?<td[^>]*class="data"[^>]*>([\s\S]*?)<\/td>[\s\S]*?<\/tr>/gi;
+    /<tr[\s\S]*?<(?:td|th)[^>]*class="label"[^>]*>([\s\S]*?)<\/(?:td|th)>[\s\S]*?<td[^>]*class="data"[^>]*>([\s\S]*?)<\/td>[\s\S]*?<\/tr>/gi;
   let match: RegExpExecArray | null;
 
   while ((match = rowRegex.exec(html)) !== null) {
@@ -2773,6 +2952,47 @@ export function parseMultplTableSeriesForTest(html: string, maxValue = 250): Mon
   return parseMultplTableSeries(html, maxValue);
 }
 
+function parseStockMarketPeRatioSeries(jsText: string): MonthlyMetricPoint[] | undefined {
+  const text = String(jsText || "");
+  const byDate = new Map<string, number>();
+  const rowRegex =
+    /\[\s*new\s+Date\(\s*([12]\d{3})\s*,\s*([1-9]|1[0-2])\s*,\s*1\s*\)\s*,\s*([-+]?[0-9]+(?:\.[0-9]+)?)\s*,/g;
+  let match: RegExpExecArray | null;
+  while ((match = rowRegex.exec(text)) !== null) {
+    const year = Number(match[1]);
+    const oneBasedMonth = Number(match[2]);
+    const value = Number(match[3]);
+    if (!Number.isFinite(year) || !Number.isFinite(oneBasedMonth)) continue;
+    if (!Number.isFinite(value) || value <= 0 || value > 250) continue;
+    const monthEnd = new Date(Date.UTC(year, oneBasedMonth, 0));
+    const date = formatDate(monthEnd);
+    byDate.set(date, value);
+  }
+
+  if (!byDate.size) return undefined;
+  return [...byDate.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, value]) => ({ date, value, ts: parseDate(date).getTime() }));
+}
+
+function parseStockMarketPeRatioCurrent(html: string): MonthlyMetricPoint | undefined {
+  const text = String(html || "");
+  const valueMatch = text.match(/id=["']trailingPE["'][^>]*>\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const dateMatch = text.match(/Data\s+as\s+of\s+([12]\d{3}-\d{2}-\d{2})/i);
+  const value = Number(valueMatch?.[1]);
+  const date = dateMatch?.[1];
+  if (!date || !Number.isFinite(value) || value <= 0 || value > 250) return undefined;
+  return { date, value, ts: parseDate(date).getTime() };
+}
+
+export function parseStockMarketPeRatioSeriesForTest(jsText: string): MonthlyMetricPoint[] | undefined {
+  return parseStockMarketPeRatioSeries(jsText);
+}
+
+export function parseStockMarketPeRatioCurrentForTest(html: string): MonthlyMetricPoint | undefined {
+  return parseStockMarketPeRatioCurrent(html);
+}
+
 function getYchartsSecurityIdCandidates(symbol: string): string[] {
   const seed = String(symbol || "").trim().toUpperCase();
   if (!seed) return [];
@@ -2859,6 +3079,14 @@ export function parseYchartsPbSeriesForTest(jsonText: string): MonthlyMetricPoin
   return parseYchartsFundMetricSeries(jsonText, YCHARTS_CALC_PB, 50);
 }
 
+export function getMultplSp500PbUrlForTest(): string {
+  return MULTPL_SP500_PB_URL;
+}
+
+export function shouldFetchMultplSp500PeFallbackForTest(trailingSeries: MonthlyMetricPoint[] | undefined): boolean {
+  return !trailingSeries?.length;
+}
+
 async function fetchYchartsPbSeries(symbol: string): Promise<MonthlyMetricPoint[] | undefined> {
   for (const candidate of getYchartsSecurityIdCandidates(symbol)) {
     const url = buildYchartsFundDataUrl(candidate, [YCHARTS_CALC_PB]);
@@ -2892,8 +3120,36 @@ async function fetchMultplSp500PeSeries(): Promise<MonthlyMetricPoint[] | undefi
   return fetchMultplTableSeries("https://www.multpl.com/s-p-500-pe-ratio/table/by-month", 250);
 }
 
+async function fetchStockMarketPeRatioSp500Series(): Promise<MonthlyMetricPoint[] | undefined> {
+  let series: MonthlyMetricPoint[] | undefined;
+  try {
+    const js = await curlGet(STOCKMARKETPERATIO_SP500_HISTORY_JS_URL, 25000, {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      Accept: "application/javascript,text/plain,*/*",
+    });
+    series = parseStockMarketPeRatioSeries(js);
+  } catch {
+    // continue with the current page anchor
+  }
+
+  try {
+    const html = await curlGet(STOCKMARKETPERATIO_SP500_URL, 25000, {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      Accept: "text/html,application/xhtml+xml",
+    });
+    const current = parseStockMarketPeRatioCurrent(html);
+    if (current) {
+      series = series?.length ? mergeMonthlySeries([current], series) : [current];
+    }
+  } catch {
+    // the monthly history is still useful if the front page is unavailable
+  }
+
+  return series?.length ? series : undefined;
+}
+
 async function fetchMultplSp500PbSeries(): Promise<MonthlyMetricPoint[] | undefined> {
-  return fetchMultplTableSeries("https://www.multpl.com/s-p-500-price-to-book/table/by-quarter", 50);
+  return fetchMultplTableSeries(MULTPL_SP500_PB_URL, 50);
 }
 
 function normalizeMacroMicroMonthlyDate(dateText: string): string | undefined {
@@ -4602,6 +4858,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let siblisForwardCount = 0;
   let siblisSnapshotSkippedCount = 0;
   let macroMicroForwardCount = 0;
+  let stockMarketPeRatioTrailingCount = 0;
   let ndxForwardBootstrapCount = 0;
   let ndxTtmFactsetBootstrapCount = 0;
   let multplTrailingCount = 0;
@@ -4615,6 +4872,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let yahooHistoricalAnchorCount = 0;
   let yahooLatestSnapshotCount = 0;
   let sp500WsjCarryCount = 0;
+  let cachedStockMarketPeRatioSp500Series: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500Series: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500PbSeries: MonthlyMetricPoint[] | undefined;
   const fetchErrors: string[] = [];
@@ -4763,6 +5021,20 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       }
 
       const macroMicroSeriesRoutes = MACROMICRO_SERIES_ROUTES[meta.id];
+      if (macroMicroSeriesRoutes?.trailing?.length) {
+        const macroTrailingBySeriesPage = await fetchMacroMicroSeriesByPageRoutes(macroMicroSeriesRoutes.trailing);
+        if (macroTrailingBySeriesPage?.length) {
+          trailingSeries = trailingSeries?.length
+            ? mergeMonthlySeries(macroTrailingBySeriesPage, trailingSeries)
+            : macroTrailingBySeriesPage;
+          macroMicroTrailingSeriesCount += 1;
+          const latestTrailing = trailingSeries?.[trailingSeries.length - 1]?.value;
+          if (isReasonablePe(latestTrailing)) {
+            anchorPe = Number(latestTrailing);
+            resolvedFrom = "macromicro";
+          }
+        }
+      }
       if (macroMicroSeriesRoutes?.forward?.length) {
         const allowForwardOverlayFromMacroMicro = !FORWARD_LOCKED_INDEX_IDS.has(meta.id);
         if (allowForwardOverlayFromMacroMicro && !hasPinnedForwardSeries) {
@@ -4811,7 +5083,29 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
       }
 
-      if (meta.id === "sp500" && (!trailingSeries?.length || isSeriesStale(trailingSeries, effectiveEnd, 120))) {
+      if (meta.id === "sp500") {
+        try {
+          if (!cachedStockMarketPeRatioSp500Series) {
+            cachedStockMarketPeRatioSp500Series = await fetchStockMarketPeRatioSp500Series();
+          }
+        } catch {
+          // ignore; WSJ and other sources can still anchor the recent tail
+        }
+
+        if (cachedStockMarketPeRatioSp500Series?.length) {
+          trailingSeries = trailingSeries?.length
+            ? mergeMonthlySeries(cachedStockMarketPeRatioSp500Series, trailingSeries)
+            : cachedStockMarketPeRatioSp500Series;
+          stockMarketPeRatioTrailingCount += 1;
+          const latestTrailing = trailingSeries[trailingSeries.length - 1]?.value;
+          if (isReasonablePe(latestTrailing)) {
+            anchorPe = Number(latestTrailing);
+            resolvedFrom = "stockmarketperatio";
+          }
+        }
+      }
+
+      if (meta.id === "sp500" && shouldFetchMultplSp500PeFallbackForTest(trailingSeries)) {
         try {
           if (!cachedMultplSp500Series) {
             cachedMultplSp500Series = await fetchMultplSp500PeSeries();
@@ -4848,7 +5142,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       }
       try {
         const ychartsPbSeries = await fetchYchartsPbSeries(meta.symbol);
-        if (ychartsPbSeries?.length) {
+        if (ychartsPbSeries?.length && meta.id !== "sp500") {
           pbSeries = pbSeries?.length ? mergeMonthlySeries(ychartsPbSeries, pbSeries) : ychartsPbSeries;
           ychartsPbCount += 1;
         }
@@ -4992,7 +5286,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           officialEffectiveDate,
           officialForward,
           isReasonableForwardPe,
-          { maxDeviationRatio: OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO }
+          {
+            maxDeviationRatio:
+              OFFICIAL_INDEX_LATEST_FORWARD_MAX_DEVIATION_RATIO_OVERRIDES[meta.id] ??
+              OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO,
+          }
         );
         const canApplyOfficialPb = isLatestSnapshotDeviationAcceptable(
           pbSeries,
@@ -5500,6 +5798,14 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         maxValue: 28,
         lookbackPoints: INDEX_PB_RECENT_CARRY_LOOKBACK_POINTS,
       });
+      if (meta.id === "sp500" && pbSeries?.length) {
+        points = applyMetricCloseCarryFromAnchorSeries(points, closes, "pb", pbSeries, {
+          minValue: 0.2,
+          maxValue: 28,
+          maxAnchorLagDays: 5,
+          maxForwardFillDays: 120,
+        });
+      }
 
       if (meta.id === "sp500" && sp500WsjCarryAnchors.length) {
         points = applyMetricCloseCarryWithAnchors(points, closes, previousPoints, "pe_ttm", sp500WsjCarryAnchors, {
@@ -5520,6 +5826,37 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
       points = extendSeriesWithRebasedPreviousTail(previousPoints, points, liveSourceCutoverDate);
       points = mergeHistoricalSeriesAtCutover(previousPoints, points, liveSourceCutoverDate);
+      if (meta.id === "sp500" && cachedStockMarketPeRatioSp500Series?.length) {
+        points = applyMetricCloseCarryFromAnchorSeries(
+          points,
+          closes,
+          "pe_ttm",
+          cachedStockMarketPeRatioSp500Series,
+          {
+            minValue: 2.4,
+            maxValue: 180,
+            maxAnchorLagDays: 5,
+            maxForwardFillDays: 45,
+            maxDate: shiftIsoDate(SP500_WSJ_TTM_CARRY_START_DATE, -1),
+          }
+        );
+      }
+      if (meta.id === "sp500" && sp500WsjCarryAnchors.length) {
+        points = applyMetricCloseCarryWithAnchors(points, closes, previousPoints, "pe_ttm", sp500WsjCarryAnchors, {
+          startDate: SP500_WSJ_TTM_CARRY_START_DATE,
+          minValue: 2.4,
+          maxValue: 180,
+          ignorePreviousBeforeDate: SP500_WSJ_TTM_RECOVERY_IGNORE_PREVIOUS_BEFORE_DATE,
+        });
+      }
+      if (meta.id === "sp500" && pbSeries?.length) {
+        points = applyMetricCloseCarryFromAnchorSeries(points, closes, "pb", pbSeries, {
+          minValue: 0.2,
+          maxValue: 28,
+          maxAnchorLagDays: 5,
+          maxForwardFillDays: 120,
+        });
+      }
       if (effectiveEnd > liveSourceCutoverDate) {
         const latestPointDate = points[points.length - 1]?.date || "";
         if (!latestPointDate || latestPointDate <= liveSourceCutoverDate) {
@@ -5597,6 +5934,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   }
   if (macroMicroTrailingSeriesCount > 0) {
     source += `+macromicro-pe-series-${macroMicroTrailingSeriesCount}`;
+  }
+  if (stockMarketPeRatioTrailingCount > 0) {
+    source += `+stockmarketperatio-pe-${stockMarketPeRatioTrailingCount}`;
   }
   if (multplTrailingCount > 0) {
     source += `+multpl-pe-${multplTrailingCount}`;

@@ -1,6 +1,6 @@
 export type IndexGroup = "core" | "sector";
 
-export type MetricId = "pe_ttm" | "pe_forward" | "pb" | "earnings_yield" | "erp_proxy";
+export type MetricId = "pe_ttm" | "pe_forward" | "pb" | "erp_proxy";
 
 export type Regime = "low" | "neutral" | "high";
 
@@ -22,7 +22,6 @@ export interface RawValuationPoint {
 }
 
 export interface ValuationPoint extends RawValuationPoint {
-  earnings_yield: number;
   erp_proxy: number;
   percentile_5y: number;
   percentile_10y: number;
@@ -59,7 +58,6 @@ export interface SnapshotRow {
   pe_ttm: number;
   pe_forward: number;
   pb: number;
-  earnings_yield: number;
   erp_proxy: number;
   percentile_5y: number;
   percentile_10y: number;

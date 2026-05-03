@@ -30,7 +30,6 @@ const METRIC_CONFIG = {
   pe_ttm: { label: "PE (TTM)", digits: 2 },
   pe_forward: { label: "PE (Forward)", digits: 2 },
   pb: { label: "PB", digits: 2 },
-  earnings_yield: { label: "Earnings Yield", digits: 2, percentage: true },
 };
 
 const COMPARE_LINE_COLORS = [
@@ -501,11 +500,6 @@ function regimeLabel(regime) {
 }
 
 function metricValueFromRaw(point, metric) {
-  if (metric === "earnings_yield") {
-    const pe = toFiniteNumber(point?.pe_ttm);
-    if (pe === null || Math.abs(pe) <= 1e-12) return null;
-    return 1 / pe;
-  }
   return toFiniteNumber(point?.[metric]);
 }
 

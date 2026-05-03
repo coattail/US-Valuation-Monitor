@@ -13,7 +13,7 @@ const rawPoints = [
 test("enrichSeries appends derived fields", () => {
   const rows = enrichSeries(rawPoints);
   assert.equal(rows.length, 4);
-  assert.ok(rows[3].earnings_yield > 0);
+  assert.equal("earnings_yield" in rows[3], false);
   assert.ok(["low", "neutral", "high"].includes(rows[3].regime));
 });
 
@@ -80,4 +80,5 @@ test("buildSnapshot returns latest row", () => {
   const snapshot = buildSnapshot("sp500", rawPoints);
   assert.equal(snapshot.date, "2026-01-07");
   assert.equal(snapshot.indexId, "sp500");
+  assert.equal("earnings_yield" in snapshot, false);
 });
