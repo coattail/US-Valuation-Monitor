@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-02T17:28:12.246Z",
+  "generatedAt": "2026-05-02T19:23:50.780Z",
   "symbols": {
     "DIA": [
       {
@@ -88,7 +88,7 @@
         "pe_forward": 20.47,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-05-02T17:21:29.822Z"
+        "capturedAt": "2026-05-02T19:12:47.333Z"
       }
     ],
     "IJH": [
@@ -178,7 +178,7 @@
         "pe_forward": null,
         "pb": 2.69,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-05-02T16:58:11.828Z"
+        "capturedAt": "2026-05-02T19:13:53.736Z"
       }
     ],
     "IWM": [
@@ -276,7 +276,7 @@
         "pe_forward": null,
         "pb": 2.29,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-05-02T16:57:27.918Z"
+        "capturedAt": "2026-05-02T19:13:12.187Z"
       },
       {
         "date": "2026-05-01",
@@ -284,7 +284,7 @@
         "pe_forward": 27.35,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-05-02T17:22:37.818Z"
+        "capturedAt": "2026-05-02T19:13:12.187Z"
       }
     ],
     "QQQ": [
@@ -318,7 +318,7 @@
         "pe_forward": 24.9,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-05-02T17:21:16.085Z"
+        "capturedAt": "2026-05-02T19:21:13.186Z"
       }
     ],
     "SPY": [
@@ -352,7 +352,7 @@
         "pe_forward": 21.74,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-05-02T17:20:37.126Z"
+        "capturedAt": "2026-05-02T19:20:31.949Z"
       }
     ],
     "VTI": [
@@ -442,7 +442,7 @@
         "pe_forward": null,
         "pb": 4.73,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-05-02T16:59:01.783Z"
+        "capturedAt": "2026-05-02T19:14:40.634Z"
       }
     ],
     "XLB": [
@@ -459,7 +459,7 @@
       {
         "date": "2026-04-16",
         "pe_ttm": 17.98,
-        "pe_forward": 16.72,
+        "pe_forward": null,
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:45:52.291Z"
@@ -499,7 +499,7 @@
       {
         "date": "2026-04-16",
         "pe_ttm": 36.54,
-        "pe_forward": 25.14,
+        "pe_forward": null,
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-04-17T17:58:01.351Z"

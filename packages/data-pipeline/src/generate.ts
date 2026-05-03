@@ -230,13 +230,35 @@ const MACROMICRO_SERIES_ROUTES: Partial<
       "https://en.macromicro.me/series/20052/us-sp500-forward-pe-ratio",
     ],
   },
+  sector_communication: {
+    forward: ["https://en.macromicro.me/series/20518/s5tels-forward-pe-ratio"],
+  },
+  sector_energy: {
+    forward: ["https://en.macromicro.me/series/20523/s5enrs-forward-pe-ratio"],
+  },
+  sector_materials: {
+    forward: ["https://en.macromicro.me/series/20525/s5matr-forward-pe-ratio"],
+  },
+  sector_technology: {
+    forward: ["https://en.macromicro.me/series/20517/s5inft-forward-pe-ratio"],
+  },
 };
+
+const CURATED_PUBLIC_FORWARD_ANCHOR_INDEX_IDS = new Set(["sector_communication"]);
 
 const RECENT_OVERRIDE_INDEX_IDS = new Set<string>();
 const FORWARD_LOCKED_INDEX_IDS = new Set<string>();
 const SIBLIS_FULL_HISTORY_INDEX_IDS = new Set(["nasdaq100", "russell2000"]);
 const TRENDONIFY_FORWARD_DISABLED_INDEX_IDS = new Set(["dow30"]);
 const TRENDONIFY_TRAILING_PRIMARY_INDEX_IDS = new Set(["nasdaq100"]);
+const FORWARD_PE_TRAILING_SANITY_CHECK_INDEX_IDS = new Set([
+  "sp500",
+  "nasdaq100",
+  "sector_communication",
+  "sector_energy",
+  "sector_materials",
+  "sector_technology",
+]);
 const LATEST_SNAPSHOT_MAX_DEVIATION_RATIO = 0.05;
 const LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO = 0.08;
 const SP500_WSJ_TTM_CARRY_START_DATE = "2026-03-26";
@@ -270,6 +292,10 @@ const CURATED_PUBLIC_FORWARD_PE_REFERENCES: Partial<Record<string, Array<{ date:
     { date: "2026-04-10", value: 21.1, source: "wsj-public-pe-yield" },
     { date: "2026-04-17", value: 21.59, source: "wsj-public-pe-yield" },
   ],
+  sector_communication: [{ date: "2026-04-14", value: 20.38, source: "macromicro-spdj-public-series" }],
+  sector_energy: [{ date: "2026-04-14", value: 15.85, source: "macromicro-spdj-public-series" }],
+  sector_materials: [{ date: "2026-04-14", value: 19.51, source: "macromicro-spdj-public-series" }],
+  sector_technology: [{ date: "2026-04-14", value: 21.71, source: "macromicro-spdj-public-series" }],
 };
 
 const WSJ_PEYIELD_URLS = [
@@ -541,6 +567,10 @@ const INDEX_LIVE_SOURCE_CUTOVER_DATE_OVERRIDES: Partial<Record<string, string>> 
   nasdaq100: "2000-01-31",
   russell2000: "2001-01-03",
   sp500: "2008-01-02",
+  sector_communication: "2018-06-18",
+  sector_energy: "1999-01-04",
+  sector_materials: "1999-01-04",
+  sector_technology: "1999-01-04",
 };
 const YCHARTS_CALC_PB = "price_to_book_value";
 const YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE = 0.01;
@@ -3161,6 +3191,30 @@ function upsertSeriesValueAtDate(
     .map(([seriesDate, seriesValue]) => ({ date: seriesDate, value: seriesValue, ts: parseDate(seriesDate).getTime() }));
 }
 
+function applyMetricPointAnchors(
+  points: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  anchors: Array<{ date: string; value: number }>,
+  options: { minValue: number; maxValue: number }
+): RawValuationPoint[] {
+  if (!points.length || !anchors.length) return points;
+
+  const byDate = new Map<string, number>();
+  for (const anchor of anchors) {
+    if (!anchor?.date || !/^\d{4}-\d{2}-\d{2}$/.test(anchor.date)) continue;
+    const value = sanitizeSignedRatio(anchor.value);
+    if (value === null || value <= 0) continue;
+    byDate.set(anchor.date, roundTo(clamp(value, options.minValue, options.maxValue), 4));
+  }
+
+  if (!byDate.size) return points;
+
+  return points.map((point) => {
+    const value = byDate.get(point.date);
+    return Number.isFinite(value) ? { ...point, [metric]: Number(value) } : point;
+  });
+}
+
 function pickCuratedWsjTtmReference(
   indexId: string,
   effectiveEndDate: string,
@@ -4256,7 +4310,7 @@ function pruneImplausibleForwardSeries(
   options: { maxForwardToTrailingRatio?: number; maxAnchorLagDays?: number } = {}
 ): MonthlyMetricPoint[] | undefined {
   if (!forwardSeries?.length || !trailingSeries?.length) return forwardSeries;
-  if (indexId !== "nasdaq100" && indexId !== "sp500") return forwardSeries;
+  if (!FORWARD_PE_TRAILING_SANITY_CHECK_INDEX_IDS.has(indexId)) return forwardSeries;
 
   const maxForwardToTrailingRatio = options.maxForwardToTrailingRatio ?? 1.05;
   const maxAnchorLagDays = options.maxAnchorLagDays ?? 7;
@@ -4288,20 +4342,30 @@ export function pruneImplausibleForwardSeriesForTest(
   return pruneImplausibleForwardSeries(indexId, forwardSeries, trailingSeries);
 }
 
+export function applyMetricPointAnchorsForTest(
+  points: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  anchors: Array<{ date: string; value: number }>,
+  options: { minValue: number; maxValue: number }
+): RawValuationPoint[] {
+  return applyMetricPointAnchors(points, metric, anchors, options);
+}
+
 function pickAnchorForwardPe(
   _indexId: string,
   anchorPe: number | undefined,
   candidates: {
     latestForwardSeriesValue?: number | null;
-    stockAnalysisForward?: number | null;
-    finvizForward?: number | null;
-    wsjForward?: number | null;
-    wsjTrailing?: number | null;
-    officialForward?: number | null;
-    officialTrailing?: number | null;
-    latestHistoryForward?: number | null;
+  stockAnalysisForward?: number | null;
+  finvizForward?: number | null;
+  wsjForward?: number | null;
+  wsjTrailing?: number | null;
+  officialForward?: number | null;
+  officialTrailing?: number | null;
+  publicForwardReference?: number | null;
+  latestHistoryForward?: number | null;
   }
-): { value: number; source: "series" | "stockanalysis" | "finviz" | "wsj" | "official" | "history" } | null {
+): { value: number; source: "series" | "stockanalysis" | "finviz" | "wsj" | "official" | "public-reference" | "history" } | null {
   const pairWithAnchor = (forward: number | null | undefined): number | null => {
     if (!isReasonableForwardPe(forward)) return null;
     if (!isReasonablePe(anchorPe) || isPlausibleForwardPair(anchorPe, forward)) {
@@ -4350,6 +4414,10 @@ function pickAnchorForwardPe(
     return { value: officialValue, source: "official" };
   }
 
+  if (isReasonableForwardPe(candidates.publicForwardReference ?? undefined)) {
+    return { value: Number(candidates.publicForwardReference), source: "public-reference" };
+  }
+
   const historyValue = pairWithAnchor(candidates.latestHistoryForward);
   if (historyValue !== null) {
     return { value: historyValue, source: "history" };
@@ -4379,6 +4447,7 @@ export function pickAnchorForwardPeForTest(
     wsjTrailing?: number | null;
     officialForward?: number | null;
     officialTrailing?: number | null;
+    publicForwardReference?: number | null;
     latestHistoryForward?: number | null;
   }
 ): number | null {
@@ -5273,6 +5342,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       else if (resolvedFrom === "stockanalysis") stockAnalysisAnchorCount += 1;
 
       const latestForward = forwardSeries?.length ? forwardSeries[forwardSeries.length - 1]?.value : undefined;
+      const latestCuratedForwardRef = [...curatedForwardRefs].reverse().find((ref) => ref.date <= effectiveEnd);
       const historyFallbackPoints = historyFallbackMap.get(meta.id) || [];
       const previousHistoryLatestForward = latestForwardMap.get(meta.id) ?? (() => {
         const latestHistoryPoint = [...historyFallbackPoints].reverse().find((point) => point.date <= effectiveEnd);
@@ -5303,13 +5373,20 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       }
 
       const pickedAnchorForwardPe = pickAnchorForwardPe(meta.id, anchorPe, {
-        latestForwardSeriesValue: latestForward,
+        latestForwardSeriesValue: isReasonableForwardPe(latestCuratedForwardRef?.value)
+          ? CURATED_PUBLIC_FORWARD_ANCHOR_INDEX_IDS.has(meta.id)
+            ? Number(latestCuratedForwardRef?.value)
+            : undefined
+          : latestForward,
         stockAnalysisForward: stockAnalysisForwardCandidate,
         finvizForward: finvizForwardCandidate,
         wsjForward: wsjAnchorForward,
         wsjTrailing: wsjAnchorTrailing,
         officialForward: officialAnchorForward,
         officialTrailing: officialAnchorTrailing,
+        publicForwardReference: CURATED_PUBLIC_FORWARD_ANCHOR_INDEX_IDS.has(meta.id)
+          ? latestCuratedForwardRef?.value
+          : undefined,
         latestHistoryForward: previousHistoryLatestForward,
       });
       const anchorForwardPe = pickedAnchorForwardPe?.value;
@@ -5432,6 +5509,13 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           ignorePreviousBeforeDate: SP500_WSJ_TTM_RECOVERY_IGNORE_PREVIOUS_BEFORE_DATE,
         });
         sp500WsjCarryCount += 1;
+      }
+
+      if (curatedForwardRefs.length) {
+        points = applyMetricPointAnchors(points, "pe_forward", curatedForwardRefs, {
+          minValue: 2,
+          maxValue: meta.id === "nasdaq100" ? 180 : 140,
+        });
       }
 
       points = extendSeriesWithRebasedPreviousTail(previousPoints, points, liveSourceCutoverDate);

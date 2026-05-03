@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  applyMetricPointAnchorsForTest,
   applyMetricCloseCarryWithAnchorsForTest,
   applyYahooSnapshotCarryToMetricForTest,
   applyRecentCloseCarryWindowToMetricForTest,
@@ -114,11 +115,13 @@ test("parseWsjPeSnapshotFromTextForTest ignores market ticker strips and parses 
   assert.equal(parsed.get("dow30"), undefined);
 });
 
-test("getIndexLiveSourceCutoverDateForTest rebuilds russell2000 from 2022 while others keep the default cutover", () => {
+test("getIndexLiveSourceCutoverDateForTest rebuilds known reliable index histories from source start dates", () => {
   assert.equal(getIndexLiveSourceCutoverDateForTest("russell2000"), "2001-01-03");
   assert.equal(getIndexLiveSourceCutoverDateForTest("dow30"), "1998-01-02");
   assert.equal(getIndexLiveSourceCutoverDateForTest("nasdaq100"), "2000-01-31");
   assert.equal(getIndexLiveSourceCutoverDateForTest("sp500"), "2008-01-02");
+  assert.equal(getIndexLiveSourceCutoverDateForTest("sector_technology"), "1999-01-04");
+  assert.equal(getIndexLiveSourceCutoverDateForTest("sector_communication"), "2018-06-18");
 });
 
 test("applyPostCutoverMetricSources prefers explicit snapshots and real-series interpolation after cutover", () => {
@@ -340,6 +343,22 @@ test("pickAnchorForwardPeForTest prefers current WSJ forward PE over implausible
   assert.equal(picked, 20.68);
 });
 
+test("pickAnchorForwardPeForTest accepts verified public forward references even without a plausible trailing pair", () => {
+  const picked = pickAnchorForwardPeForTest("sector_communication", 17.98, {
+    latestForwardSeriesValue: null,
+    stockAnalysisForward: null,
+    finvizForward: null,
+    wsjForward: null,
+    wsjTrailing: null,
+    officialForward: null,
+    officialTrailing: null,
+    publicForwardReference: 20.38,
+    latestHistoryForward: null,
+  });
+
+  assert.equal(picked, 20.38);
+});
+
 test("pruneImplausibleForwardSeriesForTest drops Nasdaq 100 forward anchors that sit far above trailing PE", () => {
   const trailingSeries = [
     { date: "2016-03-31", value: 20.25, ts: Date.parse("2016-03-31T00:00:00Z") },
@@ -357,6 +376,40 @@ test("pruneImplausibleForwardSeriesForTest drops Nasdaq 100 forward anchors that
   const pruned = pruneImplausibleForwardSeriesForTest("nasdaq100", forwardSeries, trailingSeries);
 
   assert.deepEqual(pruned, [{ date: "2025-12-31", value: 27.44, ts: Date.parse("2025-12-31T00:00:00Z") }]);
+});
+
+test("pruneImplausibleForwardSeriesForTest drops sector forward anchors that are far above same-month trailing PE", () => {
+  const trailingSeries = [
+    { date: "2012-08-31", value: 11.27, ts: Date.parse("2012-08-31T00:00:00Z") },
+    { date: "2025-12-31", value: 38.68, ts: Date.parse("2025-12-31T00:00:00Z") },
+  ];
+  const forwardSeries = [
+    { date: "2012-08-31", value: 29.5762, ts: Date.parse("2012-08-31T00:00:00Z") },
+    { date: "2025-12-31", value: 27.9013, ts: Date.parse("2025-12-31T00:00:00Z") },
+  ];
+
+  const pruned = pruneImplausibleForwardSeriesForTest("sector_technology", forwardSeries, trailingSeries);
+
+  assert.deepEqual(pruned, [{ date: "2025-12-31", value: 27.9013, ts: Date.parse("2025-12-31T00:00:00Z") }]);
+});
+
+test("applyMetricPointAnchorsForTest restores public forward PE anchors after carry steps", () => {
+  const points = [
+    { date: "2026-04-13", pe_ttm: 36, pe_forward: 24.1, pb: 8.8, us10y_yield: 0.041 },
+    { date: "2026-04-14", pe_ttm: 36.2, pe_forward: 24.4653, pb: 8.9, us10y_yield: 0.0412 },
+    { date: "2026-04-15", pe_ttm: 36.4, pe_forward: 24.7, pb: 9, us10y_yield: 0.0411 },
+  ];
+
+  const anchored = applyMetricPointAnchorsForTest(
+    points,
+    "pe_forward",
+    [{ date: "2026-04-14", value: 21.71 }],
+    { minValue: 2, maxValue: 140 }
+  );
+
+  assert.equal(anchored[0].pe_forward, 24.1);
+  assert.equal(anchored[1].pe_forward, 21.71);
+  assert.equal(anchored[2].pe_forward, 24.7);
 });
 
 test("extendSeriesWithRebasedPreviousTailForTest keeps newer stored dates but rebases them to the new live anchor", () => {
