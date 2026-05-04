@@ -4720,6 +4720,60 @@ function carryMetricFromPreviousHistoryAcrossCutover(
   });
 }
 
+function rebaseMetricHistoryToReference(
+  points: RawValuationPoint[],
+  referencePoints: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  options: {
+    anchorDate: string;
+    anchorValue: number;
+    minValue: number;
+    maxValue: number;
+  }
+): RawValuationPoint[] {
+  const anchorValue = sanitizeSignedRatio(options.anchorValue);
+  if (!points.length || !referencePoints.length || anchorValue === null) return points;
+
+  const referenceByDate = new Map<string, RawValuationPoint>();
+  for (const point of referencePoints) {
+    referenceByDate.set(point.date, point);
+  }
+
+  const referenceAnchor = [...referencePoints]
+    .filter((point) => point.date <= options.anchorDate && sanitizeSignedRatio(point[metric]) !== null)
+    .at(-1);
+  const referenceAnchorValue = sanitizeSignedRatio(referenceAnchor?.[metric]);
+  if (referenceAnchorValue === null) return points;
+
+  const scale = anchorValue / referenceAnchorValue;
+  if (!Number.isFinite(scale) || scale <= 0) return points;
+
+  return points.map((point) => {
+    const referencePoint = referenceByDate.get(point.date);
+    const referenceValue = sanitizeSignedRatio(referencePoint?.[metric]);
+    if (referenceValue === null) return point;
+
+    return {
+      ...point,
+      [metric]: roundTo(clamp(referenceValue * scale, options.minValue, options.maxValue), 4),
+    };
+  });
+}
+
+export function rebaseMetricHistoryToReferenceForTest(
+  points: RawValuationPoint[],
+  referencePoints: RawValuationPoint[],
+  metric: IndexRatioMetricKey,
+  options: {
+    anchorDate: string;
+    anchorValue: number;
+    minValue: number;
+    maxValue: number;
+  }
+): RawValuationPoint[] {
+  return rebaseMetricHistoryToReference(points, referencePoints, metric, options);
+}
+
 export function carryMetricFromPreviousHistoryAcrossCutoverForTest(
   points: RawValuationPoint[],
   closes: ClosePoint[],
@@ -5072,6 +5126,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let cachedSp500YardeniRefinitivForwardPrefixSeries: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500Series: MonthlyMetricPoint[] | undefined;
   let cachedMultplSp500PbSeries: MonthlyMetricPoint[] | undefined;
+  const generatedPointsByIndexId = new Map<string, RawValuationPoint[]>();
   const fetchErrors: string[] = [];
 
   for (const meta of ALL_INDICES) {
@@ -6153,6 +6208,19 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           // keep the main post-2005 S&P 500 history if early index closes are unavailable
         }
       }
+      if (meta.id === "us_total_market") {
+        const referencePoints = generatedPointsByIndexId.get("sp500") || [];
+        const latestPoint = points[points.length - 1];
+        const anchorPe = sanitizeSignedRatio(latestPoint?.pe_ttm);
+        if (referencePoints.length && latestPoint?.date && anchorPe !== null) {
+          points = rebaseMetricHistoryToReference(points, referencePoints, "pe_ttm", {
+            anchorDate: latestPoint.date,
+            anchorValue: anchorPe,
+            minValue: 2.4,
+            maxValue: 180,
+          });
+        }
+      }
       if (effectiveEnd > liveSourceCutoverDate) {
         const latestPointDate = points[points.length - 1]?.date || "";
         if (!latestPointDate || latestPointDate <= liveSourceCutoverDate) {
@@ -6161,6 +6229,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       }
 
       liveSeriesCount += 1;
+      generatedPointsByIndexId.set(meta.id, points);
 
       indices.push({
         id: meta.id,
@@ -6183,11 +6252,30 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         !(effectiveEnd > liveSourceCutoverDate && historyLatestDate <= liveSourceCutoverDate);
       if (canReuseHistoryFallback && historyPoints) {
         historyFallbackCount += 1;
-        const repairedHistoryPoints = repairHistoryFallbackPoints(
+        let repairedHistoryPoints = repairHistoryFallbackPoints(
           historyPoints,
           indexYahooDailyMetricsBySymbol.get(meta.symbol) || [],
           liveSourceCutoverDate
         );
+        if (meta.id === "us_total_market") {
+          const referencePoints = generatedPointsByIndexId.get("sp500") || [];
+          const latestPoint = repairedHistoryPoints[repairedHistoryPoints.length - 1];
+          const anchorPe = sanitizeSignedRatio(latestPoint?.pe_ttm);
+          if (referencePoints.length && latestPoint?.date && anchorPe !== null) {
+            repairedHistoryPoints = rebaseMetricHistoryToReference(
+              repairedHistoryPoints,
+              referencePoints,
+              "pe_ttm",
+              {
+                anchorDate: latestPoint.date,
+                anchorValue: anchorPe,
+                minValue: 2.4,
+                maxValue: 180,
+              }
+            );
+          }
+        }
+        generatedPointsByIndexId.set(meta.id, repairedHistoryPoints);
         indices.push({
           id: meta.id,
           symbol: meta.symbol,

@@ -33,6 +33,7 @@ import {
   pruneInvalidExplicitIndexSnapshotsForTest,
   pruneImplausibleForwardSeriesForTest,
   prependHistoricalPbPrefixForTest,
+  rebaseMetricHistoryToReferenceForTest,
   shouldFetchMultplSp500PeFallbackForTest,
   upsertIndexYahooDailyMetricSnapshotForTest,
 } from "../src/generate.ts";
@@ -67,6 +68,31 @@ test("parseStockMarketPeRatioCurrentForTest parses current S&P 500 TTM PE anchor
     value: 25.83,
     ts: Date.parse("2026-03-31T00:00:00Z"),
   });
+});
+
+test("rebaseMetricHistoryToReferenceForTest preserves latest official total-market anchor while using reference history shape", () => {
+  const target = [
+    { date: "2025-12-31", pe_ttm: 33, pe_forward: 28, pb: 4.7, us10y_yield: 0.04 },
+    { date: "2026-01-02", pe_ttm: 34, pe_forward: 29, pb: 4.8, us10y_yield: 0.04 },
+    { date: "2026-01-05", pe_ttm: 35, pe_forward: 30, pb: 4.9, us10y_yield: 0.04 },
+  ];
+  const reference = [
+    { date: "2025-12-31", pe_ttm: 24, pe_forward: 20, pb: 5.1, us10y_yield: 0.04 },
+    { date: "2026-01-02", pe_ttm: 25, pe_forward: 21, pb: 5.2, us10y_yield: 0.04 },
+    { date: "2026-01-05", pe_ttm: 26, pe_forward: 22, pb: 5.3, us10y_yield: 0.04 },
+  ];
+
+  const rebased = rebaseMetricHistoryToReferenceForTest(target, reference, "pe_ttm", {
+    anchorDate: "2026-01-05",
+    anchorValue: 28.6,
+    minValue: 2.4,
+    maxValue: 180,
+  });
+
+  assert.equal(rebased[0].pe_ttm, 26.4);
+  assert.equal(rebased[1].pe_ttm, 27.5);
+  assert.equal(rebased[2].pe_ttm, 28.6);
+  assert.equal(rebased[2].pe_forward, 30);
 });
 
 test("mergeHistoricalSeriesAtCutover keeps prior history before cutover and uses new points from cutover onward", () => {
