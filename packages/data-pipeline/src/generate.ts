@@ -293,7 +293,10 @@ const CURATED_WSJ_TTM_REFERENCES: Partial<Record<string, Array<{ date: string; v
     { date: "2026-04-16", value: 25.3343 },
     { date: "2026-04-17", value: 25.38 },
   ],
-  nasdaq100: [{ date: "2026-02-20", value: 31.62 }],
+  nasdaq100: [
+    { date: "2026-02-20", value: 31.62 },
+    { date: "2026-05-08", value: 35.65 },
+  ],
 };
 
 const CURATED_PUBLIC_FORWARD_PE_REFERENCES: Partial<Record<string, Array<{ date: string; value: number; source: string }>>> = {
@@ -1935,6 +1938,10 @@ function mergeExplicitMetricSnapshotsIntoSeries(
   return next;
 }
 
+function isPriorityWsjAnchorSource(source: string | undefined): boolean {
+  return String(source || "").trim().toLowerCase() === "wsj-latest";
+}
+
 function pruneInvalidExplicitIndexSnapshots(
   snapshots: IndexYahooDailyMetricSnapshot[],
   trailingSeries: MonthlyMetricPoint[],
@@ -1944,15 +1951,18 @@ function pruneInvalidExplicitIndexSnapshots(
   return snapshots
     .map((snapshot) => {
       const next: IndexYahooDailyMetricSnapshot = { ...snapshot };
+      const isDeviationCheckedSource =
+        isExplicitIndexYahooLatestMetricSource(snapshot.source || "") &&
+        !isPriorityWsjAnchorSource(snapshot.source);
 
       if (
-        isExplicitIndexYahooLatestMetricSource(snapshot.source || "") &&
+        isDeviationCheckedSource &&
         !isLatestSnapshotDeviationAcceptable(trailingSeries, snapshot.date, snapshot.pe_ttm ?? undefined, isReasonablePe)
       ) {
         next.pe_ttm = null;
       }
       if (
-        isExplicitIndexYahooLatestMetricSource(snapshot.source || "") &&
+        isDeviationCheckedSource &&
         !isLatestSnapshotDeviationAcceptable(
           forwardSeries,
           snapshot.date,
@@ -1964,7 +1974,7 @@ function pruneInvalidExplicitIndexSnapshots(
         next.pe_forward = null;
       }
       if (
-        isExplicitIndexYahooLatestMetricSource(snapshot.source || "") &&
+        isDeviationCheckedSource &&
         pbSeries.length &&
         !isLatestSnapshotDeviationAcceptable(pbSeries, snapshot.date, snapshot.pb ?? undefined, isReasonablePb, {
           maxDeviationRatio: 0.2,

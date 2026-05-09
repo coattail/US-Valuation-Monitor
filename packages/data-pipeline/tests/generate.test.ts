@@ -1062,8 +1062,8 @@ test("S&P 500 TTM PE does not fall back to Multpl when stockmarketperatio histor
 
 test("pruneInvalidExplicitIndexSnapshotsForTest removes explicit outliers against anchor series", () => {
   const snapshots = [
-    { date: "2026-04-10", pe_ttm: 24.45, pe_forward: 21.1, pb: null, source: "wsj-latest" },
-    { date: "2026-04-16", pe_ttm: 75, pe_forward: 4.2, pb: null, source: "wsj-latest" },
+    { date: "2026-04-10", pe_ttm: 24.45, pe_forward: 21.1, pb: null, source: "yahoo-quote-api-latest" },
+    { date: "2026-04-16", pe_ttm: 75, pe_forward: 4.2, pb: null, source: "yahoo-quote-api-latest" },
   ];
   const trailingSeries = [
     { date: "2026-03-31", value: 24.2, ts: Date.parse("2026-03-31T00:00:00Z") },
@@ -1077,7 +1077,39 @@ test("pruneInvalidExplicitIndexSnapshotsForTest removes explicit outliers agains
   const pruned = pruneInvalidExplicitIndexSnapshotsForTest(snapshots, trailingSeries, forwardSeries, []);
 
   assert.deepEqual(pruned, [
-    { date: "2026-04-10", pe_ttm: 24.45, pe_forward: 21.1, pb: null, source: "wsj-latest", capturedAt: "" },
+    {
+      date: "2026-04-10",
+      pe_ttm: 24.45,
+      pe_forward: 21.1,
+      pb: null,
+      source: "yahoo-quote-api-latest",
+      capturedAt: "",
+    },
+  ]);
+});
+
+test("pruneInvalidExplicitIndexSnapshotsForTest preserves WSJ priority anchors", () => {
+  const snapshots = [
+    { date: "2026-05-01", pe_ttm: 33.95, pe_forward: 24.9, pb: null, source: "wsj-latest" },
+    { date: "2026-05-08", pe_ttm: 35.65, pe_forward: 24.52, pb: null, source: "wsj-latest" },
+  ];
+  const staleTrailingSeries = [
+    { date: "2026-04-30", value: 33.1, ts: Date.parse("2026-04-30T00:00:00Z") },
+  ];
+  const staleForwardSeries = [
+    { date: "2026-04-30", value: 25.2, ts: Date.parse("2026-04-30T00:00:00Z") },
+  ];
+
+  const pruned = pruneInvalidExplicitIndexSnapshotsForTest(
+    snapshots,
+    staleTrailingSeries,
+    staleForwardSeries,
+    []
+  );
+
+  assert.deepEqual(pruned, [
+    { date: "2026-05-01", pe_ttm: 33.95, pe_forward: 24.9, pb: null, source: "wsj-latest", capturedAt: "" },
+    { date: "2026-05-08", pe_ttm: 35.65, pe_forward: 24.52, pb: null, source: "wsj-latest", capturedAt: "" },
   ]);
 });
 
