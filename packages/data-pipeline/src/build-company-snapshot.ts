@@ -265,6 +265,7 @@ const YAHOO_TRUSTED_SOURCE_TAGS_BY_METRIC: Record<RatioMetricKey, string[]> = {
     "yahoo-key-statistics-valuation-measures",
     "yahoo-quote-summary-latest",
     "yahoo-quote-api-latest",
+    "yahoo-quote-page-latest",
   ],
   pe_forward: [
     "yahoo-forward-pe-timeseries",
@@ -318,6 +319,7 @@ function isExplicitYahooLatestMetricSource(source: string): boolean {
     "yahoo-key-statistics-valuation-measures",
     "yahoo-quote-summary-latest",
     "yahoo-quote-api-latest",
+    "yahoo-quote-page-latest",
   ]);
 }
 
@@ -1943,6 +1945,47 @@ function countPegAnchors(payload: RatioPayload | null): number {
   return payload.anchors.filter((item) => sanitizeSignedRatio(item.peg)).length;
 }
 
+function parseYahooQuotePageRatioPayload(rawText: string): RatioPayload | null {
+  const raw = String(rawText || "");
+  if (!raw.trim()) return null;
+
+  const candidates = [raw, raw.replace(/\\"/g, '"'), decodeHtml(raw)]
+    .map((item) => String(item || ""))
+    .filter(Boolean);
+
+  let peTtm: number | null = null;
+  for (const candidate of candidates) {
+    const patterns = [
+      /title=["']PE Ratio \(TTM\)["'][\s\S]{0,260}?data-value=["'](-?\d+(?:\.\d+)?)["'][\s\S]{0,120}?data-field=["']trailingPE["']/i,
+      /data-field=["']trailingPE["'][\s\S]{0,120}?data-value=["'](-?\d+(?:\.\d+)?)["']/i,
+      /PE Ratio \(TTM\)[\s\S]{0,260}?data-value=["'](-?\d+(?:\.\d+)?)["']/i,
+      /PE Ratio \(TTM\)[^0-9\-]{0,120}(-?\d+(?:\.\d+)?)/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = candidate.match(pattern);
+      const value = sanitizeSignedRatio(match?.[1]);
+      if (value !== null) {
+        peTtm = value;
+        break;
+      }
+    }
+    if (peTtm !== null) break;
+  }
+
+  if (peTtm === null) return null;
+  return {
+    anchors: [],
+    latest: {
+      pe_ttm: peTtm,
+      pe_forward: null,
+      pb: null,
+      peg: null,
+    },
+    source: "yahoo-quote-page-latest",
+  };
+}
+
 function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | null {
   const raw = String(rawText || "");
   if (!raw.trim()) return null;
@@ -2344,6 +2387,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
   const period2 = Math.floor(Date.now() / 1000) + 86400 * 30;
   let quoteSummaryPayload: RatioPayload | null = null;
   let quoteApiPayload: RatioPayload | null = null;
+  let quotePagePayload: RatioPayload | null = null;
   let trailingPePayload: RatioPayload | null = null;
   let forwardPePayload: RatioPayload | null = null;
   let trailingPegPayload: RatioPayload | null = null;
@@ -2475,6 +2519,14 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
               continue;
             }
 
+            const quotePageRatioPayload = parseYahooQuotePageRatioPayload(html);
+            if (!quotePagePayload && quotePageRatioPayload) {
+              quotePagePayload = {
+                ...quotePageRatioPayload,
+                source: `${quotePageRatioPayload.source}:${host.replace(/^https?:\/\//i, "")}`,
+              };
+            }
+
             const payload = parseYahooKeyStatisticsRatioPayload(html);
             if (payload) {
               keyStatisticsPayload = {
@@ -2493,6 +2545,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
 
   quoteSummaryPayload = sanitizeYahooRatioPayloadMetrics(quoteSummaryPayload);
   quoteApiPayload = sanitizeYahooRatioPayloadMetrics(quoteApiPayload);
+  quotePagePayload = sanitizeYahooRatioPayloadMetrics(quotePagePayload);
   trailingPePayload = sanitizeYahooRatioPayloadMetrics(trailingPePayload);
   forwardPePayload = sanitizeYahooRatioPayloadMetrics(forwardPePayload);
   trailingPegPayload = sanitizeYahooRatioPayloadMetrics(trailingPegPayload);
@@ -2506,6 +2559,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
       forwardPePayload,
       quoteSummaryPayload,
       quoteApiPayload,
+      quotePagePayload,
     ].filter(Boolean) as RatioPayload[]
   );
   const payload = mergeRatioPayloadList(
@@ -2513,6 +2567,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
       trailingPegPayload,
       quoteSummaryPayload,
       quoteApiPayload,
+      quotePagePayload,
       keyStatisticsPayload,
       trailingPePayload,
       forwardPePayload,
@@ -3650,7 +3705,7 @@ function mergeYahooLatestQuotePayloads(payloads: RatioPayload[]): RatioPayload |
   for (let i = payloads.length - 1; i >= 0; i -= 1) {
     const payload = payloads[i];
     const source = String(payload?.source || "");
-    if (!hasAnyYahooSourceTag(source, ["yahoo-quote-api-latest", "yahoo-quote-summary-latest"])) {
+    if (!hasAnyYahooSourceTag(source, ["yahoo-quote-api-latest", "yahoo-quote-summary-latest", "yahoo-quote-page-latest"])) {
       continue;
     }
 
@@ -7229,6 +7284,7 @@ export {
   preserveExistingPeTtmHistory as preserveExistingPeTtmHistoryForTest,
   parseVendorCompanyForwardPeCsv as parseVendorCompanyForwardPeCsvForTest,
   parseYahooValuationMeasuresFromHtml,
+  parseYahooQuotePageRatioPayload as parseYahooQuotePageRatioPayloadForTest,
   selectLatestYahooRatioOverride as selectLatestYahooRatioOverrideForTest,
 };
 

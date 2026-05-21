@@ -7,10 +7,29 @@ import {
   buildEffectiveYahooDailyMetricSnapshotsForTest,
   mergeYahooDrivenRatioPayloadForTest,
   parseYahooValuationMeasuresFromHtml,
+  parseYahooQuotePageRatioPayloadForTest,
   preserveExistingPeTtmHistoryForTest,
   carryForwardLatestYahooPeTtmByCloseForTest,
   selectLatestYahooRatioOverrideForTest,
 } from "../src/build-company-snapshot.ts";
+
+
+test("Yahoo quote page parser extracts PE Ratio TTM from quote summary", () => {
+  const payload = parseYahooQuotePageRatioPayloadForTest(`
+    <li><span class="label" title="PE Ratio (TTM)">PE Ratio (TTM)</span>
+    <span class="value"><fin-streamer data-value="34.22" data-field="trailingPE">34.22</fin-streamer></span></li>
+    <li><span class="label" title="EPS (TTM)">EPS (TTM)</span>
+    <span class="value"><fin-streamer data-value="6.53">6.53</fin-streamer></span></li>
+  `);
+
+  assert.deepEqual(payload?.latest, {
+    pe_ttm: 34.22,
+    pe_forward: null,
+    pb: null,
+    peg: null,
+  });
+  assert.equal(payload?.source, "yahoo-quote-page-latest");
+});
 
 test("Yahoo valuation measures are anchored to their As of date", () => {
   const payload = parseYahooValuationMeasuresFromHtml(`
