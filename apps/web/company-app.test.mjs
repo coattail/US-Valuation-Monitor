@@ -45,7 +45,7 @@ globalThis.fetch = async () => {
   throw new Error("fetch disabled in unit test");
 };
 
-const { buildMetricAvailabilityNoteForTest } = await import("./company-app.js");
+const { buildMetricAvailabilityNoteForTest, fetchCompanySeriesForTest } = await import("./company-app.js");
 
 test("buildMetricAvailabilityNoteForTest explains when selected range exceeds available history", () => {
   assert.equal(
@@ -67,4 +67,29 @@ test("buildMetricAvailabilityNoteForTest stays quiet when requested range is cov
     }),
     ""
   );
+});
+
+
+test("fetchCompanySeriesForTest bypasses browser cache for split company series", async () => {
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url: String(url), options });
+    return {
+      ok: true,
+      async json() {
+        return {
+          indexId: "company_nvda",
+          symbol: "NVDA",
+          displayName: "NVIDIA",
+          points: [{ date: "2026-05-20", pe_ttm: 45.29 }],
+        };
+      },
+    };
+  };
+
+  const payload = await fetchCompanySeriesForTest("company_nvda");
+
+  assert.equal(payload.points.at(-1).pe_ttm, 45.29);
+  assert.equal(calls[0].options?.cache, "no-store");
+  assert.match(calls[0].url, /v=.+/);
 });

@@ -691,7 +691,7 @@ async function fetchCompanySeries(indexId) {
     const normalizedBase = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
     const path = `${normalizedBase}/${encodeURIComponent(indexId)}.json?v=${versionTag}`;
     try {
-      const response = await fetch(path);
+      const response = await fetch(path, { cache: "no-store" });
       if (!response.ok) continue;
       const payload = await response.json();
       const normalized = normalizeSeriesPayload(payload, indexId);
@@ -2806,4 +2806,7 @@ if (!window.__USVM_COMPANY_APP_TEST__) {
   bootstrap();
 }
 
-export { buildMetricAvailabilityNote as buildMetricAvailabilityNoteForTest };
+export {
+  buildMetricAvailabilityNote as buildMetricAvailabilityNoteForTest,
+  fetchCompanySeries as fetchCompanySeriesForTest,
+};
