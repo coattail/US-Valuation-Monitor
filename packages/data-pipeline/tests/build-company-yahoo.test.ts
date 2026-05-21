@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   createYahooDailyMetricSnapshots,
+  mergeYahooLatestQuotePayloadsForTest,
   buildEffectiveYahooDailyMetricSnapshotsForTest,
   mergeYahooDrivenRatioPayloadForTest,
   parseYahooValuationMeasuresFromHtml,
@@ -236,6 +237,85 @@ test("latest Yahoo TTM PE override uses the unfiltered daily snapshot", () => {
   );
 
   assert.equal(override?.latest.pe_ttm, 26.491991);
+});
+
+
+
+
+test("merged Yahoo latest quote payload prioritizes quote API TTM PE over timeseries TTM PE", () => {
+  const merged = mergeYahooLatestQuotePayloadsForTest([
+    {
+      anchors: [{ date: "2026-04-28", pe_ttm: 26.49, pe_forward: null, pb: null, peg: null }],
+      latest: { pe_ttm: 26.49, pe_forward: null, pb: null, peg: null },
+      source: "yahoo-trailing-pe-timeseries",
+    },
+    {
+      anchors: [],
+      latest: { pe_ttm: 40.74, pe_forward: null, pb: null, peg: null },
+      source: "yahoo-quote-api-latest",
+    },
+  ]);
+
+  assert.equal(merged?.latest.pe_ttm, 40.74);
+  assert.equal(merged?.source, "yahoo-trailing-pe-timeseries+yahoo-quote-api-latest");
+});
+
+test("quote API TTM PE daily snapshot uses the latest close date even when timeseries has an older PE date", () => {
+  const snapshots = createYahooDailyMetricSnapshots(
+    {
+      anchors: [],
+      latest: { pe_ttm: 40.74, pe_forward: null, pb: null, peg: null },
+      source: "yahoo-quote-api-latest",
+    },
+    "2026-04-29",
+    { pe_ttm: "2026-04-28" },
+    { pe_ttm: 26.49 }
+  );
+
+  assert.deepEqual(
+    snapshots.map((item) => ({ ...item, capturedAt: "<captured>" })),
+    [
+      {
+        date: "2026-04-29",
+        pe_ttm: 40.74,
+        pe_forward: null,
+        pb: null,
+        peg: null,
+        source: "yahoo-quote-api-latest",
+        capturedAt: "<captured>",
+      },
+    ]
+  );
+});
+
+test("latest Yahoo TTM PE override prefers quote API over timeseries on the close date", () => {
+  const override = selectLatestYahooRatioOverrideForTest(
+    [
+      {
+        date: "2026-04-29",
+        pe_ttm: 26.49,
+        pe_forward: null,
+        pb: null,
+        peg: null,
+        source: "yahoo-trailing-pe-timeseries",
+        capturedAt: "2026-04-30T00:00:00.000Z",
+      },
+      {
+        date: "2026-04-29",
+        pe_ttm: 40.74,
+        pe_forward: null,
+        pb: null,
+        peg: null,
+        source: "yahoo-quote-api-latest",
+        capturedAt: "2026-04-30T01:00:00.000Z",
+      },
+    ],
+    [],
+    "2026-04-29"
+  );
+
+  assert.equal(override?.latest.pe_ttm, 40.74);
+  assert.equal(override?.source, "yahoo-quote-api-latest");
 });
 
 test("latest Yahoo TTM PE is carried by close when the next Yahoo snapshot lacks TTM", () => {

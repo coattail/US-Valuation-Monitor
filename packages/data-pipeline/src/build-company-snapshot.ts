@@ -2498,7 +2498,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
   trailingPegPayload = sanitizeYahooRatioPayloadMetrics(trailingPegPayload);
   keyStatisticsPayload = sanitizeYahooRatioPayloadMetrics(keyStatisticsPayload);
 
-  const quoteLatestPayload = mergeRatioPayloadList(
+  const quoteLatestPayload = mergeYahooLatestQuotePayloads(
     [
       trailingPegPayload,
       keyStatisticsPayload,
@@ -3304,19 +3304,32 @@ function createYahooDailyMetricSnapshots(
     }
   }
 
+  const isYahooQuoteLatestSource = hasAnyYahooSourceTag(source, [
+    "yahoo-quote-api-latest",
+    "yahoo-quote-summary-latest",
+  ]);
+
   for (const metric of metrics) {
     const directLatestValue = valuesByMetric[metric] ?? null;
+    const useDirectQuoteTtm = metric === "pe_ttm" && isYahooQuoteLatestSource && directLatestValue !== null;
     const value =
-      (metric === "pe_ttm" || metric === "pe_forward")
+      (metric === "pe_ttm" || metric === "pe_forward") && !useDirectQuoteTtm
         ? sanitizeSignedRatio(latestMetricValues?.[metric] ?? directLatestValue)
         : directLatestValue;
     if (value === null || value === undefined) continue;
 
     const hintDate = String(latestMetricDates?.[metric] || "").trim();
-    // For PE metrics we only write a snapshot on Yahoo's actual update date.
-    const targetDate =
-      metric === "pe_ttm" || metric === "pe_forward"
-        ? (/^\d{4}-\d{2}-\d{2}$/.test(hintDate) ? hintDate : directLatestValue !== null ? effectiveFallbackDate : "")
+    // Company PE(TTM) is refreshed from Yahoo quote data after each trading-day close.
+    // Yahoo's trailingPeRatio timeseries can lag or use a different update date, so quote latest TTM
+    // must be stamped to the latest close date. Other PE metrics keep their explicit Yahoo date hint.
+    const targetDate = useDirectQuoteTtm
+      ? effectiveFallbackDate
+      : metric === "pe_ttm" || metric === "pe_forward"
+        ? /^\d{4}-\d{2}-\d{2}$/.test(hintDate)
+          ? hintDate
+          : directLatestValue !== null
+            ? effectiveFallbackDate
+            : ""
         : /^\d{4}-\d{2}-\d{2}$/.test(hintDate)
           ? hintDate
           : effectiveFallbackDate;
@@ -3628,6 +3641,27 @@ function preserveExistingPeTtmHistory(
   });
 
   return changed ? nextPoints : generatedPoints;
+}
+
+function mergeYahooLatestQuotePayloads(payloads: RatioPayload[]): RatioPayload | null {
+  const merged = mergeRatioPayloadList(payloads);
+  if (!merged) return null;
+
+  for (let i = payloads.length - 1; i >= 0; i -= 1) {
+    const payload = payloads[i];
+    const source = String(payload?.source || "");
+    if (!hasAnyYahooSourceTag(source, ["yahoo-quote-api-latest", "yahoo-quote-summary-latest"])) {
+      continue;
+    }
+
+    const quotePeTtm = sanitizeYahooMetricValue("pe_ttm", payload.latest.pe_ttm, source);
+    if (quotePeTtm !== null) {
+      merged.latest.pe_ttm = quotePeTtm;
+      break;
+    }
+  }
+
+  return merged;
 }
 
 function mergeRatioPayloadList(payloads: RatioPayload[]): RatioPayload | null {
@@ -7191,6 +7225,7 @@ export {
   filterVendorForwardPeSeriesBeforeExistingStart as filterVendorForwardPeSeriesBeforeExistingStartForTest,
   carryForwardLatestYahooPeTtmByClose as carryForwardLatestYahooPeTtmByCloseForTest,
   mergeYahooDrivenRatioPayload as mergeYahooDrivenRatioPayloadForTest,
+  mergeYahooLatestQuotePayloads as mergeYahooLatestQuotePayloadsForTest,
   preserveExistingPeTtmHistory as preserveExistingPeTtmHistoryForTest,
   parseVendorCompanyForwardPeCsv as parseVendorCompanyForwardPeCsvForTest,
   parseYahooValuationMeasuresFromHtml,

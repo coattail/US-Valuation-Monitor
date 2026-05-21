@@ -61,6 +61,7 @@ This project follows a **multi-source merge with reliability guardrails** strate
 - S&P 500 forward PE uses verified public FactSet/WSJ anchors from 2020-01-17 onward; days between anchors are close-aware carry paths.
 - Forward PE availability is tracked per index via `forwardStartDate` and enforced in API responses.
 - Latest index snapshots include an anti-spike deviation guard to reduce one-day source-regime jumps.
+- Company `PE(TTM)` is refreshed for every company after each trading-day close from Yahoo Finance quote data (for example, `https://finance.yahoo.com/quote/NVDA/`, backed by Yahoo quote API fields such as `trailingPE`).
 - Company `PE(FWD)` latest values prefer Yahoo trusted sources; when a daily Yahoo snapshot is untrusted for `pe_forward`, that day is stored as `null` (no manual fill).
 - Company `PE(FWD)` can be backfilled from licensed point-in-time vendor data. The default import path is `data/vendor/company-forward-pe-history.csv`; override it with `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv`. The import only supplies anchors before the existing company forward PE source start date, so it does not overwrite the StockAnalysis/YCharts/Yahoo-calibrated range.
 - For source-regime transitions (previous trading day unavailable, latest day available), historical `forward PE` is rebased using a fixed factor that includes the latest-day price move:
@@ -220,7 +221,7 @@ Current behavior:
 - Runs on schedule (`cron: 30 21 * * 1-5`, 21:30 UTC on US trading weekdays, after market close year-round) and manual dispatch
 - Executes `npm run build:data`
 - Index valuation keeps the historical non-Yahoo source chain to avoid short-term source-regime shocks
-- Company valuation series are capped to Yahoo's latest available trading day and appended into history
+- Company valuation series are capped to the latest completed US trading day and appended into history; company `PE(TTM)` is refreshed from Yahoo quote data after the close
 - Commits and pushes standardized dataset outputs **only when changed** (including company snapshot and split series files)
 
 To trigger manually:
@@ -302,7 +303,8 @@ curl -sS "http://127.0.0.1:9040/api/series?indexId=sp500&metric=pe_ttm"
 - Unexpectedly flat valuation segments:
   - verify source anchor coverage and rebuild dataset; the pipeline uses close-aware reconstruction inside valid ranges
 - Company `PE(TTM)` / `PE(FWD)` differs from Yahoo:
-  - latest override now prioritizes Yahoo timeseries (`trailingPeRatio` / `forwardPeRatio`) plus quote API to stay close to Yahoo Valuation Measures
+  - company `PE(TTM)` latest-day refresh now prioritizes Yahoo quote data (`trailingPE` as shown on pages such as `https://finance.yahoo.com/quote/NVDA/`) after each trading-day close
+  - `PE(FWD)` and other valuation metrics keep their existing source chain and Yahoo trusted-source override behavior
   - check whether `data/standardized/company-yahoo-daily-metrics.json` is being appended (use `yahoo-market-latest-date-*` and `yahoo-latest-override-*` source tags to verify date alignment and coverage)
   - when a source transition happens (missing previous day, available latest day), the pipeline rebases historical `PE(FWD)` by a price-adjusted fixed factor to connect to Yahoo latest value
   - latest Yahoo override is enabled for all symbols by default (`YAHOO_LATEST_OVERRIDE_SYMBOLS=*`); exclude special cases with `YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS=SYM1,SYM2`
