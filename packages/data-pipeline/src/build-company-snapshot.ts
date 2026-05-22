@@ -3698,6 +3698,44 @@ function preserveExistingPeTtmHistory(
   return changed ? nextPoints : generatedPoints;
 }
 
+function carryForwardMissingPeTtmByPreviousClose(
+  valuationPoints: SnapshotPoint[],
+  carryFromDate = ""
+): SnapshotPoint[] {
+  if (!Array.isArray(valuationPoints) || valuationPoints.length < 2) return valuationPoints;
+  const normalizedCarryFromDate = /^\d{4}-\d{2}-\d{2}$/.test(carryFromDate) ? carryFromDate : "";
+
+  let changed = false;
+  let previousPeTtm: number | null = null;
+  let previousClose: number | null = null;
+
+  const nextPoints = valuationPoints.map((point) => {
+    const currentPeTtm = sanitizeSignedRatio(point.pe_ttm);
+    const currentClose = sanitizeSignedRatio(point.close);
+    const shouldCarry = !normalizedCarryFromDate || point.date >= normalizedCarryFromDate;
+
+    if (!shouldCarry || previousPeTtm === null || previousClose === null || !currentClose || previousClose <= 0) {
+      previousPeTtm = currentPeTtm;
+      previousClose = currentClose;
+      return point;
+    }
+
+    const nextPeTtm = sanitizeSignedRatio(previousPeTtm * (currentClose / previousClose));
+    previousPeTtm = nextPeTtm ?? currentPeTtm;
+    previousClose = currentClose;
+    if (nextPeTtm === null || nextPeTtm === currentPeTtm) return point;
+
+    changed = true;
+    return {
+      ...point,
+      pe_ttm: roundTo(nextPeTtm, 6),
+      peg: resolvePegAfterPeRefresh(point, nextPeTtm, point.pe_forward),
+    };
+  });
+
+  return changed ? nextPoints : valuationPoints;
+}
+
 function mergeYahooLatestQuotePayloads(payloads: RatioPayload[]): RatioPayload | null {
   const merged = mergeRatioPayloadList(payloads);
   if (!merged) return null;
@@ -7111,8 +7149,11 @@ async function main(): Promise<void> {
       previousSeries?.points || [],
       lastCloseDate
     );
+    const pointsWithMissingPeTtmCarriedByClose = preferredLatestRatioOverride?.latest.pe_ttm
+      ? pointsWithPreservedPeTtmHistory
+      : carryForwardMissingPeTtmByPreviousClose(pointsWithPreservedPeTtmHistory, lastCloseDate);
     const pointsWithYahooDailyMetricsCapped = capSnapshotSeriesByDate(
-      pointsWithPreservedPeTtmHistory,
+      pointsWithMissingPeTtmCarriedByClose,
       companySeriesCapDate
     );
     const pointsWithYahooDailyMetrics = carryForwardPeByCloseAcrossMissingPoints(
@@ -7279,6 +7320,7 @@ export {
   createYahooDailyMetricSnapshots,
   filterVendorForwardPeSeriesBeforeExistingStart as filterVendorForwardPeSeriesBeforeExistingStartForTest,
   carryForwardLatestYahooPeTtmByClose as carryForwardLatestYahooPeTtmByCloseForTest,
+  carryForwardMissingPeTtmByPreviousClose as carryForwardMissingPeTtmByPreviousCloseForTest,
   mergeYahooDrivenRatioPayload as mergeYahooDrivenRatioPayloadForTest,
   mergeYahooLatestQuotePayloads as mergeYahooLatestQuotePayloadsForTest,
   preserveExistingPeTtmHistory as preserveExistingPeTtmHistoryForTest,

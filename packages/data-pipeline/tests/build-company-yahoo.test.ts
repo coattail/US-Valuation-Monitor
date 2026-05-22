@@ -10,6 +10,7 @@ import {
   parseYahooQuotePageRatioPayloadForTest,
   preserveExistingPeTtmHistoryForTest,
   carryForwardLatestYahooPeTtmByCloseForTest,
+  carryForwardMissingPeTtmByPreviousCloseForTest,
   selectLatestYahooRatioOverrideForTest,
 } from "../src/build-company-snapshot.ts";
 
@@ -367,4 +368,16 @@ test("latest Yahoo TTM PE is carried by close when the next Yahoo snapshot lacks
 
   assert.equal(carried[1].pe_ttm, 26.491991);
   assert.equal(carried[2].pe_ttm, 26.754288);
+});
+
+test("missing TTM PE is carried from the preserved previous TTM PE by close", () => {
+  const points = [
+    { date: "2026-05-20", close: 100, pe_ttm: 34.22, pe_forward: 27.9, pb: 34.8, peg: 0.7, us10y_yield: 0 },
+    { date: "2026-05-21", close: 102, pe_ttm: 44.79, pe_forward: 27.55, pb: 34.41, peg: 0.71, us10y_yield: 0 },
+  ];
+
+  const carried = carryForwardMissingPeTtmByPreviousCloseForTest(points, "2026-05-21");
+
+  assert.equal(carried[0].pe_ttm, 34.22);
+  assert.equal(carried[1].pe_ttm, 34.9044);
 });
