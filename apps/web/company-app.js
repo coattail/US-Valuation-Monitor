@@ -153,6 +153,8 @@ const state = {
   runtime: {
     detailRenderToken: 0,
     compareRenderToken: 0,
+    detailFullRows: [],
+    detailBaseRows: [],
   },
 };
 
@@ -1248,6 +1250,18 @@ function bindDetailZoomSync() {
     );
   };
 
+  const renderZoomedStats = (range) => {
+    const baseRows = state.runtime.detailBaseRows;
+    const fullRows = state.runtime.detailFullRows;
+    if (!Array.isArray(baseRows) || !baseRows.length || !Array.isArray(fullRows) || !fullRows.length) return;
+
+    const visibleRows = recomputeRangeRollingStats(filterRowsByZoomRange(baseRows, range), state.detail.metric);
+    if (!visibleRows.length) return;
+
+    updateDetailPercentileChartForZoom(baseRows, visibleRows);
+    renderDetailStats(fullRows, visibleRows);
+  };
+
   const scheduleSync = (sourceChart, targetChart, payload) => {
     if (detailZoomSyncState.syncing) return;
 
@@ -1267,6 +1281,7 @@ function bindDetailZoomSync() {
       detailZoomSyncState.syncing = true;
       applyZoomRange(task.targetChart, task.range);
       applyMainYAxisRange(task.range);
+      renderZoomedStats(task.range);
       detailZoomSyncState.syncing = false;
     });
   };
@@ -1315,6 +1330,25 @@ function filterRowsByRange(rows, rangeCode) {
     return rows;
   }
   return filtered;
+}
+
+function filterRowsByZoomRange(rows, range) {
+  if (!Array.isArray(rows) || rows.length <= 1) return rows;
+
+  const rawStart = Number(range?.start);
+  const rawEnd = Number(range?.end);
+  if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd)) return rows;
+
+  const total = rows.length;
+  const start = clamp(rawStart, 0, 100);
+  const end = clamp(rawEnd, 0, 100);
+  const lo = clamp(Math.ceil((Math.min(start, end) / 100) * (total - 1)), 0, total - 1);
+  const hi = clamp(Math.floor((Math.max(start, end) / 100) * (total - 1)), 0, total - 1);
+  const from = Math.min(lo, hi);
+  const to = Math.max(lo, hi);
+  const filtered = rows.slice(from, to + 1);
+
+  return filtered.length ? filtered : rows;
 }
 
 function normalizeCompareDateRange(startDate = "", endDate = "") {
@@ -1477,6 +1511,31 @@ function renderDetailPercentileTrack(latest) {
       <span>100% 高估</span>
     </div>
   `;
+}
+
+function buildPercentileSeriesData(rows) {
+  return rows.map((row) => [axisValueFromDate(row.date), row.percentile_full * 100]);
+}
+
+function buildZoomedPercentileSeriesData(baseRows, zoomRows) {
+  const zoomPercentiles = new Map(zoomRows.map((row) => [row.date, row.percentile_full * 100]));
+  return baseRows.map((row) => [axisValueFromDate(row.date), zoomPercentiles.get(row.date) ?? null]);
+}
+
+function updateDetailPercentileChartForZoom(baseRows, zoomRows) {
+  const chart = charts.detailPercentile;
+  if (!chart || !Array.isArray(baseRows) || !baseRows.length || !Array.isArray(zoomRows) || !zoomRows.length) return;
+
+  chart.setOption(
+    {
+      series: [
+        {
+          data: buildZoomedPercentileSeriesData(baseRows, zoomRows),
+        },
+      ],
+    },
+    false
+  );
 }
 
 function renderDetailStats(fullRows, viewRows) {
@@ -1758,7 +1817,7 @@ function renderDetailPercentileChart(rows) {
           labelLayout: {
             moveOverlap: "shiftY",
           },
-          data: rows.map((row) => [axisValueFromDate(row.date), row.percentile_full * 100]),
+          data: buildPercentileSeriesData(rows),
         },
       ],
     },
@@ -1791,6 +1850,8 @@ async function renderDetail() {
     const fullRows = getMetricSeries(indexId, metric);
     const rangedRows = filterRowsByRange(fullRows, state.detail.range);
     const viewRows = recomputeRangeRollingStats(rangedRows, metric);
+    state.runtime.detailFullRows = fullRows;
+    state.runtime.detailBaseRows = rangedRows;
 
     const indexMeta = state.metaRows.find((item) => item.id === indexId);
     if (!indexMeta || !viewRows.length) {
@@ -2808,5 +2869,8 @@ if (!window.__USVM_COMPANY_APP_TEST__) {
 
 export {
   buildMetricAvailabilityNote as buildMetricAvailabilityNoteForTest,
+  buildZoomedPercentileSeriesData as buildZoomedPercentileSeriesDataForTest,
   fetchCompanySeries as fetchCompanySeriesForTest,
+  filterRowsByZoomRange as filterRowsByZoomRangeForTest,
+  recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
 };

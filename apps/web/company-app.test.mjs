@@ -45,7 +45,13 @@ globalThis.fetch = async () => {
   throw new Error("fetch disabled in unit test");
 };
 
-const { buildMetricAvailabilityNoteForTest, fetchCompanySeriesForTest } = await import("./company-app.js");
+const {
+  buildMetricAvailabilityNoteForTest,
+  buildZoomedPercentileSeriesDataForTest,
+  filterRowsByZoomRangeForTest,
+  fetchCompanySeriesForTest,
+  recomputeRangeRollingStatsForTest,
+} = await import("./company-app.js");
 
 test("buildMetricAvailabilityNoteForTest explains when selected range exceeds available history", () => {
   assert.equal(
@@ -92,4 +98,48 @@ test("fetchCompanySeriesForTest bypasses browser cache for split company series"
   assert.equal(payload.points.at(-1).pe_ttm, 45.29);
   assert.equal(calls[0].options?.cache, "no-store");
   assert.match(calls[0].url, /v=.+/);
+});
+
+test("zoomed detail percentile recomputes from the visible window", () => {
+  const baseRows = recomputeRangeRollingStatsForTest(
+    [
+      { date: "2026-01-01", value: 10 },
+      { date: "2026-01-02", value: 20 },
+      { date: "2026-01-03", value: 30 },
+      { date: "2026-01-04", value: 15 },
+    ],
+    "pe_ttm"
+  );
+
+  assert.equal(baseRows.at(-1).percentile_full, 0.5);
+
+  const visibleRows = recomputeRangeRollingStatsForTest(
+    filterRowsByZoomRangeForTest(baseRows, { start: 50, end: 100 }),
+    "pe_ttm"
+  );
+
+  assert.deepEqual(visibleRows.map((row) => row.date), ["2026-01-03", "2026-01-04"]);
+  assert.equal(visibleRows.at(-1).percentile_full, 0.5);
+  assert.equal(visibleRows.at(-1).percentile_5y, 0.5);
+});
+
+test("zoomed detail percentile series blanks rows outside the visible window", () => {
+  const baseRows = recomputeRangeRollingStatsForTest(
+    [
+      { date: "2026-01-01", value: 10 },
+      { date: "2026-01-02", value: 20 },
+      { date: "2026-01-03", value: 30 },
+      { date: "2026-01-04", value: 15 },
+    ],
+    "pe_ttm"
+  );
+  const visibleRows = recomputeRangeRollingStatsForTest(
+    filterRowsByZoomRangeForTest(baseRows, { start: 50, end: 100 }),
+    "pe_ttm"
+  );
+
+  assert.deepEqual(
+    buildZoomedPercentileSeriesDataForTest(baseRows, visibleRows).map((point) => point[1]),
+    [null, null, 100, 50]
+  );
 });
