@@ -45,6 +45,9 @@ jobs:
       - name: Build latest dataset
         run: npm run build:data
 
+      - name: Validate company history
+        run: npm run validate:data:company
+
       - name: Commit and push changes
         id: commit_changes
         shell: bash
