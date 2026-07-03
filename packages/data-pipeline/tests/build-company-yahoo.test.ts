@@ -36,7 +36,7 @@ test("dense close overlay removes fallback holiday points and rebases its prefix
   assert.equal(merged[1].close, 40);
 });
 
-test("published company series treats non-positive PE as not meaningful", () => {
+test("published company series preserves signed PE", () => {
   const points = stripGrowthOnlyFieldsFromSnapshotPointsForTest([
     {
       date: "2003-10-30",
@@ -59,8 +59,8 @@ test("published company series treats non-positive PE as not meaningful", () => 
   ]);
 
   assert.equal(points[0].close, undefined);
-  assert.equal(points[0].pe_ttm, null);
-  assert.equal(points[0].pe_forward, null);
+  assert.equal(points[0].pe_ttm, -2_000);
+  assert.equal(points[0].pe_forward, -40);
   assert.equal(points[0].pb, 3);
   assert.equal(points[1].pe_ttm, 30);
   assert.equal(points[1].pe_forward, 25);

@@ -77,11 +77,6 @@ function toFiniteNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function toPositiveFiniteNumber(value: unknown): number | null {
-  const n = toFiniteNumber(value);
-  return n !== null && n > 0 ? n : null;
-}
-
 function resolveLatestPeg(points: CompanyValuationPoint[], fallback?: unknown): number | null {
   const latestPoint = Array.isArray(points) && points.length ? points[points.length - 1] : null;
   return toFiniteNumber(latestPoint?.peg ?? fallback);
@@ -111,7 +106,7 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
   const validRows = (Array.isArray(points) ? points : [])
     .map((point) => ({
       date: String(point?.date || ""),
-      pe: toPositiveFiniteNumber(point?.pe_ttm),
+      pe: toFiniteNumber(point?.pe_ttm),
     }))
     .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && row.pe !== null);
 
@@ -202,8 +197,8 @@ function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
     endDate: String(points[points.length - 1]?.date || ""),
     pointCount: points.length,
     date: peStats.latestDate || String(latestPoint.date || ""),
-    pe_ttm: toPositiveFiniteNumber(latestPoint.pe_ttm),
-    pe_forward: toPositiveFiniteNumber(latestPoint.pe_forward),
+    pe_ttm: toFiniteNumber(latestPoint.pe_ttm),
+    pe_forward: toFiniteNumber(latestPoint.pe_forward),
     pb: toFiniteNumber(latestPoint.pb),
     peg: resolveLatestPeg(points, item.peg),
     percentile_5y: peStats.percentile_5y,
@@ -221,10 +216,6 @@ function stripGrowthOnlyFieldsFromPoints(points: CompanyValuationPoint[]): Compa
     .map((point) => {
       const nextPoint = { ...(point as Record<string, unknown>) };
       delete nextPoint.close;
-      for (const metric of ["pe_ttm", "pe_forward"] as const) {
-        const value = toFiniteNumber(nextPoint[metric]);
-        nextPoint[metric] = value !== null && value > 0 ? value : null;
-      }
       return nextPoint as CompanyValuationPoint;
     });
 }

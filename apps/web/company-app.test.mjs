@@ -46,6 +46,7 @@ globalThis.fetch = async () => {
 };
 
 const {
+  buildLineSeriesDataWithGapsForTest,
   buildMetricAvailabilityNoteForTest,
   buildZoomedPercentileSeriesDataForTest,
   filterRowsByZoomRangeForTest,
@@ -54,11 +55,67 @@ const {
   recomputeRangeRollingStatsForTest,
 } = await import("./company-app.js");
 
-test("company chart ignores non-positive PE from stale datasets", () => {
-  assert.equal(metricValueFromRawForTest({ pe_ttm: -2_400 }, "pe_ttm"), null);
+test("line series inserts a null break across a long unavailable PE period", () => {
+  const data = buildLineSeriesDataWithGapsForTest([
+    { date: "2009-04-27", value: 18 },
+    { date: "2010-04-30", value: 34 },
+  ]);
+
+  assert.equal(data.length, 3);
+  assert.deepEqual(data[1], [Date.parse("2009-04-28T00:00:00Z"), null]);
+  assert.equal(data[0][1], 18);
+  assert.equal(data[2][1], 34);
+});
+
+test("line series keeps normal market closures connected", () => {
+  const data = buildLineSeriesDataWithGapsForTest([
+    { date: "2026-07-02", value: 20 },
+    { date: "2026-07-06", value: 21 },
+  ]);
+
+  assert.equal(data.length, 2);
+});
+
+test("line series connects across a PE sign change", () => {
+  const data = buildLineSeriesDataWithGapsForTest([
+    { date: "2009-04-29", value: -65 },
+    { date: "2009-04-30", value: 40 },
+  ]);
+
+  assert.equal(data.length, 2);
+  assert.deepEqual(data.map((point) => point[1]), [-65, 40]);
+});
+
+test("company chart keeps signed PE and ignores only zero", () => {
+  assert.equal(metricValueFromRawForTest({ pe_ttm: -2_400 }, "pe_ttm"), -2_400);
   assert.equal(metricValueFromRawForTest({ pe_forward: 0 }, "pe_forward"), null);
   assert.equal(metricValueFromRawForTest({ pe_ttm: 25.28 }, "pe_ttm"), 25.28);
   assert.equal(metricValueFromRawForTest({ pb: -1.2 }, "pb"), -1.2);
+});
+
+test("negative PE ranks above every positive PE in percentile stats", () => {
+  const rows = recomputeRangeRollingStatsForTest(
+    [
+      { date: "2026-01-01", value: 10 },
+      { date: "2026-01-02", value: 100 },
+      { date: "2026-01-03", value: -100 },
+    ],
+    "pe_ttm"
+  );
+
+  assert.equal(rows.at(-1).percentile_full, 1);
+});
+
+test("negative PE closer to zero ranks as more expensive", () => {
+  const rows = recomputeRangeRollingStatsForTest(
+    [
+      { date: "2026-01-01", value: -100 },
+      { date: "2026-01-02", value: -10 },
+    ],
+    "pe_ttm"
+  );
+
+  assert.equal(rows.at(-1).percentile_full, 1);
 });
 
 test("buildMetricAvailabilityNoteForTest explains when selected range exceeds available history", () => {
