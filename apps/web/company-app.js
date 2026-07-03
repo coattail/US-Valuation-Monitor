@@ -245,11 +245,6 @@ function toFiniteNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-function toPositiveFiniteNumber(value) {
-  const n = toFiniteNumber(value);
-  return n !== null && n > 0 ? n : null;
-}
-
 function resolveLatestPointPeg(point, fallback) {
   return toFiniteNumber(point?.peg ?? fallback);
 }
@@ -496,7 +491,7 @@ function computeLatestPeStats(points) {
   const validRows = points
     .map((point) => ({
       date: String(point?.date || ""),
-      pe: toPositiveFiniteNumber(point?.pe_ttm),
+      pe: toFiniteNumber(point?.pe_ttm),
     }))
     .filter((row) => row.date && row.pe !== null);
   if (!validRows.length) {
@@ -576,7 +571,7 @@ function regimeLabel(regime) {
 
 function metricValueFromRaw(point, metric) {
   const value = toFiniteNumber(point?.[metric]);
-  if ((metric === "pe_ttm" || metric === "pe_forward") && value !== null && value <= 0) {
+  if ((metric === "pe_ttm" || metric === "pe_forward") && value !== null && Math.abs(value) < 1e-8) {
     return null;
   }
   return value;
@@ -622,8 +617,8 @@ function normalizeSnapshotDataset(payload) {
         endDate: String(item.endDate || lastPoint?.date || ""),
         pointCount: Number(item.pointCount || points.length || 0),
         date: String(item.date || item.endDate || lastPoint?.date || ""),
-        pe_ttm: toPositiveFiniteNumber(item.pe_ttm),
-        pe_forward: toPositiveFiniteNumber(item.pe_forward),
+        pe_ttm: toFiniteNumber(item.pe_ttm),
+        pe_forward: toFiniteNumber(item.pe_forward),
         pb: toFiniteNumber(item.pb),
         peg: resolveLatestPointPeg(lastPoint, item.peg),
         percentile_5y: Number.isFinite(Number(item.percentile_5y))
@@ -1523,12 +1518,41 @@ function renderDetailPercentileTrack(latest) {
 }
 
 function buildPercentileSeriesData(rows) {
-  return rows.map((row) => [axisValueFromDate(row.date), row.percentile_full * 100]);
+  return buildLineSeriesDataWithGaps(rows, (row) => row.percentile_full * 100);
 }
 
 function buildZoomedPercentileSeriesData(baseRows, zoomRows) {
   const zoomPercentiles = new Map(zoomRows.map((row) => [row.date, row.percentile_full * 100]));
-  return baseRows.map((row) => [axisValueFromDate(row.date), zoomPercentiles.get(row.date) ?? null]);
+  return buildLineSeriesDataWithGaps(baseRows, (row) => zoomPercentiles.get(row.date) ?? null);
+}
+
+function buildLineSeriesDataWithGaps(rows, valueFromRow = (row) => row.value, maxGapDays = 7) {
+  if (!Array.isArray(rows) || !rows.length) return [];
+
+  const data = [];
+  let previousDate = "";
+  let previousTs = 0;
+
+  for (const row of rows) {
+    const date = String(row?.date || "");
+    const ts = Date.parse(`${date}T00:00:00Z`);
+    if (!date || !Number.isFinite(ts)) continue;
+
+    if (previousDate && previousTs > 0) {
+      const gapDays = (ts - previousTs) / 86_400_000;
+      if (Number.isFinite(gapDays) && gapDays > maxGapDays) {
+        const breakOffset = Math.min(86_400_000, Math.max(1, (ts - previousTs) / 2));
+        data.push([previousTs + breakOffset, null]);
+      }
+    }
+
+    const value = toFiniteNumber(valueFromRow(row));
+    data.push([axisValueFromDate(date), value]);
+    previousDate = date;
+    previousTs = ts;
+  }
+
+  return data;
 }
 
 function updateDetailPercentileChartForZoom(baseRows, zoomRows) {
@@ -1703,7 +1727,10 @@ function renderDetailChart(indexMeta, rows) {
           labelLayout: {
             moveOverlap: "shiftY",
           },
-          data: rows.map((row) => [axisValueFromDate(row.date), metricCfg.percentage ? row.value * 100 : row.value]),
+          data: buildLineSeriesDataWithGaps(
+            rows,
+            (row) => (metricCfg.percentage ? row.value * 100 : row.value)
+          ),
         },
       ],
     },
@@ -2301,10 +2328,10 @@ async function renderCompareCharts() {
       const lineColor = COMPARE_LINE_COLORS[seriesIndex % COMPARE_LINE_COLORS.length];
       lineColorByIndexId.set(item.indexId, lineColor);
 
-      const data = item.rows.map((row) => {
-        const raw = metricCfg.percentage ? row.value * 100 : row.value;
-        return [axisValueFromDate(row.date), raw];
-      });
+      const data = buildLineSeriesDataWithGaps(
+        item.rows,
+        (row) => (metricCfg.percentage ? row.value * 100 : row.value)
+      );
 
       lineSeries.push({
         name: meta.displayName,
@@ -2877,6 +2904,7 @@ if (!window.__USVM_COMPANY_APP_TEST__) {
 }
 
 export {
+  buildLineSeriesDataWithGaps as buildLineSeriesDataWithGapsForTest,
   buildMetricAvailabilityNote as buildMetricAvailabilityNoteForTest,
   buildZoomedPercentileSeriesData as buildZoomedPercentileSeriesDataForTest,
   fetchCompanySeries as fetchCompanySeriesForTest,

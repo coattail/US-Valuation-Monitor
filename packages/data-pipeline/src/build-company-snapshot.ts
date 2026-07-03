@@ -6860,13 +6860,6 @@ function stripGrowthOnlyFieldsFromSnapshotPoints(points: SnapshotPoint[]): Array
     .map((point) => {
       const nextPoint = { ...(point as Record<string, unknown>) };
       delete nextPoint.close;
-      // PE is not meaningful while trailing/forward earnings are zero or negative.
-      // Publishing a signed price/earnings quotient creates huge cross-zero spikes
-      // around earnings updates and distorts the chart and percentile statistics.
-      for (const metric of ["pe_ttm", "pe_forward"] as const) {
-        const value = Number(nextPoint[metric]);
-        nextPoint[metric] = Number.isFinite(value) && value > 0 ? value : null;
-      }
       return nextPoint;
     });
 }
