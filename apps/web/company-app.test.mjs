@@ -49,9 +49,17 @@ const {
   buildMetricAvailabilityNoteForTest,
   buildZoomedPercentileSeriesDataForTest,
   filterRowsByZoomRangeForTest,
+  metricValueFromRawForTest,
   fetchCompanySeriesForTest,
   recomputeRangeRollingStatsForTest,
 } = await import("./company-app.js");
+
+test("company chart ignores non-positive PE from stale datasets", () => {
+  assert.equal(metricValueFromRawForTest({ pe_ttm: -2_400 }, "pe_ttm"), null);
+  assert.equal(metricValueFromRawForTest({ pe_forward: 0 }, "pe_forward"), null);
+  assert.equal(metricValueFromRawForTest({ pe_ttm: 25.28 }, "pe_ttm"), 25.28);
+  assert.equal(metricValueFromRawForTest({ pb: -1.2 }, "pb"), -1.2);
+});
 
 test("buildMetricAvailabilityNoteForTest explains when selected range exceeds available history", () => {
   assert.equal(

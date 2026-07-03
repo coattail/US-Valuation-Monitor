@@ -1072,14 +1072,54 @@ function parseNasdaqHistoricalClose(jsonText: string): ClosePoint[] {
 }
 
 function mergeCloseSeries(base: ClosePoint[], overlay: ClosePoint[]): ClosePoint[] {
+  if (!overlay.length) return [...base].sort((a, b) => a.ts - b.ts);
+
+  const orderedOverlay = [...overlay].sort((a, b) => a.ts - b.ts);
+  const overlayIntervals = orderedOverlay
+    .slice(1)
+    .map((item, index) => (item.ts - orderedOverlay[index].ts) / 86_400_000)
+    .filter((days) => Number.isFinite(days) && days > 0);
+  const overlayMedianGap = median(overlayIntervals);
+
+  // A sparse monthly/quarterly overlay is an anchor source, not a trading calendar.
+  // Keep the legacy union behavior for those inputs.
+  if (overlayMedianGap === null || overlayMedianGap > 4) {
+    const byDate = new Map<string, ClosePoint>();
+    for (const item of base) byDate.set(item.date, item);
+    for (const item of overlay) byDate.set(item.date, item);
+    return [...byDate.values()].sort((a, b) => a.ts - b.ts);
+  }
+
+  const overlayByDate = new Map(orderedOverlay.map((item) => [item.date, item]));
+  const overlapScaleSamples = base
+    .map((item) => {
+      const primary = overlayByDate.get(item.date);
+      return primary && item.close > 0 ? primary.close / item.close : NaN;
+    })
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const fallbackScale = median(overlapScaleSamples) ?? 1;
+  const firstOverlayDate = orderedOverlay[0].date;
+  const lastOverlayDate = orderedOverlay[orderedOverlay.length - 1].date;
   const byDate = new Map<string, ClosePoint>();
+
+  // The dense overlay defines valid trading dates throughout its coverage.
+  // Sparse fallback points are only retained outside that range and are rebased
+  // to the primary source so a split-adjustment mismatch cannot create a step.
   for (const item of base) {
-    byDate.set(item.date, item);
+    if (item.date >= firstOverlayDate && item.date <= lastOverlayDate) continue;
+    byDate.set(item.date, {
+      ...item,
+      close: item.close * fallbackScale,
+    });
   }
   for (const item of overlay) {
     byDate.set(item.date, item);
   }
   return [...byDate.values()].sort((a, b) => a.ts - b.ts);
+}
+
+export function mergeCloseSeriesForTest(base: ClosePoint[], overlay: ClosePoint[]): ClosePoint[] {
+  return mergeCloseSeries(base, overlay);
 }
 
 function capCloseSeriesByDate(points: ClosePoint[], maxDate = ""): ClosePoint[] {
@@ -6820,8 +6860,21 @@ function stripGrowthOnlyFieldsFromSnapshotPoints(points: SnapshotPoint[]): Array
     .map((point) => {
       const nextPoint = { ...(point as Record<string, unknown>) };
       delete nextPoint.close;
+      // PE is not meaningful while trailing/forward earnings are zero or negative.
+      // Publishing a signed price/earnings quotient creates huge cross-zero spikes
+      // around earnings updates and distorts the chart and percentile statistics.
+      for (const metric of ["pe_ttm", "pe_forward"] as const) {
+        const value = Number(nextPoint[metric]);
+        nextPoint[metric] = Number.isFinite(value) && value > 0 ? value : null;
+      }
       return nextPoint;
     });
+}
+
+export function stripGrowthOnlyFieldsFromSnapshotPointsForTest(
+  points: SnapshotPoint[]
+): Array<Record<string, unknown>> {
+  return stripGrowthOnlyFieldsFromSnapshotPoints(points);
 }
 
 async function main(): Promise<void> {

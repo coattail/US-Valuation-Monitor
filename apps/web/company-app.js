@@ -245,6 +245,11 @@ function toFiniteNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function toPositiveFiniteNumber(value) {
+  const n = toFiniteNumber(value);
+  return n !== null && n > 0 ? n : null;
+}
+
 function resolveLatestPointPeg(point, fallback) {
   return toFiniteNumber(point?.peg ?? fallback);
 }
@@ -491,7 +496,7 @@ function computeLatestPeStats(points) {
   const validRows = points
     .map((point) => ({
       date: String(point?.date || ""),
-      pe: toFiniteNumber(point?.pe_ttm),
+      pe: toPositiveFiniteNumber(point?.pe_ttm),
     }))
     .filter((row) => row.date && row.pe !== null);
   if (!validRows.length) {
@@ -570,7 +575,11 @@ function regimeLabel(regime) {
 }
 
 function metricValueFromRaw(point, metric) {
-  return toFiniteNumber(point?.[metric]);
+  const value = toFiniteNumber(point?.[metric]);
+  if ((metric === "pe_ttm" || metric === "pe_forward") && value !== null && value <= 0) {
+    return null;
+  }
+  return value;
 }
 
 function stripGrowthOnlyFieldsFromPoints(points) {
@@ -613,8 +622,8 @@ function normalizeSnapshotDataset(payload) {
         endDate: String(item.endDate || lastPoint?.date || ""),
         pointCount: Number(item.pointCount || points.length || 0),
         date: String(item.date || item.endDate || lastPoint?.date || ""),
-        pe_ttm: toFiniteNumber(item.pe_ttm),
-        pe_forward: toFiniteNumber(item.pe_forward),
+        pe_ttm: toPositiveFiniteNumber(item.pe_ttm),
+        pe_forward: toPositiveFiniteNumber(item.pe_forward),
         pb: toFiniteNumber(item.pb),
         peg: resolveLatestPointPeg(lastPoint, item.peg),
         percentile_5y: Number.isFinite(Number(item.percentile_5y))
@@ -2872,5 +2881,6 @@ export {
   buildZoomedPercentileSeriesData as buildZoomedPercentileSeriesDataForTest,
   fetchCompanySeries as fetchCompanySeriesForTest,
   filterRowsByZoomRange as filterRowsByZoomRangeForTest,
+  metricValueFromRaw as metricValueFromRawForTest,
   recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
 };
