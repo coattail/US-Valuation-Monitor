@@ -62,6 +62,7 @@ const DATA_DIR = path.join(ROOT_DIR, "data", "standardized");
 const INPUT_FILE = path.join(DATA_DIR, "company-valuation-history.json");
 const SNAPSHOT_FILE = path.join(DATA_DIR, "company-valuation-snapshot.json");
 const SERIES_DIR = path.join(DATA_DIR, "company-series");
+const US_TRADING_CALENDAR_FILE = path.join(DATA_DIR, "index-series", "sp500.json");
 const NEGATIVE_VALUATION_BASE = 1_000_000;
 const NEGATIVE_VALUATION_EPSILON = 1e-6;
 
@@ -74,6 +75,11 @@ function toFiniteNumber(value: unknown): number | null {
   if (typeof value === "string" && !value.trim()) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function toPositiveFiniteNumber(value: unknown): number | null {
+  const n = toFiniteNumber(value);
+  return n !== null && n > 0 ? n : null;
 }
 
 function resolveLatestPeg(points: CompanyValuationPoint[], fallback?: unknown): number | null {
@@ -105,7 +111,7 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
   const validRows = (Array.isArray(points) ? points : [])
     .map((point) => ({
       date: String(point?.date || ""),
-      pe: toFiniteNumber(point?.pe_ttm),
+      pe: toPositiveFiniteNumber(point?.pe_ttm),
     }))
     .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && row.pe !== null);
 
@@ -196,8 +202,8 @@ function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
     endDate: String(points[points.length - 1]?.date || ""),
     pointCount: points.length,
     date: peStats.latestDate || String(latestPoint.date || ""),
-    pe_ttm: toFiniteNumber(latestPoint.pe_ttm),
-    pe_forward: toFiniteNumber(latestPoint.pe_forward),
+    pe_ttm: toPositiveFiniteNumber(latestPoint.pe_ttm),
+    pe_forward: toPositiveFiniteNumber(latestPoint.pe_forward),
     pb: toFiniteNumber(latestPoint.pb),
     peg: resolveLatestPeg(points, item.peg),
     percentile_5y: peStats.percentile_5y,
@@ -215,8 +221,27 @@ function stripGrowthOnlyFieldsFromPoints(points: CompanyValuationPoint[]): Compa
     .map((point) => {
       const nextPoint = { ...(point as Record<string, unknown>) };
       delete nextPoint.close;
+      for (const metric of ["pe_ttm", "pe_forward"] as const) {
+        const value = toFiniteNumber(nextPoint[metric]);
+        nextPoint[metric] = value !== null && value > 0 ? value : null;
+      }
       return nextPoint as CompanyValuationPoint;
     });
+}
+
+async function loadUsTradingDates(): Promise<Set<string>> {
+  try {
+    const payload = JSON.parse(await readFile(US_TRADING_CALENDAR_FILE, "utf8")) as {
+      points?: Array<{ date?: string }>;
+    };
+    return new Set(
+      (payload.points || [])
+        .map((point) => String(point?.date || ""))
+        .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    );
+  } catch {
+    return new Set<string>();
+  }
 }
 
 async function removeStaleSeriesFiles(validFileNames: Set<string>): Promise<void> {
@@ -236,6 +261,7 @@ async function main(): Promise<void> {
   const rawText = await readFile(INPUT_FILE, "utf8");
   const dataset = JSON.parse(rawText) as CompanyDatasetInput;
   const indicesRaw = Array.isArray(dataset.indices) ? dataset.indices : [];
+  const usTradingDates = await loadUsTradingDates();
 
   const indices = indicesRaw
     .filter((item) => item && typeof item === "object")
@@ -244,7 +270,9 @@ async function main(): Promise<void> {
       id: String(item.id || "").trim(),
       symbol: String(item.symbol || "").trim().toUpperCase(),
       displayName: String(item.displayName || "").trim(),
-      points: Array.isArray(item.points) ? item.points : [],
+      points: (Array.isArray(item.points) ? item.points : []).filter(
+        (point) => !usTradingDates.size || usTradingDates.has(String(point?.date || ""))
+      ),
     }))
     .filter((item) => item.id && item.symbol && item.displayName);
 

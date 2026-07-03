@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   createYahooDailyMetricSnapshots,
   mergeYahooLatestQuotePayloadsForTest,
+  mergeCloseSeriesForTest,
   buildEffectiveYahooDailyMetricSnapshotsForTest,
   mergeYahooDrivenRatioPayloadForTest,
   parseYahooValuationMeasuresFromHtml,
@@ -12,7 +13,58 @@ import {
   carryForwardLatestYahooPeTtmByCloseForTest,
   carryForwardMissingPeTtmByPreviousCloseForTest,
   selectLatestYahooRatioOverrideForTest,
+  stripGrowthOnlyFieldsFromSnapshotPointsForTest,
 } from "../src/build-company-snapshot.ts";
+
+test("dense close overlay removes fallback holiday points and rebases its prefix", () => {
+  const day = 86_400_000;
+  const merged = mergeCloseSeriesForTest(
+    [
+      { date: "2001-09-07", close: 24, ts: Date.parse("2001-09-07T00:00:00Z") },
+      { date: "2001-09-10", close: 25, ts: Date.parse("2001-09-10T00:00:00Z") },
+      { date: "2001-09-11", close: 24.5, ts: Date.parse("2001-09-11T00:00:00Z") },
+    ],
+    [
+      { date: "2001-09-10", close: 40, ts: Date.parse("2001-09-10T00:00:00Z") },
+      { date: "2001-09-17", close: 39, ts: Date.parse("2001-09-10T00:00:00Z") + 7 * day },
+      { date: "2001-09-18", close: 40, ts: Date.parse("2001-09-10T00:00:00Z") + 8 * day },
+    ]
+  );
+
+  assert.deepEqual(merged.map((point) => point.date), ["2001-09-07", "2001-09-10", "2001-09-17", "2001-09-18"]);
+  assert.ok(Math.abs(merged[0].close - 38.4) < 1e-9);
+  assert.equal(merged[1].close, 40);
+});
+
+test("published company series treats non-positive PE as not meaningful", () => {
+  const points = stripGrowthOnlyFieldsFromSnapshotPointsForTest([
+    {
+      date: "2003-10-30",
+      close: 10,
+      pe_ttm: -2_000,
+      pe_forward: -40,
+      pb: 3,
+      peg: null,
+      us10y_yield: 0,
+    },
+    {
+      date: "2003-10-31",
+      close: 11,
+      pe_ttm: 30,
+      pe_forward: 25,
+      pb: 3.1,
+      peg: null,
+      us10y_yield: 0,
+    },
+  ]);
+
+  assert.equal(points[0].close, undefined);
+  assert.equal(points[0].pe_ttm, null);
+  assert.equal(points[0].pe_forward, null);
+  assert.equal(points[0].pb, 3);
+  assert.equal(points[1].pe_ttm, 30);
+  assert.equal(points[1].pe_forward, 25);
+});
 
 
 test("Yahoo quote page parser extracts PE Ratio TTM from quote summary", () => {
