@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   createYahooDailyMetricSnapshots,
+  fillMissingCompanySeriesFromPreviousForTest,
+  mergeCurrentYahooSnapshotsIntoHistoryForTest,
   mergeYahooLatestQuotePayloadsForTest,
   mergeCloseSeriesForTest,
   buildEffectiveYahooDailyMetricSnapshotsForTest,
@@ -10,6 +12,8 @@ import {
   parseYahooValuationMeasuresFromHtml,
   parseYahooQuotePageRatioPayloadForTest,
   preserveExistingPeTtmHistoryForTest,
+  reconcileRecordedYahooPeTtmHistoryForTest,
+  repairRecentTransientPeTtmPulsesForTest,
   carryForwardLatestYahooPeTtmByCloseForTest,
   carryForwardMissingPeTtmByPreviousCloseForTest,
   selectLatestYahooRatioOverrideForTest,
@@ -34,6 +38,107 @@ test("dense close overlay removes fallback holiday points and rebases its prefix
   assert.deepEqual(merged.map((point) => point.date), ["2001-09-07", "2001-09-10", "2001-09-17", "2001-09-18"]);
   assert.ok(Math.abs(merged[0].close - 38.4) < 1e-9);
   assert.equal(merged[1].close, 40);
+});
+
+test("a failed new entrant keeps the previous company set at the target size", () => {
+  const point = (date, pe_ttm) => ({
+    date,
+    close: 100,
+    pe_ttm,
+    pe_forward: 20,
+    pb: 5,
+    peg: 1,
+    us10y_yield: 0,
+  });
+  const current = {
+    id: "company_new",
+    symbol: "NEW",
+    displayName: "New",
+    description: "New (NEW)",
+    rank: 1,
+    marketCap: 100,
+    peg: 1,
+    forwardStartDate: "2026-01-01",
+    points: Array.from({ length: 24 }, (_, index) => point(`2026-01-${String(index + 1).padStart(2, "0")}`, 20)),
+    quarterlyEps: [],
+    quarterlyNetIncome: [],
+  };
+  const previousPoints = Array.from({ length: 24 }, (_, index) =>
+    point(`2025-01-${String(index + 1).padStart(2, "0")}`, 18)
+  );
+
+  const filled = fillMissingCompanySeriesFromPreviousForTest(
+    [current, null],
+    new Map([
+      [
+        "OLD",
+        {
+          id: "company_old",
+          symbol: "OLD",
+          displayName: "Old",
+          description: "Old (OLD)",
+          rank: 2,
+          marketCap: 90,
+          forwardStartDate: "2025-01-01",
+          points: previousPoints,
+          quarterlyEps: [],
+          quarterlyNetIncome: [],
+        },
+      ],
+    ]),
+    2
+  );
+
+  assert.deepEqual(filled.map((item) => item.symbol), ["NEW", "OLD"]);
+  assert.deepEqual(filled.map((item) => item.rank), [1, 2]);
+});
+
+test("a fallback company is rebased to its recent Yahoo TTM anchor and price path", () => {
+  const points = Array.from({ length: 24 }, (_, index) => ({
+    date: `2026-06-${String(index + 1).padStart(2, "0")}`,
+    close: 100 + index,
+    pe_ttm: 40 + index,
+    pe_forward: 20,
+    pb: 5,
+    peg: 1,
+    us10y_yield: 0,
+  }));
+  const filled = fillMissingCompanySeriesFromPreviousForTest(
+    [null],
+    new Map([
+      [
+        "OLD",
+        {
+          symbol: "OLD",
+          displayName: "Old",
+          rank: 1,
+          marketCap: 100,
+          forwardStartDate: "2026-06-01",
+          points,
+        },
+      ],
+    ]),
+    1,
+    new Map([
+      [
+        "OLD",
+        [
+          {
+            date: "2026-06-23",
+            pe_ttm: 31,
+            pe_forward: null,
+            pb: null,
+            peg: null,
+            source: "yahoo-trailing-pe-timeseries",
+            capturedAt: "2026-06-24T00:00:00.000Z",
+          },
+        ],
+      ],
+    ])
+  );
+
+  assert.equal(filled[0].points[22].pe_ttm, 31);
+  assert.equal(filled[0].points[23].pe_ttm, 31.5);
 });
 
 test("published company series preserves signed PE", () => {
@@ -420,6 +525,143 @@ test("latest Yahoo TTM PE is carried by close when the next Yahoo snapshot lacks
 
   assert.equal(carried[1].pe_ttm, 26.491991);
   assert.equal(carried[2].pe_ttm, 26.754288);
+});
+
+test("a delayed Yahoo TTM PE observation replaces the stale published value and carries forward", () => {
+  const previous = [
+    { date: "2026-07-07", close: 100, pe_ttm: 41.25, pe_forward: 28, pb: 12, peg: 1.4, us10y_yield: 0 },
+    { date: "2026-07-08", close: 102, pe_ttm: 44.71, pe_forward: 28, pb: 12, peg: 1.4, us10y_yield: 0 },
+  ];
+  const generated = [
+    ...previous,
+    { date: "2026-07-09", close: 103, pe_ttm: 47.97, pe_forward: 28, pb: 12, peg: 1.4, us10y_yield: 0 },
+  ];
+  const delayedYahooSnapshot = {
+    date: "2026-07-08",
+    pe_ttm: 37.978074,
+    pe_forward: null,
+    pb: null,
+    peg: null,
+    source: "yahoo-trailing-pe-timeseries",
+    capturedAt: "2026-07-09T22:51:22.095Z",
+  };
+
+  const reconciled = reconcileRecordedYahooPeTtmHistoryForTest(
+    generated,
+    previous,
+    [delayedYahooSnapshot],
+    [delayedYahooSnapshot],
+    "2026-07-09"
+  );
+
+  assert.equal(reconciled[1].pe_ttm, 37.978074);
+  assert.equal(reconciled[2].pe_ttm, 38.350408);
+});
+
+test("a later sparse Yahoo response cannot erase a previously recorded TTM anchor", () => {
+  const merged = mergeCurrentYahooSnapshotsIntoHistoryForTest(
+    [
+      {
+        date: "2026-07-08",
+        pe_ttm: 37.978074,
+        pe_forward: 28.41,
+        pb: 12.31,
+        peg: 1.3684,
+        source: "yahoo-trailing-pe-timeseries",
+        capturedAt: "2026-07-09T22:51:22.095Z",
+      },
+    ],
+    [
+      {
+        date: "2026-07-09",
+        pe_ttm: 37.976336,
+        pe_forward: 28.41,
+        pb: 12.31,
+        peg: 1.3678,
+        source: "yahoo-quote-page-latest",
+        capturedAt: "2026-07-10T16:40:28.444Z",
+      },
+    ],
+    { pe_ttm: "2026-07-09" },
+    { pe_ttm: ["2026-07-09"] }
+  );
+
+  assert.equal(merged.find((item) => item.date === "2026-07-08")?.pe_ttm, 37.978074);
+  assert.equal(merged.find((item) => item.date === "2026-07-09")?.pe_ttm, 37.976336);
+});
+
+test("a stale Yahoo TTM PE anchor is not carried beyond the short reporting delay window", () => {
+  const points = [
+    { date: "2026-06-01", close: 100, pe_ttm: 25, pe_forward: 20, pb: 8, peg: 1.2, us10y_yield: 0 },
+    { date: "2026-06-15", close: 110, pe_ttm: 30, pe_forward: 22, pb: 9, peg: 1.3, us10y_yield: 0 },
+  ];
+  const carried = carryForwardLatestYahooPeTtmByCloseForTest(points, [
+    {
+      date: "2026-06-01",
+      pe_ttm: 25,
+      pe_forward: null,
+      pb: null,
+      peg: null,
+      source: "yahoo-trailing-pe-timeseries",
+      capturedAt: "2026-06-02T00:00:00.000Z",
+    },
+  ]);
+
+  assert.equal(carried[1].pe_ttm, 30);
+});
+
+test("recent transient PE pulses are repaired from the price-implied EPS path", () => {
+  const points = [
+    { date: "2026-05-28", close: 100, pe_ttm: 35, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+    { date: "2026-05-29", close: 101, pe_ttm: 45, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+    { date: "2026-06-01", close: 102, pe_ttm: 46, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+    { date: "2026-06-02", close: 103, pe_ttm: 36, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+  ];
+
+  const repaired = repairRecentTransientPeTtmPulsesForTest(points);
+
+  assert.equal(repaired.repairedCount, 2);
+  assert.ok(Math.abs(repaired.points[1].pe_ttm - 35.340189) < 1e-6);
+  assert.ok(Math.abs(repaired.points[2].pe_ttm - 35.660383) < 1e-6);
+});
+
+test("transient PE repair tolerates a moderate real EPS change around the bad pulse", () => {
+  const points = [
+    { date: "2026-05-28", close: 100, pe_ttm: 35, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+    { date: "2026-05-29", close: 101, pe_ttm: 100, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+    { date: "2026-06-02", close: 103, pe_ttm: 30, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+  ];
+
+  const repaired = repairRecentTransientPeTtmPulsesForTest(points);
+
+  assert.equal(repaired.repairedCount, 1);
+  assert.ok(repaired.points[1].pe_ttm > 30 && repaired.points[1].pe_ttm < 35);
+});
+
+test("a multi-fold PE pulse is repaired directly from the previous PE and price path", () => {
+  const points = [
+    { date: "2026-05-28", close: 100, pe_ttm: 36, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+    { date: "2026-05-29", close: 105, pe_ttm: 122, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+    { date: "2026-06-02", close: 50, pe_ttm: 31, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+  ];
+
+  const repaired = repairRecentTransientPeTtmPulsesForTest(points);
+
+  assert.equal(repaired.repairedCount, 1);
+  assert.equal(repaired.points[1].pe_ttm, 37.8);
+});
+
+test("trusted Yahoo PE dates are never changed by transient-pulse repair", () => {
+  const points = [
+    { date: "2026-05-28", close: 100, pe_ttm: 35, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+    { date: "2026-05-29", close: 101, pe_ttm: 45, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+    { date: "2026-06-02", close: 103, pe_ttm: 36, pe_forward: 27, pb: 11, peg: 1.3, us10y_yield: 0 },
+  ];
+
+  const repaired = repairRecentTransientPeTtmPulsesForTest(points, new Set(["2026-05-29"]));
+
+  assert.equal(repaired.repairedCount, 0);
+  assert.equal(repaired.points[1].pe_ttm, 45);
 });
 
 test("missing TTM PE is carried from the preserved previous TTM PE by close", () => {
