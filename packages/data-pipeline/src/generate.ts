@@ -602,6 +602,7 @@ const MULTPL_SP500_PB_URL = "https://www.multpl.com/s-p-500-price-to-book/table/
 const YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE = 0.01;
 const INDEX_YAHOO_LATEST_TTM_MAX_DEVIATION_RATIO = 0.06;
 const INDEX_YAHOO_LATEST_FORWARD_MAX_DEVIATION_RATIO = 0.06;
+const INDEX_WSJ_EXPLICIT_SNAPSHOT_MAX_DEVIATION_RATIO = 0.35;
 const OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO = 0.2;
 const OFFICIAL_INDEX_LATEST_PB_MAX_DEVIATION_RATIO = 0.28;
 const OFFICIAL_INDEX_LATEST_FORWARD_MAX_DEVIATION_RATIO_OVERRIDES: Partial<Record<string, number>> = {
@@ -3691,6 +3692,17 @@ function isLatestSnapshotDeviationAcceptable(
   return deviationRatio <= (options.maxDeviationRatio ?? LATEST_SNAPSHOT_MAX_DEVIATION_RATIO);
 }
 
+export function isLatestSnapshotDeviationAcceptableForTest(
+  series: MonthlyMetricPoint[] | undefined,
+  targetDate: string,
+  candidateValue: number | undefined,
+  maxDeviationRatio: number
+): boolean {
+  return isLatestSnapshotDeviationAcceptable(series, targetDate, candidateValue, isReasonablePe, {
+    maxDeviationRatio,
+  });
+}
+
 function interpolateSeriesValueAtTs(series: MonthlyMetricPoint[], targetTs: number): number | undefined {
   if (!series.length || !Number.isFinite(targetTs)) return undefined;
   if (targetTs <= series[0].ts) return series[0].value;
@@ -5659,21 +5671,38 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
         const wsjTrailing = isReasonablePe(wsjLatest.trailing) ? Number(wsjLatest.trailing) : undefined;
         const wsjForward = isReasonableForwardPe(wsjLatest.forward) ? Number(wsjLatest.forward) : undefined;
+        const hasExplicitWsjDate = /^\d{4}-\d{2}-\d{2}$/.test(String(wsjLatest.asOfDate || ""));
         wsjAnchorTrailing = wsjTrailing;
         wsjAnchorForward = wsjForward;
         if (meta.id === "sp500" && wsjEffectiveDate >= SP500_WSJ_TTM_CARRY_START_DATE && isReasonablePe(wsjTrailing)) {
           sp500WsjCarryAnchors.push({ date: wsjEffectiveDate, value: Number(wsjTrailing) });
         }
-        const canApplyWsjTrailing = prefersWsjLatestSnapshot
-          ? isReasonablePe(wsjTrailing)
+        const canApplyWsjTrailing = hasExplicitWsjDate
+          ? isLatestSnapshotDeviationAcceptable(
+              trailingSeries,
+              wsjEffectiveDate,
+              wsjTrailing,
+              isReasonablePe,
+              { maxDeviationRatio: INDEX_WSJ_EXPLICIT_SNAPSHOT_MAX_DEVIATION_RATIO }
+            )
+          : prefersWsjLatestSnapshot
+            ? isReasonablePe(wsjTrailing)
           : isLatestSnapshotDeviationAcceptable(
               trailingSeries,
               wsjEffectiveDate,
               wsjTrailing,
               isReasonablePe
             );
-        const canApplyWsjForward = prefersWsjLatestSnapshot
-          ? isReasonableForwardPe(wsjForward)
+        const canApplyWsjForward = hasExplicitWsjDate
+          ? isLatestSnapshotDeviationAcceptable(
+              forwardSeries,
+              wsjEffectiveDate,
+              wsjForward,
+              isReasonableForwardPe,
+              { maxDeviationRatio: INDEX_WSJ_EXPLICIT_SNAPSHOT_MAX_DEVIATION_RATIO }
+            )
+          : prefersWsjLatestSnapshot
+            ? isReasonableForwardPe(wsjForward)
           : isLatestSnapshotDeviationAcceptable(
               forwardSeries,
               wsjEffectiveDate,
