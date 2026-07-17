@@ -45,7 +45,11 @@ globalThis.fetch = async () => {
   throw new Error("fetch disabled in unit test");
 };
 
-const { getMetricSeriesForTest, toFiniteNumberForTest } = await import("./app.js");
+const {
+  alignCompareSeriesToCommonRangeForTest,
+  getMetricSeriesForTest,
+  toFiniteNumberForTest,
+} = await import("./app.js");
 
 test("toFiniteNumberForTest keeps null valuation fields missing", () => {
   assert.equal(toFiniteNumberForTest(null), null);
@@ -84,4 +88,28 @@ test("getMetricSeriesForTest keeps real forward PE history before forwardStartDa
     ["2005-02-25", 10.31],
     ["2020-01-17", 18.7],
   ]);
+});
+
+test("compare percentiles are recomputed after series align to their common start", () => {
+  const aligned = alignCompareSeriesToCommonRangeForTest([
+    {
+      indexId: "nasdaq100",
+      rows: [
+        { date: "2000-01-03", value: 100, percentile_full: 1 },
+        { date: "2011-12-20", value: 10, percentile_full: 0.5 },
+        { date: "2012-01-03", value: 20, percentile_full: 2 / 3 },
+      ],
+    },
+    {
+      indexId: "smh",
+      rows: [
+        { date: "2011-12-20", value: 15 },
+        { date: "2012-01-03", value: 16 },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(aligned.map((item) => item.rows[0].date), ["2011-12-20", "2011-12-20"]);
+  assert.equal(aligned[0].rows.at(-1).percentile_full, 1);
+  assert.equal(aligned[0].rows.at(-1).regime, "high");
 });

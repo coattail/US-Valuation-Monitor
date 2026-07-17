@@ -1139,6 +1139,22 @@ function recomputeRangeRollingStats(rows) {
   return result;
 }
 
+function alignCompareSeriesToCommonRange(seriesList) {
+  if (!Array.isArray(seriesList) || !seriesList.length) return [];
+
+  const commonStart = seriesList
+    .map((item) => item.rows[0].date)
+    .sort()
+    .at(-1);
+
+  return seriesList
+    .map((item) => ({
+      ...item,
+      rows: recomputeRangeRollingStats(item.rows.filter((row) => row.date >= commonStart)),
+    }))
+    .filter((item) => item.rows.length >= 2);
+}
+
 function resolveCompareDateBounds() {
   const indexIds = state.compare.indexIds.length
     ? state.compare.indexIds
@@ -1605,29 +1621,17 @@ function buildCompareRows() {
       const full = getMetricSeries(indexId, metric);
       const ranged = filterRowsByRange(full, range);
       const filtered = filterRowsByCustomDateRange(ranged, customStart, customEnd);
-      const normalized = recomputeRangeRollingStats(filtered);
       return {
         indexId,
         full,
-        rows: normalized,
+        rows: filtered,
       };
     })
     .filter((item) => item.rows.length >= 2);
 
   if (!seriesList.length) return [];
 
-  const commonStart = seriesList
-    .map((item) => item.rows[0].date)
-    .sort()
-    .at(-1);
-
-  return seriesList.map((item) => {
-    const rows = item.rows.filter((row) => row.date >= commonStart);
-    return {
-      ...item,
-      rows,
-    };
-  }).filter((item) => item.rows.length >= 2);
+  return alignCompareSeriesToCommonRange(seriesList);
 }
 
 async function ensureCompareSeriesReady(indexIds) {
@@ -2387,6 +2391,7 @@ if (!window.__USVM_APP_TEST__) {
 }
 
 export {
+  alignCompareSeriesToCommonRange as alignCompareSeriesToCommonRangeForTest,
   buildMetricSeriesFromIndexData as getMetricSeriesForTest,
   toFiniteNumber as toFiniteNumberForTest,
 };
