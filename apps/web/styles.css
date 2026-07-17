@@ -1535,7 +1535,7 @@ input:focus {
 }
 
 .compare-summary {
-  margin-bottom: 12px;
+  margin: 12px 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
