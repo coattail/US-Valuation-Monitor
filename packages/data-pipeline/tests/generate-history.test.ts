@@ -5,6 +5,7 @@ import {
   assertValidatedIndexPointsUnchangedForTest,
   getIndexLiveSourceCutoverDateForTest,
   isLatestSnapshotDeviationAcceptableForTest,
+  mergePublishedIndexHistoryAtCutoverForTest,
   mergeHistoricalSeriesAtCutover,
   preserveValidatedIndexHistoryForTest,
 } from "../src/generate.ts";
@@ -76,6 +77,37 @@ test("fails the build guard if a validated historical valuation drifts", () => {
   );
   assert.doesNotThrow(() =>
     assertValidatedIndexPointsUnchangedForTest(previous, [point("2020-01-02", 23.04), point("2026-03-27", 31.4)])
+  );
+});
+
+test("freezes the first published history for new thematic indices", () => {
+  const published = [point("2026-04-02", 12), point("2026-07-16", 10.8)];
+  const rebased = [point("2026-04-02", 24), point("2026-07-16", 21.6), point("2026-07-17", 11)];
+
+  assert.deepEqual(preserveValidatedIndexHistoryForTest(published, rebased, "dram"), [
+    ...published,
+    point("2026-07-17", 11),
+  ]);
+});
+
+test("keeps complete generated history when an index is first published", () => {
+  const generated = [point("2001-07-17", 30), point("2026-07-16", 35)];
+  assert.deepEqual(preserveValidatedIndexHistoryForTest([], generated, "igv"), generated);
+  assert.deepEqual(
+    preserveValidatedIndexHistoryForTest([point("2026-03-27", 34)], generated, "igv"),
+    generated
+  );
+  assert.doesNotThrow(() =>
+    assertValidatedIndexPointsUnchangedForTest([point("2026-03-27", 34)], generated, "igv")
+  );
+  assert.deepEqual(
+    mergePublishedIndexHistoryAtCutoverForTest(
+      "igv",
+      [point("2026-03-27", 34)],
+      generated,
+      "2026-03-27"
+    ),
+    generated
   );
 });
 

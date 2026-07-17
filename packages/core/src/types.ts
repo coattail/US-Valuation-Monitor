@@ -1,4 +1,4 @@
-export type IndexGroup = "core" | "sector";
+export type IndexGroup = "core" | "sector" | "theme";
 
 export type MetricId = "pe_ttm" | "pe_forward" | "pb" | "erp_proxy";
 

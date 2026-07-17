@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>US Company Valuation Monitor</title>
-    <link rel="stylesheet" href="./styles.css?v=20260307-local-assets-v25" />
+    <link rel="stylesheet" href="./styles.css?v=20260717-board-tabs-v26" />
   </head>
   <body data-theme="terminal">
     <div class="site-bg"></div>
@@ -21,11 +21,21 @@
           <p class="subtitle">聚焦美股市值前100公司，支持卡片总览、公司详情与多公司对比分析。</p>
         </div>
         <div class="header-actions hero-actions">
-          <a id="back-to-index-btn" class="btn ghost board-switch-btn" href="./index.html">返回指数估值</a>
           <button id="hot-refresh-btn" class="btn ghost hot-refresh-btn" type="button">热更新数据</button>
           <div id="updated-chip" class="status-chip subtle">--</div>
         </div>
       </header>
+
+      <nav class="board-tabs panel" aria-label="估值模块">
+        <a class="board-tab" href="./index.html">
+          <span class="board-tab-title">指数估值</span>
+          <span class="board-tab-desc">21 个市场、行业与主题指数</span>
+        </a>
+        <a class="board-tab is-active" href="./companies.html" aria-current="page">
+          <span class="board-tab-title">企业估值</span>
+          <span class="board-tab-desc">美股市值 Top 100 公司</span>
+        </a>
+      </nav>
 
       <nav class="view-tabs panel">
         <button class="tab is-active" data-view="overview" type="button">总览</button>

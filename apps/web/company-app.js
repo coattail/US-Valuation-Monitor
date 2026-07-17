@@ -161,7 +161,6 @@ const state = {
 const elements = {
   dataModeChip: document.getElementById("data-mode-chip"),
   updatedChip: document.getElementById("updated-chip"),
-  backToIndexBtn: document.getElementById("back-to-index-btn"),
   hotRefreshBtn: document.getElementById("hot-refresh-btn"),
   tabButtons: [...document.querySelectorAll(".tab")],
   viewPanels: [...document.querySelectorAll(".view-panel")],

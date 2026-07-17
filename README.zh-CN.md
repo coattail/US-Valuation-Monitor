@@ -10,7 +10,7 @@ US Valuation Monitor 是一个面向美股主要指数、标普行业板块与 T
 ## 1）你将获得什么
 
 ### 功能能力
-- 覆盖 17 个美股监测对象（核心指数 + 标普 11 行业代理）
+- 覆盖 21 个美股监测对象（6 个核心指数 + 标普 11 行业代理 + 4 个主题指数）
 - 多指标跟踪：`pe_ttm`、`pe_forward`、`pb`、`earnings_yield`
 - 历史分位和状态识别：全历史 / 10年 / 5年分位、估值区间、Z-Score
 - 多指数对比分析（默认：标普500、纳指100、道琼斯30）
@@ -188,9 +188,9 @@ npx wrangler pages deploy .pages --project-name us-valuation-monitor --branch ma
 - `GET /api/meta`：数据元信息、指数列表、可用区间、`forwardStartDate`
 
 ### 快照与时序
-- `GET /api/snapshot?group=core|sector|all`
+- `GET /api/snapshot?group=core|sector|theme|all`
 - `GET /api/series?indexId=<id>&metric=pe_ttm|pe_forward|pb|earnings_yield&from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/heatmap?group=core|sector|all`
+- `GET /api/heatmap?group=core|sector|theme|all`
 
 ### 企业估值（Top100）
 - `GET /api/company/meta`

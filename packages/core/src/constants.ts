@@ -142,7 +142,42 @@ export const SECTOR_INDICES: IndexMeta[] = [
   },
 ];
 
-export const ALL_INDICES: IndexMeta[] = [...CORE_INDICES, ...SECTOR_INDICES].sort(
+export const THEME_INDICES: IndexMeta[] = [
+  {
+    id: "igv",
+    symbol: "IGV",
+    group: "theme",
+    displayName: "Expanded Tech-Software",
+    description: "North American software and interactive media/services proxy via IGV.",
+    order: 201,
+  },
+  {
+    id: "soxx",
+    symbol: "SOXX",
+    group: "theme",
+    displayName: "NYSE Semiconductor",
+    description: "US-listed semiconductor equities proxy via SOXX.",
+    order: 202,
+  },
+  {
+    id: "smh",
+    symbol: "SMH",
+    group: "theme",
+    displayName: "MVIS US Listed Semiconductor 25",
+    description: "US-listed semiconductor production and equipment proxy via SMH.",
+    order: 203,
+  },
+  {
+    id: "dram",
+    symbol: "DRAM",
+    group: "theme",
+    displayName: "AI Memory & Data Center",
+    description: "Memory and data-center semiconductor theme proxy via DRAM; history begins at fund inception.",
+    order: 204,
+  },
+];
+
+export const ALL_INDICES: IndexMeta[] = [...CORE_INDICES, ...SECTOR_INDICES, ...THEME_INDICES].sort(
   (a, b) => a.order - b.order
 );
 

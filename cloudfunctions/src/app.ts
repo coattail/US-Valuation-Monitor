@@ -405,7 +405,7 @@ export function buildMeta(dataset: ValuationDataset) {
 
 export function buildSnapshotPayload(dataset: ValuationDataset, group?: string) {
   const rows = dataset.indices
-    .filter((item) => (group === "core" || group === "sector" ? item.group === group : true))
+    .filter((item) => (["core", "sector", "theme"].includes(group || "") ? item.group === group : true))
     .map((item) => buildSnapshot(item.id, item.points))
     .sort((a, b) => b.percentile_full - a.percentile_full);
 
@@ -417,7 +417,7 @@ export function buildSnapshotPayload(dataset: ValuationDataset, group?: string) 
 
 export function buildHeatmapPayload(dataset: ValuationDataset, group?: string) {
   const rows = dataset.indices
-    .filter((item) => (group === "core" || group === "sector" ? item.group === group : true))
+    .filter((item) => (["core", "sector", "theme"].includes(group || "") ? item.group === group : true))
     .map((item) => {
       const snap = buildSnapshot(item.id, item.points);
       return {

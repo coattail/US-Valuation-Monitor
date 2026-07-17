@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>US Valuation Monitor</title>
-    <link rel="stylesheet" href="./styles.css?v=20260307-local-assets-v25" />
+    <link rel="stylesheet" href="./styles.css?v=20260717-board-tabs-v26" />
   </head>
   <body data-theme="terminal">
     <div class="site-bg"></div>
@@ -21,10 +21,20 @@
           <p class="subtitle">直接查看各指数估值卡片，点击后进入详情页查看深度分析。</p>
         </div>
         <div class="header-actions hero-actions">
-          <a id="enter-company-board-btn" class="btn board-switch-btn" href="./companies.html">企业估值</a>
           <div id="updated-chip" class="status-chip subtle">--</div>
         </div>
       </header>
+
+      <nav class="board-tabs panel" aria-label="估值模块">
+        <a class="board-tab is-active" href="./index.html" aria-current="page">
+          <span class="board-tab-title">指数估值</span>
+          <span class="board-tab-desc">21 个市场、行业与主题指数</span>
+        </a>
+        <a class="board-tab" href="./companies.html">
+          <span class="board-tab-title">企业估值</span>
+          <span class="board-tab-desc">美股市值 Top 100 公司</span>
+        </a>
+      </nav>
 
       <nav class="view-tabs panel">
         <button class="tab is-active" data-view="overview" type="button">总览</button>
@@ -46,13 +56,14 @@
                 <option value="all">全部</option>
                 <option value="core">核心指数</option>
                 <option value="sector">行业指数</option>
+                <option value="theme">主题指数</option>
                 <option value="watchlist">仅自选</option>
               </select>
             </label>
             <label>
               排序
               <select id="overview-sort-select">
-                <option value="attention">市场热度（核心→行业）</option>
+                <option value="attention">市场热度（核心→行业→主题）</option>
                 <option value="percentile_desc">分位从高到低</option>
                 <option value="percentile_asc">分位从低到高</option>
                 <option value="pe_desc">PE 从高到低</option>
@@ -215,6 +226,7 @@
                   <option value="all">全部</option>
                   <option value="core">核心指数</option>
                   <option value="sector">行业指数</option>
+                  <option value="theme">主题指数</option>
                   <option value="watchlist">仅自选</option>
                 </select>
               </label>
@@ -242,6 +254,6 @@
 
     <div id="toast" class="toast"></div>
 
-    <script type="module" src="./app.js?v=20260307-local-assets-v20"></script>
+    <script type="module" src="./app.js?v=20260717-theme-indices-v21"></script>
   </body>
 </html>

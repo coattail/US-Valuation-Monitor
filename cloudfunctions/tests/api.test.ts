@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 import {
   applyDailyUpdate,
   buildMeta,
+  buildHeatmapPayload,
   buildCompanyMeta,
   buildCompanySeriesPayload,
   buildCompanySnapshotPayload,
   buildSeriesPayload,
+  buildSnapshotPayload,
   loadCompanyDataset,
   loadDataset,
   normalizeWatchlist,
@@ -23,8 +25,23 @@ test("meta payload exposes complete index catalog", async () => {
   const dataset = await loadDataset(ROOT_DIR);
   const meta = buildMeta(dataset);
 
-  assert.equal(meta.indices.length, 17);
-  assert.ok(meta.indices.every((item) => item.pointCount > 100));
+  assert.equal(meta.indices.length, 21);
+  assert.ok(meta.indices.filter((item) => item.id !== "dram").every((item) => item.pointCount > 100));
+  assert.ok((meta.indices.find((item) => item.id === "dram")?.pointCount || 0) >= 40);
+});
+
+test("theme group filters expose all thematic indices", async () => {
+  const dataset = await loadDataset(ROOT_DIR);
+  const snapshot = buildSnapshotPayload(dataset, "theme");
+  const heatmap = buildHeatmapPayload(dataset, "theme");
+
+  assert.equal(snapshot.rows.length, 4);
+  assert.equal(heatmap.rows.length, 4);
+  assert.deepEqual(
+    snapshot.rows.map((item) => item.indexId).sort(),
+    ["dram", "igv", "smh", "soxx"]
+  );
+  assert.ok(snapshot.rows.every((item) => item.group === "theme"));
 });
 
 test("series payload defaults to index full history", async () => {
@@ -153,6 +170,6 @@ test("daily update returns refreshed dataset and alert count field", async () =>
     generateDatasetFn: async () => dataset,
   });
   assert.ok(result.dataset.generatedAt);
-  assert.equal(result.dataset.indices.length, 17);
+  assert.equal(result.dataset.indices.length, 21);
   assert.ok(Number.isInteger(result.createdAlerts));
 });

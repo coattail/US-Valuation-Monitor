@@ -10,7 +10,7 @@ The project is built to be practical in real operations:
 ## 1) What You Get
 
 ### Product capabilities
-- Cross-index valuation monitoring for 17 US market proxies (core indices + 11 sectors)
+- Cross-index valuation monitoring for 21 US market proxies (6 core indices + 11 sectors + 4 thematic indices)
 - Multi-metric coverage: `pe_ttm`, `pe_forward`, `pb`, `earnings_yield`
 - Historical context: full-history / 10Y / 5Y percentiles, valuation regime, and z-score
 - Comparison workflow for key indices (default: S&P 500, Nasdaq 100, Dow 30)
@@ -188,9 +188,9 @@ Base URL: `http://127.0.0.1:9040`
 - `GET /api/meta` — dataset meta, indices, ranges, and `forwardStartDate`
 
 ### Snapshot and series
-- `GET /api/snapshot?group=core|sector|all`
+- `GET /api/snapshot?group=core|sector|theme|all`
 - `GET /api/series?indexId=<id>&metric=pe_ttm|pe_forward|pb|earnings_yield&from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/heatmap?group=core|sector|all`
+- `GET /api/heatmap?group=core|sector|theme|all`
 
 ### Company valuation (Top 100)
 - `GET /api/company/meta`

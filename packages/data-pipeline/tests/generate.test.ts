@@ -1220,3 +1220,18 @@ test("parseIsharesPortfolioMetricsForTest extracts TTM PE, PB, and date from iSh
     source: "ishares-official-latest",
   });
 });
+
+test("parseIsharesPortfolioMetricsForTest supports the current embedded JSON format", () => {
+  const html = `
+    &quot;priceBook&quot;:{&quot;visible&quot;:true,&quot;label&quot;:&quot;P/B Ratio&quot;,&quot;formattedValue&quot;:&quot;6.74&quot;,&quot;formattedAsOfDate&quot;:&quot;Jul 15, 2026&quot;},
+    &quot;priceEarnings&quot;:{&quot;visible&quot;:true,&quot;label&quot;:&quot;P/E Ratio&quot;,&quot;formattedValue&quot;:&quot;35.12&quot;,&quot;formattedAsOfDate&quot;:&quot;Jul 15, 2026&quot;}
+  `;
+
+  assert.deepEqual(parseIsharesPortfolioMetricsForTest(html), {
+    date: "2026-07-15",
+    pe_ttm: 35.12,
+    pe_forward: null,
+    pb: 6.74,
+    source: "ishares-official-latest",
+  });
+});

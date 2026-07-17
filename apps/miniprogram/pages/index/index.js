@@ -14,12 +14,14 @@ const SECTOR_ATTENTION_ORDER = [
   "sector_real_estate",
   "sector_materials",
 ];
+const THEME_ATTENTION_ORDER = ["igv", "soxx", "smh", "dram"];
 const DEFAULT_VISIBLE_COUNT = 8;
 
 const GROUP_OPTIONS = [
   { label: "全部", value: "all" },
   { label: "核心指数", value: "core" },
   { label: "行业指数", value: "sector" },
+  { label: "主题指数", value: "theme" },
   { label: "仅自选", value: "watchlist" },
 ];
 
@@ -42,16 +44,21 @@ function toNumberText(value, digits) {
 }
 
 function attentionRank(row) {
-  const group = row.group === "core" ? 0 : 1;
+  const groupRank = { core: 0, sector: 1, theme: 2 };
+  const group = groupRank[row.group] === undefined ? 999 : groupRank[row.group];
   const coreRank = CORE_ATTENTION_ORDER.indexOf(row.indexId);
   const sectorRank = SECTOR_ATTENTION_ORDER.indexOf(row.indexId);
-  const withinGroupRank = row.group === "core" ? coreRank : sectorRank;
+  const themeRank = THEME_ATTENTION_ORDER.indexOf(row.indexId);
+  const withinGroupRank = row.group === "core" ? coreRank : row.group === "sector" ? sectorRank : themeRank;
   const rank = withinGroupRank >= 0 ? withinGroupRank : 999;
   return group * 1000 + rank;
 }
 
 function groupLabel(group) {
-  return group === "core" ? "核心指数" : "行业指数";
+  if (group === "core") return "核心指数";
+  if (group === "sector") return "行业指数";
+  if (group === "theme") return "主题指数";
+  return "其他指数";
 }
 
 function regimeLabel(regime) {
@@ -201,6 +208,7 @@ Page({
     const rows = this.cache.allRows.filter((row) => {
       if (groupValue === "core" && row.group !== "core") return false;
       if (groupValue === "sector" && row.group !== "sector") return false;
+      if (groupValue === "theme" && row.group !== "theme") return false;
       if (groupValue === "watchlist" && this.cache.watchlistIds.indexOf(row.indexId) < 0) return false;
 
       if (!keyword) return true;

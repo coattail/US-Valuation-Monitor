@@ -51,6 +51,16 @@ const INDEX_START_DATE: Record<string, string> = {
   sector_real_estate: "2015-10-08",
   sector_technology: "1999-01-04",
   sector_utilities: "1999-01-04",
+  igv: "2001-07-10",
+  soxx: "2001-07-10",
+  smh: "2011-12-20",
+  dram: "2026-04-02",
+};
+
+const MIN_CLOSE_POINTS_BY_INDEX: Partial<Record<string, number>> = {
+  // DRAM launched in 2026. Its short, valid since-inception history must not
+  // be treated as a failed download by the general six-month safety floor.
+  dram: 40,
 };
 
 const BASELINE_BY_INDEX: Record<string, { pe: number; pb: number }> = {
@@ -71,6 +81,10 @@ const BASELINE_BY_INDEX: Record<string, { pe: number; pb: number }> = {
   sector_real_estate: { pe: 24.2, pb: 2.3 },
   sector_technology: { pe: 26.5, pb: 7.4 },
   sector_utilities: { pe: 18.2, pb: 2.2 },
+  igv: { pe: 35.12, pb: 6.74 },
+  soxx: { pe: 71.21, pb: 12.26 },
+  smh: { pe: 42.1, pb: 10.18 },
+  dram: { pe: 12.0, pb: 4.0 },
 };
 
 const MONTH_TO_INDEX: Record<string, number> = {
@@ -258,7 +272,13 @@ const MACROMICRO_SERIES_ROUTES: Partial<
   },
 };
 
-const CURATED_PUBLIC_FORWARD_ANCHOR_INDEX_IDS = new Set(["sector_communication"]);
+const CURATED_PUBLIC_FORWARD_ANCHOR_INDEX_IDS = new Set([
+  "sector_communication",
+  "igv",
+  "soxx",
+  "smh",
+  "dram",
+]);
 
 const RECENT_OVERRIDE_INDEX_IDS = new Set<string>();
 const FORWARD_LOCKED_INDEX_IDS = new Set<string>();
@@ -314,6 +334,10 @@ const CURATED_PUBLIC_FORWARD_PE_REFERENCES: Partial<Record<string, Array<{ date:
   sector_energy: [{ date: "2026-04-14", value: 15.85, source: "macromicro-spdj-public-series" }],
   sector_materials: [{ date: "2026-04-14", value: 19.51, source: "macromicro-spdj-public-series" }],
   sector_technology: [{ date: "2026-04-14", value: 21.71, source: "macromicro-spdj-public-series" }],
+  igv: [{ date: "2026-07-10", value: 22.42, source: "etf-metrics-holdings-weighted" }],
+  soxx: [{ date: "2026-07-14", value: 25.16, source: "etf-metrics-holdings-weighted" }],
+  smh: [{ date: "2026-07-16", value: 24.73, source: "etf-metrics-holdings-weighted" }],
+  dram: [{ date: "2026-06-30", value: 8.37, source: "roundhill-public-ntm" }],
 };
 
 const WSJ_PEYIELD_URLS = [
@@ -368,6 +392,20 @@ const OFFICIAL_INDEX_SNAPSHOT_ROUTES: Partial<
       provider: "ishares",
       source: "ishares-official-latest",
       urls: ["https://www.ishares.com/us/products/239724/ishares-core-sp-total-us-stock-market-etf"],
+    },
+  ],
+  igv: [
+    {
+      provider: "ishares",
+      source: "ishares-official-latest",
+      urls: ["https://www.ishares.com/us/products/239771/ishares-expanded-techsoftware-sector-etf"],
+    },
+  ],
+  soxx: [
+    {
+      provider: "ishares",
+      source: "ishares-official-latest",
+      urls: ["https://www.ishares.com/us/products/239705/ishares-semiconductor-etf"],
     },
   ],
   sector_communication: [
@@ -592,6 +630,14 @@ const INDEX_LIVE_SOURCE_CUTOVER_DATE = "2026-03-27";
 // source coverage can begin decades earlier without authorizing a daily build
 // to rebase the already-published percentile distribution.
 const INDEX_VALIDATED_HISTORY_CUTOFF_DATE = "2026-03-27";
+const INDEX_VALIDATED_HISTORY_CUTOFF_DATE_OVERRIDES: Partial<Record<string, string>> = {
+  // Freeze each thematic index's first published history. Otherwise a later
+  // current valuation anchor could rebase its whole proxy history again.
+  igv: "2026-07-17",
+  soxx: "2026-07-17",
+  smh: "2026-07-17",
+  dram: "2026-07-17",
+};
 const INDEX_LIVE_SOURCE_CUTOVER_DATE_OVERRIDES: Partial<Record<string, string>> = {
   dow30: "1998-01-02",
   nasdaq100: "2000-01-31",
@@ -663,20 +709,64 @@ export function mergeHistoricalSeriesAtCutover(
 
 function preserveValidatedIndexHistory(
   previousPoints: RawValuationPoint[],
-  nextPoints: RawValuationPoint[]
+  nextPoints: RawValuationPoint[],
+  indexId = ""
 ): RawValuationPoint[] {
+  // A newly added index has no published history to preserve. Returning the
+  // generated series intact avoids dropping all of its pre-cutoff history.
+  if (!previousPoints?.length) return nextPoints;
+
+  if (shouldReplaceIncompleteInitialThemeHistory(indexId, previousPoints)) return nextPoints;
+
+  const cutoffDate = INDEX_VALIDATED_HISTORY_CUTOFF_DATE_OVERRIDES[indexId] || INDEX_VALIDATED_HISTORY_CUTOFF_DATE;
   return mergeHistoricalSeriesAtCutover(
     previousPoints,
     nextPoints,
-    INDEX_VALIDATED_HISTORY_CUTOFF_DATE
+    cutoffDate
   );
+}
+
+function shouldReplaceIncompleteInitialThemeHistory(
+  indexId: string,
+  previousPoints: RawValuationPoint[]
+): boolean {
+  const expectedStartDate = INDEX_START_DATE[indexId];
+  const firstPreviousDate = previousPoints[0]?.date || "";
+  return Boolean(
+    INDEX_VALIDATED_HISTORY_CUTOFF_DATE_OVERRIDES[indexId] &&
+    expectedStartDate &&
+    expectedStartDate < INDEX_VALIDATED_HISTORY_CUTOFF_DATE &&
+    firstPreviousDate >= INDEX_VALIDATED_HISTORY_CUTOFF_DATE
+  );
+}
+
+function mergePublishedIndexHistoryAtCutover(
+  indexId: string,
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[],
+  cutoverDate: string
+): RawValuationPoint[] {
+  if (!previousPoints?.length || shouldReplaceIncompleteInitialThemeHistory(indexId, previousPoints)) {
+    return nextPoints;
+  }
+  return mergeHistoricalSeriesAtCutover(previousPoints, nextPoints, cutoverDate);
+}
+
+export function mergePublishedIndexHistoryAtCutoverForTest(
+  indexId: string,
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[],
+  cutoverDate: string
+): RawValuationPoint[] {
+  return mergePublishedIndexHistoryAtCutover(indexId, previousPoints, nextPoints, cutoverDate);
 }
 
 export function preserveValidatedIndexHistoryForTest(
   previousPoints: RawValuationPoint[],
-  nextPoints: RawValuationPoint[]
+  nextPoints: RawValuationPoint[],
+  indexId = ""
 ): RawValuationPoint[] {
-  return preserveValidatedIndexHistory(previousPoints, nextPoints);
+  return preserveValidatedIndexHistory(previousPoints, nextPoints, indexId);
 }
 
 function assertValidatedIndexPointsUnchanged(
@@ -684,8 +774,11 @@ function assertValidatedIndexPointsUnchanged(
   previousPoints: RawValuationPoint[],
   nextPoints: RawValuationPoint[]
 ): void {
-  const previousHistory = previousPoints.filter((point) => point.date < INDEX_VALIDATED_HISTORY_CUTOFF_DATE);
-  const nextHistory = nextPoints.filter((point) => point.date < INDEX_VALIDATED_HISTORY_CUTOFF_DATE);
+  if (shouldReplaceIncompleteInitialThemeHistory(indexId, previousPoints)) return;
+
+  const cutoffDate = INDEX_VALIDATED_HISTORY_CUTOFF_DATE_OVERRIDES[indexId] || INDEX_VALIDATED_HISTORY_CUTOFF_DATE;
+  const previousHistory = previousPoints.filter((point) => point.date < cutoffDate);
+  const nextHistory = nextPoints.filter((point) => point.date < cutoffDate);
 
   if (previousHistory.length !== nextHistory.length) {
     throw new Error(
@@ -725,9 +818,10 @@ export function assertValidatedIndexHistoryUnchanged(
 
 export function assertValidatedIndexPointsUnchangedForTest(
   previousPoints: RawValuationPoint[],
-  nextPoints: RawValuationPoint[]
+  nextPoints: RawValuationPoint[],
+  indexId = "test-index"
 ): void {
-  assertValidatedIndexPointsUnchanged("test-index", previousPoints, nextPoints);
+  assertValidatedIndexPointsUnchanged(indexId, previousPoints, nextPoints);
 }
 
 function rebaseMetricValue(
@@ -2702,13 +2796,19 @@ function parseSsgaIndexMetrics(html: string): OfficialIndexSnapshot | undefined 
 
 function parseIsharesMetricBlock(html: string, label: string): { date?: string; value?: number } {
   const source = String(html || "");
-  const index = source.indexOf(label);
+  const decodedSource = source.replace(/&quot;/gi, '"').replace(/&#34;/gi, '"');
+  const index = decodedSource.indexOf(label);
   if (index < 0) return {};
 
-  const chunk = source.slice(index, Math.min(source.length, index + 1_500));
-  const date = parseAsOfDateFromText(chunk);
-  const valueMatch = chunk.match(/<div[^>]*class="data"[^>]*>\s*([^<]+?)\s*<\/div>/i);
-  const value = valueMatch ? parseNumericText(stripHtmlText(valueMatch[1])) : undefined;
+  const chunk = decodedSource.slice(index, Math.min(decodedSource.length, index + 1_500));
+  const embeddedDateMatch = chunk.match(/"formattedAsOfDate"\s*:\s*"([^"]+)"/i);
+  const date =
+    parseAsOfDateFromText(chunk) ||
+    (embeddedDateMatch ? parseAsOfDateFromText(`as of ${embeddedDateMatch[1]}`) : undefined);
+  const htmlValueMatch = chunk.match(/<div[^>]*class="data"[^>]*>\s*([^<]+?)\s*<\/div>/i);
+  const embeddedValueMatch = chunk.match(/"formattedValue"\s*:\s*"([^"]+)"/i);
+  const rawValue = htmlValueMatch?.[1] || embeddedValueMatch?.[1];
+  const value = rawValue ? parseNumericText(stripHtmlText(rawValue)) : undefined;
   return {
     date,
     value,
@@ -5233,7 +5333,8 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
     try {
       const closes = await fetchIndexCloseSeries(meta.symbol, startDate, effectiveEnd);
-      if (closes.length < 120) {
+      const minimumClosePoints = MIN_CLOSE_POINTS_BY_INDEX[meta.id] || 120;
+      if (closes.length < minimumClosePoints) {
         throw new Error(`insufficient close data: ${meta.id}`);
       }
       const latestCloseDate = closes[closes.length - 1]?.date || effectiveEnd;
@@ -6221,8 +6322,10 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         });
       }
 
-      points = extendSeriesWithRebasedPreviousTail(previousPoints, points, liveSourceCutoverDate);
-      points = mergeHistoricalSeriesAtCutover(previousPoints, points, liveSourceCutoverDate);
+      if (previousPoints.length && !shouldReplaceIncompleteInitialThemeHistory(meta.id, previousPoints)) {
+        points = extendSeriesWithRebasedPreviousTail(previousPoints, points, liveSourceCutoverDate);
+      }
+      points = mergePublishedIndexHistoryAtCutover(meta.id, previousPoints, points, liveSourceCutoverDate);
       if (TTM_CUTOVER_HISTORY_CARRY_INDEX_IDS.has(meta.id)) {
         points = carryMetricFromPreviousHistoryAcrossCutover(
           points,
@@ -6337,7 +6440,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       // Run this as the final history transformation. Several source-specific
       // repairs above intentionally rebuild long ranges, but only post-cutoff
       // points may replace the previously validated published history.
-      points = preserveValidatedIndexHistory(previousPoints, points);
+      points = preserveValidatedIndexHistory(previousPoints, points, meta.id);
       if (effectiveEnd > liveSourceCutoverDate) {
         const latestPointDate = points[points.length - 1]?.date || "";
         if (!latestPointDate || latestPointDate <= liveSourceCutoverDate) {
@@ -6392,7 +6495,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
             );
           }
         }
-        repairedHistoryPoints = preserveValidatedIndexHistory(historyPoints, repairedHistoryPoints);
+        repairedHistoryPoints = preserveValidatedIndexHistory(historyPoints, repairedHistoryPoints, meta.id);
         generatedPointsByIndexId.set(meta.id, repairedHistoryPoints);
         indices.push({
           id: meta.id,

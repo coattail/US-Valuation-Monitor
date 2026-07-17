@@ -57,6 +57,7 @@ const SECTOR_ATTENTION_ORDER = [
   "sector_real_estate",
   "sector_materials",
 ];
+const THEME_ATTENTION_ORDER = ["igv", "soxx", "smh", "dram"];
 const DEFAULT_COMPARE_INDEX_IDS = ["sp500", "dow30", "nasdaq100"];
 let echartsLoaderPromise = null;
 
@@ -135,7 +136,6 @@ const state = {
 const elements = {
   dataModeChip: document.getElementById("data-mode-chip"),
   updatedChip: document.getElementById("updated-chip"),
-  enterCompanyBoardBtn: document.getElementById("enter-company-board-btn"),
   tabButtons: [...document.querySelectorAll(".tab")],
   viewPanels: [...document.querySelectorAll(".view-panel")],
 
@@ -357,15 +357,18 @@ function zScoreWindow(values, startIndex, endIndex, current) {
 function attentionRankFor(indexId, group) {
   const coreRank = CORE_ATTENTION_ORDER.indexOf(indexId);
   const sectorRank = SECTOR_ATTENTION_ORDER.indexOf(indexId);
+  const themeRank = THEME_ATTENTION_ORDER.indexOf(indexId);
 
   if (group === "core") return coreRank >= 0 ? coreRank : 999;
   if (group === "sector") return sectorRank >= 0 ? sectorRank : 999;
+  if (group === "theme") return themeRank >= 0 ? themeRank : 999;
   return 999;
 }
 
 function compareByAttention(a, b) {
-  const ga = a.group === "core" ? 0 : 1;
-  const gb = b.group === "core" ? 0 : 1;
+  const groupRank = { core: 0, sector: 1, theme: 2 };
+  const ga = groupRank[a.group] ?? 999;
+  const gb = groupRank[b.group] ?? 999;
   if (ga !== gb) return ga - gb;
 
   const ra = attentionRankFor(a.indexId || a.id, a.group);
@@ -373,6 +376,13 @@ function compareByAttention(a, b) {
   if (ra !== rb) return ra - rb;
 
   return (a.displayName || "").localeCompare(b.displayName || "");
+}
+
+function groupLabel(group, compact = false) {
+  if (group === "core") return compact ? "核心" : "核心指数";
+  if (group === "sector") return compact ? "行业" : "行业指数";
+  if (group === "theme") return compact ? "主题" : "主题指数";
+  return compact ? "其他" : "其他指数";
 }
 
 function getDefaultCompareSelection() {
@@ -889,7 +899,7 @@ function renderSnapshotGrid(rows) {
         <div class="name-row">
           <div>
             <div class="${nameClass}" title="${row.displayName}">${row.displayName}</div>
-            <div class="symbol">${row.symbol} · ${row.group === "core" ? "核心" : "行业"}</div>
+            <div class="symbol">${row.symbol} · ${groupLabel(row.group, true)}</div>
           </div>
           ${snapshotBadge(row)}
         </div>
@@ -2077,12 +2087,12 @@ function renderSettings() {
   elements.watchlistBox.innerHTML = state.metaRows
     .map((item) => {
       const checked = state.watchlist.includes(item.id) ? "checked" : "";
-      const groupLabel = item.group === "core" ? "核心" : "行业";
+      const itemGroupLabel = groupLabel(item.group, true);
       return `
       <label class="watch-item">
         <span class="watch-item-main">
           <span class="watch-item-name">${item.displayName}</span>
-          <span class="watch-item-meta">${groupLabel} · ${item.symbol}</span>
+          <span class="watch-item-meta">${itemGroupLabel} · ${item.symbol}</span>
         </span>
         <input class="watch-item-check" type="checkbox" data-index-id="${item.id}" ${checked} />
       </label>`;
