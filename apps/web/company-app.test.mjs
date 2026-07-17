@@ -53,7 +53,16 @@ const {
   metricValueFromRawForTest,
   fetchCompanySeriesForTest,
   recomputeRangeRollingStatsForTest,
+  formatAxisDateForWidthForTest,
 } = await import("./company-app.js");
+
+test("company chart dates shorten progressively for phone and tablet widths", () => {
+  const date = Date.UTC(2026, 6, 16);
+  assert.equal(formatAxisDateForWidthForTest(date, 390), "2026");
+  assert.equal(formatAxisDateForWidthForTest(date, 390, 365), "07-16");
+  assert.equal(formatAxisDateForWidthForTest(date, 820), "2026-07");
+  assert.equal(formatAxisDateForWidthForTest(date, 1200), "2026-07-16");
+});
 
 test("line series inserts a null break across a long unavailable PE period", () => {
   const data = buildLineSeriesDataWithGapsForTest([

@@ -47,6 +47,7 @@ globalThis.fetch = async () => {
 
 const {
   alignCompareSeriesToCommonRangeForTest,
+  formatAxisDateForWidthForTest,
   getMetricSeriesForTest,
   toFiniteNumberForTest,
 } = await import("./app.js");
@@ -112,4 +113,12 @@ test("compare percentiles are recomputed after series align to their common star
   assert.deepEqual(aligned.map((item) => item.rows[0].date), ["2011-12-20", "2011-12-20"]);
   assert.equal(aligned[0].rows.at(-1).percentile_full, 1);
   assert.equal(aligned[0].rows.at(-1).regime, "high");
+});
+
+test("chart dates shorten progressively for phone and tablet widths", () => {
+  const date = Date.UTC(2026, 6, 16);
+  assert.equal(formatAxisDateForWidthForTest(date, 390), "2026");
+  assert.equal(formatAxisDateForWidthForTest(date, 390, 365), "07-16");
+  assert.equal(formatAxisDateForWidthForTest(date, 820), "2026-07");
+  assert.equal(formatAxisDateForWidthForTest(date, 1200), "2026-07-16");
 });

@@ -250,6 +250,7 @@ function formatCompareEndLabelText(value, metricCfg) {
 
 function resolveCompareEndLabelLayout(chartWidth, rows, metricCfg) {
   const endLabelLayout = getLineEndLabelLayout(chartWidth, rows.length);
+  const mobile = Number(chartWidth) > 0 && Number(chartWidth) < 560;
   const compareLabelFontSize = Math.max(endLabelLayout.fontSize + 3, 15);
   const horizontalPadding = Array.isArray(endLabelLayout.padding)
     ? Number(endLabelLayout.padding[1] || 0) * 2
@@ -261,8 +262,12 @@ function resolveCompareEndLabelLayout(chartWidth, rows, metricCfg) {
     return Math.max(max, formatCompareEndLabelText(latestValue, metricCfg).length);
   }, 4);
   const estimatedLabelWidth = Math.ceil(maxLabelChars * compareLabelFontSize * 0.66);
-  const maxRightPadding = Math.max(92, Math.min(Math.round((Number(chartWidth) || 0) * 0.16), 148));
-  const compareRightPadding = Math.round(clamp(estimatedLabelWidth + horizontalPadding + 20, 84, maxRightPadding));
+  const maxRightPadding = mobile
+    ? 78
+    : Math.max(92, Math.min(Math.round((Number(chartWidth) || 0) * 0.16), 148));
+  const compareRightPadding = Math.round(
+    clamp(estimatedLabelWidth + horizontalPadding + 20, mobile ? 68 : 84, maxRightPadding)
+  );
 
   return {
     endLabelLayout,
@@ -303,6 +308,33 @@ function formatAxisDate(value) {
 
   const parsed = new Date(Number(value));
   return Number.isNaN(parsed.getTime()) ? String(value) : formatDate(parsed);
+}
+
+function formatAxisDateForWidth(value, viewportWidth, rangeDays = Number.POSITIVE_INFINITY) {
+  const fullDate = formatAxisDate(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fullDate)) return fullDate;
+
+  const width = Number(viewportWidth) || 0;
+  if (width > 0 && width < 560) {
+    return Number(rangeDays) <= 732 ? fullDate.slice(5) : fullDate.slice(0, 4);
+  }
+  if (width > 0 && width < 920) return fullDate.slice(0, 7);
+  return fullDate;
+}
+
+function timeAxisSplitNumber(chartWidth) {
+  const width = Number(chartWidth) || 0;
+  if (width > 0 && width < 560) return 4;
+  if (width > 0 && width < 920) return 6;
+  return 8;
+}
+
+function seriesDateSpanDays(rows) {
+  if (!Array.isArray(rows) || rows.length < 2) return Number.POSITIVE_INFINITY;
+  const start = Date.parse(`${rows[0]?.date || ""}T00:00:00Z`);
+  const end = Date.parse(`${rows[rows.length - 1]?.date || ""}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return Number.POSITIVE_INFINITY;
+  return (end - start) / 86_400_000;
 }
 
 function axisValueFromDate(dateText) {
@@ -1291,11 +1323,14 @@ function renderDetailChart(indexMeta, rows) {
   if (!chart) return;
   const metricCfg = METRIC_CONFIG[state.detail.metric];
   const detailChartWidth = elements.detailChart?.clientWidth || 0;
+  const detailViewportWidth = Number(window.innerWidth) || detailChartWidth;
+  const detailRangeDays = seriesDateSpanDays(rows);
+  const mobileDetailChart = detailChartWidth > 0 && detailChartWidth < 560;
   const endLabelLayout = getLineEndLabelLayout(elements.detailChart?.clientWidth, 1);
   const detailLabelFontSize = Math.max(endLabelLayout.fontSize + 4, 16);
-  const detailRightPadding = Math.round(
-    Math.max(detailChartWidth * 0.035, Math.min(endLabelLayout.rightSpace + 18, 102))
-  );
+  const detailRightPadding = mobileDetailChart
+    ? 76
+    : Math.round(Math.max(detailChartWidth * 0.035, Math.min(endLabelLayout.rightSpace + 18, 102)));
 
   const metricFormatter = (value) =>
     metricCfg.percentage ? `${fmt(value * 100, metricCfg.digits)}%` : fmt(value, metricCfg.digits);
@@ -1307,7 +1342,7 @@ function renderDetailChart(indexMeta, rows) {
         top: 4,
         textStyle: { color: "#88a4b8" },
       },
-      grid: { left: 58, right: detailRightPadding, top: 46, bottom: 94 },
+      grid: { left: mobileDetailChart ? 46 : 58, right: detailRightPadding, top: 46, bottom: 94 },
       tooltip: {
         trigger: "axis",
         formatter(params) {
@@ -1322,10 +1357,15 @@ function renderDetailChart(indexMeta, rows) {
       },
       xAxis: {
         type: "time",
+        splitNumber: timeAxisSplitNumber(detailViewportWidth),
         axisLabel: {
           color: "#8aa5b8",
+          fontSize: detailViewportWidth > 0 && detailViewportWidth < 920 ? 10 : 11,
+          hideOverlap: true,
+          showMinLabel: false,
+          showMaxLabel: false,
           formatter(value) {
-            return formatAxisDate(value);
+            return formatAxisDateForWidth(value, detailViewportWidth, detailRangeDays);
           },
         },
       },
@@ -1420,16 +1460,19 @@ function renderDetailPercentileChart(rows) {
   const chart = ensureChart("detailPercentile", elements.detailPercentileChart);
   if (!chart) return;
   const percentileChartWidth = elements.detailPercentileChart?.clientWidth || 0;
+  const percentileViewportWidth = Number(window.innerWidth) || percentileChartWidth;
+  const percentileRangeDays = seriesDateSpanDays(rows);
+  const mobilePercentileChart = percentileChartWidth > 0 && percentileChartWidth < 560;
   const endLabelLayout = getLineEndLabelLayout(elements.detailPercentileChart?.clientWidth, 1);
   const detailLabelFontSize = Math.max(endLabelLayout.fontSize + 4, 16);
-  const percentileRightPadding = Math.round(
-    Math.max(percentileChartWidth * 0.04, Math.min(endLabelLayout.rightSpace + 14, 92))
-  );
+  const percentileRightPadding = mobilePercentileChart
+    ? 70
+    : Math.round(Math.max(percentileChartWidth * 0.04, Math.min(endLabelLayout.rightSpace + 14, 92)));
 
   chart.setOption(
     {
       animationDuration: 420,
-      grid: { left: 48, right: percentileRightPadding, top: 24, bottom: 88 },
+      grid: { left: mobilePercentileChart ? 42 : 48, right: percentileRightPadding, top: 24, bottom: 88 },
       tooltip: {
         trigger: "axis",
         formatter(params) {
@@ -1440,11 +1483,15 @@ function renderDetailPercentileChart(rows) {
       },
       xAxis: {
         type: "time",
+        splitNumber: timeAxisSplitNumber(percentileViewportWidth),
         axisLabel: {
           color: "#9ab3d3",
-          fontSize: 11,
+          fontSize: percentileViewportWidth > 0 && percentileViewportWidth < 920 ? 10 : 11,
+          hideOverlap: true,
+          showMinLabel: false,
+          showMaxLabel: false,
           formatter(value) {
-            return formatAxisDate(value);
+            return formatAxisDateForWidth(value, percentileViewportWidth, percentileRangeDays);
           },
         },
       },
@@ -1887,6 +1934,8 @@ async function renderCompareCharts() {
     const chart = ensureChart("compare", elements.compareChart);
     const rows = buildCompareRows();
     const compareChartWidth = elements.compareChart?.clientWidth || 0;
+    const compareViewportWidth = Number(window.innerWidth) || compareChartWidth;
+    const compareRangeDays = seriesDateSpanDays(rows[0]?.rows || []);
     const { endLabelLayout, compareLabelFontSize, compareRightPadding } = resolveCompareEndLabelLayout(
       compareChartWidth,
       rows,
@@ -1963,16 +2012,21 @@ async function renderCompareCharts() {
             top: 4,
             textStyle: { color: "#88a4b8" },
           },
-          grid: { left: 60, right: compareRightPadding, top: 46, bottom: 94 },
+          grid: { left: compareChartWidth > 0 && compareChartWidth < 560 ? 46 : 60, right: compareRightPadding, top: 46, bottom: 94 },
           tooltip: {
             trigger: "axis",
           },
           xAxis: {
             type: "time",
+            splitNumber: timeAxisSplitNumber(compareViewportWidth),
             axisLabel: {
               color: "#8aa5b8",
+              fontSize: compareViewportWidth > 0 && compareViewportWidth < 920 ? 10 : 11,
+              hideOverlap: true,
+              showMinLabel: false,
+              showMaxLabel: false,
               formatter(value) {
-                return formatAxisDate(value);
+                return formatAxisDateForWidth(value, compareViewportWidth, compareRangeDays);
               },
             },
           },
@@ -2392,6 +2446,7 @@ if (!window.__USVM_APP_TEST__) {
 
 export {
   alignCompareSeriesToCommonRange as alignCompareSeriesToCommonRangeForTest,
+  formatAxisDateForWidth as formatAxisDateForWidthForTest,
   buildMetricSeriesFromIndexData as getMetricSeriesForTest,
   toFiniteNumber as toFiniteNumberForTest,
 };
