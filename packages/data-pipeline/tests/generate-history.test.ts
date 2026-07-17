@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import {
   applyValidatedNasdaq100TtmHistoryForTest,
   applyValidatedRussell2000PeHistoryForTest,
-  applyVerifiedThemeMetricCoverageForTest,
   assertPublishedIndexHistoryAppendOnly,
   assertValidatedIndexPointsUnchangedForTest,
   getIndexLiveSourceCutoverDateForTest,
@@ -16,6 +15,7 @@ import {
   preserveValidatedIndexHistoryForTest,
   parseFredIndexCloseSeriesForTest,
   parseHistoryOfMarketNdxForwardSeriesForTest,
+  shouldFetchStockAnalysisLatestSnapshotForTest,
 } from "../src/generate.ts";
 
 function point(date: string, peTtm: number) {
@@ -235,24 +235,12 @@ test("pins Russell 2000 PE history to public Siblis observations", () => {
   assert.equal(corrected[3].pe_forward, 24.29);
 });
 
-test("hides thematic valuation history before the first verified observation", () => {
-  const igv = applyVerifiedThemeMetricCoverageForTest(
-    [point("2020-12-31", 40), point("2026-07-10", 36), point("2026-07-15", 35.12)],
-    "igv"
-  );
-  assert.equal(igv[0].pe_ttm, null);
-  assert.equal(igv[0].pe_forward, null);
-  assert.equal(igv[0].pb, null);
-  assert.equal(igv[1].pe_ttm, null);
-  assert.equal(igv[1].pe_forward, 32);
-  assert.equal(igv[1].pb, null);
-  assert.equal(igv[2].pe_ttm, 35.12);
-  assert.equal(igv[2].pb, 5);
-
-  const smh = applyVerifiedThemeMetricCoverageForTest([point("2026-07-16", 42.1)], "smh");
-  assert.equal(smh[0].pe_ttm, null);
-  assert.equal(smh[0].pe_forward, 38.1);
-  assert.equal(smh[0].pb, null);
+test("daily latest snapshots include every thematic ETF without overriding WSJ-priority indices", () => {
+  for (const indexId of ["igv", "soxx", "smh", "dram"]) {
+    assert.equal(shouldFetchStockAnalysisLatestSnapshotForTest(indexId), true);
+  }
+  assert.equal(shouldFetchStockAnalysisLatestSnapshotForTest("sector_energy"), false);
+  assert.equal(shouldFetchStockAnalysisLatestSnapshotForTest("nasdaq100", true), false);
 });
 
 test("parses the public Bloomberg BEst Nasdaq-100 forward PE history", () => {

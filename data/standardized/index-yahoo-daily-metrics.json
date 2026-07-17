@@ -6094,6 +6094,26 @@
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-17T16:46:05.999Z"
       }
+    ],
+    "SMH": [
+      {
+        "date": "2026-07-16",
+        "pe_ttm": 49.72,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-07-17T17:41:39.061Z"
+      }
+    ],
+    "DRAM": [
+      {
+        "date": "2026-07-16",
+        "pe_ttm": 32.38,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-07-17T17:41:44.709Z"
+      }
     ]
   }
 }

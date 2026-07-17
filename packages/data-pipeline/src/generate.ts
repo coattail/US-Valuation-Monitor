@@ -281,6 +281,41 @@ const CURATED_PUBLIC_FORWARD_ANCHOR_INDEX_IDS = new Set([
   "dram",
 ]);
 
+// These ETFs expose a current point-in-time valuation through StockAnalysis.
+// Official fund-page observations still take precedence when available (IGV
+// and SOXX), while this source keeps SMH/DRAM and any missing forward fields
+// advancing on each newly published trading date.
+const STOCKANALYSIS_LATEST_SNAPSHOT_INDEX_IDS = new Set([
+  "sp500",
+  "nasdaq100",
+  "russell2000",
+  "sp400",
+  "us_total_market",
+  "igv",
+  "soxx",
+  "smh",
+  "dram",
+]);
+
+const STOCKANALYSIS_LATEST_MAX_DEVIATION_RATIO_OVERRIDES: Partial<Record<string, number>> = {
+  // Theme-fund multiples can move sharply around earnings and constituent
+  // rebalances. These wider one-point gates accept a traceable live snapshot
+  // without authorizing any rewrite of already-published rows.
+  smh: 0.35,
+  dram: 0.35,
+};
+
+function shouldFetchStockAnalysisLatestSnapshot(indexId: string, prefersWsjLatestSnapshot: boolean): boolean {
+  return STOCKANALYSIS_LATEST_SNAPSHOT_INDEX_IDS.has(indexId) && !prefersWsjLatestSnapshot;
+}
+
+export function shouldFetchStockAnalysisLatestSnapshotForTest(
+  indexId: string,
+  prefersWsjLatestSnapshot = false
+): boolean {
+  return shouldFetchStockAnalysisLatestSnapshot(indexId, prefersWsjLatestSnapshot);
+}
+
 const RECENT_OVERRIDE_INDEX_IDS = new Set<string>();
 const FORWARD_LOCKED_INDEX_IDS = new Set<string>();
 const FORWARD_CUTOVER_HISTORY_CARRY_INDEX_IDS = new Set(["us_total_market"]);
@@ -613,18 +648,6 @@ const RUSSELL2000_FORWARD_SIBLIS_BOOTSTRAP: Array<{ date: string; value: number 
   { date: "2025-06-30", value: 25.23 },
   { date: "2025-12-31", value: 25.39 },
 ];
-
-const VERIFIED_THEME_METRIC_START_DATES: Partial<
-  Record<string, Partial<Record<IndexRatioMetricKey, string>>>
-> = {
-  igv: { pe_ttm: "2026-07-15", pe_forward: "2026-07-10", pb: "2026-07-15" },
-  soxx: { pe_ttm: "2026-07-15", pe_forward: "2026-07-14", pb: "2026-07-15" },
-  // No public point-in-time TTM/PB observations are currently available for
-  // these funds. A far-future boundary intentionally renders the synthetic
-  // proxy unavailable while retaining their verified forward observations.
-  smh: { pe_ttm: "9999-12-31", pe_forward: "2026-07-16", pb: "9999-12-31" },
-  dram: { pe_ttm: "9999-12-31", pe_forward: "2026-06-30", pb: "9999-12-31" },
-};
 
 const SP500_MACROMICRO_PB_PREFIX_BOOTSTRAP: Array<{ date: string; value: number }> = [
   { date: "1999-12-31", value: 5.19 },
@@ -5118,28 +5141,6 @@ export function applyValidatedRussell2000PeHistoryForTest(
   return applyValidatedRussell2000PeHistory(points, closes);
 }
 
-function applyVerifiedThemeMetricCoverage(
-  points: RawValuationPoint[],
-  indexId: string
-): RawValuationPoint[] {
-  const coverage = VERIFIED_THEME_METRIC_START_DATES[indexId];
-  if (!coverage) return points;
-
-  let corrected = points;
-  for (const metric of ["pe_ttm", "pe_forward", "pb"] as IndexRatioMetricKey[]) {
-    const startDate = coverage[metric];
-    if (startDate) corrected = clearMetricBeforeDate(corrected, metric, startDate);
-  }
-  return corrected;
-}
-
-export function applyVerifiedThemeMetricCoverageForTest(
-  points: RawValuationPoint[],
-  indexId: string
-): RawValuationPoint[] {
-  return applyVerifiedThemeMetricCoverage(points, indexId);
-}
-
 export function applyCloseAnchoredOverridesForTest(
   points: RawValuationPoint[],
   closes: ClosePoint[],
@@ -6401,14 +6402,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
       }
 
-      if (
-        (meta.id === "sp500" ||
-          meta.id === "nasdaq100" ||
-          meta.id === "russell2000" ||
-          meta.id === "sp400" ||
-          meta.id === "us_total_market") &&
-        !prefersWsjLatestSnapshot
-      ) {
+      if (shouldFetchStockAnalysisLatestSnapshot(meta.id, prefersWsjLatestSnapshot)) {
         let appliedStockAnalysisSnapshot = false;
         let stockTrailing: number | undefined;
         let stockForward: number | undefined;
@@ -6447,7 +6441,12 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           trailingSeries,
           effectiveEnd,
           stockTrailing,
-          isReasonablePe
+          isReasonablePe,
+          {
+            maxDeviationRatio:
+              STOCKANALYSIS_LATEST_MAX_DEVIATION_RATIO_OVERRIDES[meta.id] ??
+              LATEST_SNAPSHOT_MAX_DEVIATION_RATIO,
+          }
         );
 
         if (
@@ -6476,7 +6475,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           effectiveEnd,
           stockForward,
           isReasonableForwardPe,
-          { maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO }
+          {
+            maxDeviationRatio:
+              STOCKANALYSIS_LATEST_MAX_DEVIATION_RATIO_OVERRIDES[meta.id] ??
+              LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO,
+          }
         );
         if (
           !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
@@ -6900,7 +6903,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       if (meta.id === "russell2000") {
         points = applyValidatedRussell2000PeHistory(points, valuationCloses);
       }
-      points = applyVerifiedThemeMetricCoverage(points, meta.id);
       // Run this as the final history transformation. Several source-specific
       // repairs above intentionally rebuild long ranges, but only post-cutoff
       // points may replace the previously validated published history.

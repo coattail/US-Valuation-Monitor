@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-07-17T16:47:53.116Z",
+  "generatedAt": "2026-07-17T17:41:46.389Z",
   "indices": {
     "dow30": {
       "pointCount": 7166,
@@ -20,13 +20,13 @@
       "pointCount": 72,
       "firstDate": "2026-04-02",
       "lastDate": "2026-07-16",
-      "sha256": "2a3fe07bdbaaba6933eabc1bfec1eda9ff3f4e56ea58149d6bb9f70e48eec07e"
+      "sha256": "cdd88f03ffdb48981aa92e9130b44c64e9f1d872cff46e683e981a35587f9508"
     },
     "igv": {
       "pointCount": 6286,
       "firstDate": "2001-07-17",
       "lastDate": "2026-07-16",
-      "sha256": "5807c8b527da4f1a714800912f9e9bc2c979ba75d926abcf69e7454e525c33c0"
+      "sha256": "b4c8e77c5bd8126d48f1e81d2d9f7aa75270d774d915929e02f77f8ef15df836"
     },
     "nasdaq100": {
       "pointCount": 6879,
@@ -110,13 +110,13 @@
       "pointCount": 3662,
       "firstDate": "2011-12-20",
       "lastDate": "2026-07-16",
-      "sha256": "dc845211ab4d0898185c293330920c63268c921a6e62233ddeeea2f52fff30be"
+      "sha256": "70afea00d1caea63f10ef8d5180004656c208c76e2ea297e59c14b4c2eb93de5"
     },
     "soxx": {
       "pointCount": 6288,
       "firstDate": "2001-07-13",
       "lastDate": "2026-07-16",
-      "sha256": "df6245e34c912c247da6437ccced44101c47c64c7c0a16795dba02a00ee9dba5"
+      "sha256": "a082034384b18c8c03f7f6aa024e1f216ce461940eccef1c80e3303808e95453"
     },
     "sp400": {
       "pointCount": 5379,
