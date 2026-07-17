@@ -587,6 +587,11 @@ class ReliableSourceError extends Error {}
 
 const INDEX_YAHOO_HISTORY_START_DATE = "1990-01-01";
 const INDEX_LIVE_SOURCE_CUTOVER_DATE = "2026-03-27";
+// History before this boundary has been validated and must remain immutable.
+// This is deliberately independent from per-index live-source start dates:
+// source coverage can begin decades earlier without authorizing a daily build
+// to rebase the already-published percentile distribution.
+const INDEX_VALIDATED_HISTORY_CUTOFF_DATE = "2026-03-27";
 const INDEX_LIVE_SOURCE_CUTOVER_DATE_OVERRIDES: Partial<Record<string, string>> = {
   dow30: "1998-01-02",
   nasdaq100: "2000-01-31",
@@ -654,6 +659,75 @@ export function mergeHistoricalSeriesAtCutover(
   }
 
   return [...mergedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function preserveValidatedIndexHistory(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[]
+): RawValuationPoint[] {
+  return mergeHistoricalSeriesAtCutover(
+    previousPoints,
+    nextPoints,
+    INDEX_VALIDATED_HISTORY_CUTOFF_DATE
+  );
+}
+
+export function preserveValidatedIndexHistoryForTest(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[]
+): RawValuationPoint[] {
+  return preserveValidatedIndexHistory(previousPoints, nextPoints);
+}
+
+function assertValidatedIndexPointsUnchanged(
+  indexId: string,
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[]
+): void {
+  const previousHistory = previousPoints.filter((point) => point.date < INDEX_VALIDATED_HISTORY_CUTOFF_DATE);
+  const nextHistory = nextPoints.filter((point) => point.date < INDEX_VALIDATED_HISTORY_CUTOFF_DATE);
+
+  if (previousHistory.length !== nextHistory.length) {
+    throw new Error(
+      `validated index history changed for ${indexId}: point count ${previousHistory.length} -> ${nextHistory.length}`
+    );
+  }
+
+  const fields: Array<keyof RawValuationPoint> = ["date", "pe_ttm", "pe_forward", "pb"];
+  for (let i = 0; i < previousHistory.length; i += 1) {
+    const previousPoint = previousHistory[i];
+    const nextPoint = nextHistory[i];
+    for (const field of fields) {
+      if (previousPoint[field] !== nextPoint[field]) {
+        throw new Error(
+          `validated index history changed for ${indexId} at ${previousPoint.date}: ${String(field)}`
+        );
+      }
+    }
+  }
+}
+
+export function assertValidatedIndexHistoryUnchanged(
+  previousDataset: ValuationDataset | null | undefined,
+  nextDataset: ValuationDataset
+): void {
+  if (!previousDataset?.indices?.length) return;
+
+  const nextById = new Map(nextDataset.indices.map((index) => [index.id, index]));
+  for (const previousIndex of previousDataset.indices) {
+    const nextIndex = nextById.get(previousIndex.id);
+    if (!nextIndex) {
+      throw new Error(`validated index history missing for ${previousIndex.id}`);
+    }
+    assertValidatedIndexPointsUnchanged(previousIndex.id, previousIndex.points, nextIndex.points);
+  }
+}
+
+export function assertValidatedIndexPointsUnchangedForTest(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[]
+): void {
+  assertValidatedIndexPointsUnchanged("test-index", previousPoints, nextPoints);
 }
 
 function rebaseMetricValue(
@@ -6260,6 +6334,10 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           });
         }
       }
+      // Run this as the final history transformation. Several source-specific
+      // repairs above intentionally rebuild long ranges, but only post-cutoff
+      // points may replace the previously validated published history.
+      points = preserveValidatedIndexHistory(previousPoints, points);
       if (effectiveEnd > liveSourceCutoverDate) {
         const latestPointDate = points[points.length - 1]?.date || "";
         if (!latestPointDate || latestPointDate <= liveSourceCutoverDate) {
@@ -6314,6 +6392,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
             );
           }
         }
+        repairedHistoryPoints = preserveValidatedIndexHistory(historyPoints, repairedHistoryPoints);
         generatedPointsByIndexId.set(meta.id, repairedHistoryPoints);
         indices.push({
           id: meta.id,

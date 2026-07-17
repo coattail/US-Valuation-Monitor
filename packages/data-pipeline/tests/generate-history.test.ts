@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  assertValidatedIndexPointsUnchangedForTest,
   getIndexLiveSourceCutoverDateForTest,
   isLatestSnapshotDeviationAcceptableForTest,
   mergeHistoricalSeriesAtCutover,
+  preserveValidatedIndexHistoryForTest,
 } from "../src/generate.ts";
 
 function point(date: string, peTtm: number) {
@@ -27,6 +29,54 @@ test("preserves validated history through the configured index cutover", () => {
     point("2026-03-27", 31.4),
   ]);
   assert.equal(getIndexLiveSourceCutoverDateForTest("russell2000"), "2001-01-03");
+});
+
+test("keeps the validated history boundary independent from an index source start date", () => {
+  const validated = [
+    point("2000-01-31", 58),
+    point("2020-01-02", 23.04),
+    point("2026-03-26", 30.2),
+    point("2026-03-27", 30.3),
+  ];
+  const regenerated = [
+    point("2000-01-31", 98),
+    point("2020-01-02", 41.1),
+    point("2026-03-26", 55.8),
+    point("2026-03-27", 31.4),
+    point("2026-03-30", 31.8),
+  ];
+
+  const firstRefresh = preserveValidatedIndexHistoryForTest(validated, regenerated);
+  assert.deepEqual(firstRefresh, [
+    point("2000-01-31", 58),
+    point("2020-01-02", 23.04),
+    point("2026-03-26", 30.2),
+    point("2026-03-27", 31.4),
+    point("2026-03-30", 31.8),
+  ]);
+
+  const secondRefresh = preserveValidatedIndexHistoryForTest(firstRefresh, [
+    point("2000-01-31", 120),
+    point("2020-01-02", 60),
+    point("2026-03-26", 70),
+    point("2026-03-27", 32),
+    point("2026-03-31", 32.2),
+  ]);
+  assert.deepEqual(secondRefresh.slice(0, 3), validated.slice(0, 3));
+  assert.deepEqual(secondRefresh.slice(3), [point("2026-03-27", 32), point("2026-03-31", 32.2)]);
+});
+
+test("fails the build guard if a validated historical valuation drifts", () => {
+  const previous = [point("2020-01-02", 23.04), point("2026-03-27", 30.3)];
+  const drifted = [point("2020-01-02", 41.1), point("2026-03-27", 31.4)];
+
+  assert.throws(
+    () => assertValidatedIndexPointsUnchangedForTest(previous, drifted),
+    /validated index history changed.*2020-01-02.*pe_ttm/
+  );
+  assert.doesNotThrow(() =>
+    assertValidatedIndexPointsUnchangedForTest(previous, [point("2020-01-02", 23.04), point("2026-03-27", 31.4)])
+  );
 });
 
 test("rejects a dated WSJ PE snapshot that jumps away from the existing series", () => {

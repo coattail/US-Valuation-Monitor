@@ -2,7 +2,11 @@ import path from "node:path";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import { generateDataset, validateDataset } from "./generate.ts";
+import {
+  assertValidatedIndexHistoryUnchanged,
+  generateDataset,
+  validateDataset,
+} from "./generate.ts";
 import type { ValuationDataset } from "../../core/src/types.ts";
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
@@ -120,6 +124,9 @@ async function main(): Promise<void> {
   const previousDataset = await readPreviousDataset();
   const dataset = await generateDataset(undefined, { previousDataset });
   validateDataset(dataset);
+  if (process.env.ALLOW_VALIDATED_INDEX_HISTORY_REWRITE !== "1") {
+    assertValidatedIndexHistoryUnchanged(previousDataset, dataset);
+  }
 
   await mkdir(OUTPUT_DIR, { recursive: true });
   await writeFile(OUTPUT_FILE, `${JSON.stringify(dataset, null, 2)}\n`, "utf8");
