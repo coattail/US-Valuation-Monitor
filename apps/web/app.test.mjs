@@ -47,10 +47,50 @@ globalThis.fetch = async () => {
 
 const {
   alignCompareSeriesToCommonRangeForTest,
+  buildSnapshotRowForTest,
   formatAxisDateForWidthForTest,
   getMetricSeriesForTest,
   toFiniteNumberForTest,
 } = await import("./app.js");
+
+test("overview cards use the real TTM coverage instead of the index price range", () => {
+  const row = buildSnapshotRowForTest({
+    id: "russell2000",
+    symbol: "IWM",
+    displayName: "Russell 2000",
+    group: "core",
+    points: [
+      { date: "2001-01-03", pe_ttm: null, pe_forward: null, pb: 2.9 },
+      { date: "2022-06-30", pe_ttm: 48.59, pe_forward: 18.29, pb: 1.8 },
+      { date: "2025-07-16", pe_ttm: 32.8, pe_forward: 25.2, pb: 2.1 },
+      { date: "2026-07-16", pe_ttm: 38.7, pe_forward: 31.48, pb: 2.16 },
+    ],
+  });
+
+  assert.equal(row.ttmStartDate, "2022-06-30");
+  assert.equal(row.ttmEndDate, "2026-07-16");
+  assert.equal(row.ttmPointCount, 3);
+  assert.equal(row.percentile_full, 2 / 3);
+});
+
+test("overview cards keep unavailable TTM values missing", () => {
+  const row = buildSnapshotRowForTest({
+    id: "smh",
+    symbol: "SMH",
+    displayName: "Semiconductors",
+    group: "theme",
+    points: [
+      { date: "2011-12-20", pe_ttm: null, pe_forward: null, pb: null },
+      { date: "2026-07-16", pe_ttm: null, pe_forward: 24.73, pb: null },
+    ],
+  });
+
+  assert.equal(row.pe_ttm, null);
+  assert.equal(row.pe_forward, 24.73);
+  assert.equal(row.percentile_full, null);
+  assert.equal(row.ttmPointCount, 0);
+  assert.equal(row.ttmStartDate, "");
+});
 
 test("toFiniteNumberForTest keeps null valuation fields missing", () => {
   assert.equal(toFiniteNumberForTest(null), null);

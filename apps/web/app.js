@@ -219,13 +219,14 @@ function fmt(value, digits = 2) {
 }
 
 function fmtSigned(value, digits = 2, asPct = false) {
-  if (!Number.isFinite(Number(value))) return "--";
+  if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "--";
   const n = Number(value);
   const text = `${n >= 0 ? "+" : ""}${n.toFixed(digits)}`;
   return asPct ? `${text}%` : text;
 }
 
 function fmtPct(value, digits = 1) {
+  if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "--";
   return `${fmt(Number(value) * 100, digits)}%`;
 }
 
@@ -453,36 +454,27 @@ function regimeFromPercentile(percentile) {
 }
 
 function computeLatestPeStats(points) {
-  if (!Array.isArray(points) || !points.length) {
+  const pePoints = (Array.isArray(points) ? points : []).flatMap((point) => {
+    const value = toFiniteNumber(point?.pe_ttm);
+    return value === null ? [] : [{ date: point.date, value }];
+  });
+  if (!pePoints.length) {
     return {
-      percentile_5y: 0.5,
-      percentile_10y: 0.5,
-      percentile_full: 0.5,
-      z_score_3y: 0,
-      regime: "neutral",
-      pe_ttm_change_1y: 0,
+      percentile_5y: null,
+      percentile_10y: null,
+      percentile_full: null,
+      z_score_3y: null,
+      regime: null,
+      pe_ttm_change_1y: null,
     };
   }
 
-  const latest = points[points.length - 1];
-  const latestPe = Number(latest?.pe_ttm);
-  if (!Number.isFinite(latestPe)) {
-    return {
-      percentile_5y: 0.5,
-      percentile_10y: 0.5,
-      percentile_full: 0.5,
-      z_score_3y: 0,
-      regime: "neutral",
-      pe_ttm_change_1y: 0,
-    };
-  }
-
-  const total = points.length;
+  const latest = pePoints[pePoints.length - 1];
+  const latestPe = latest.value;
+  const total = pePoints.length;
   const start5 = Math.max(0, total - TRADING_DAYS_PER_YEAR * 5);
   const start10 = Math.max(0, total - TRADING_DAYS_PER_YEAR * 10);
   const start3 = Math.max(0, total - TRADING_DAYS_PER_YEAR * 3);
-  const lookbackIndex = Math.max(0, total - TRADING_DAYS_PER_YEAR);
-
   let fullCount = 0;
   let count5 = 0;
   let count10 = 0;
@@ -491,8 +483,7 @@ function computeLatestPeStats(points) {
   let len3 = 0;
 
   for (let i = 0; i < total; i += 1) {
-    const pe = Number(points[i]?.pe_ttm);
-    if (!Number.isFinite(pe)) continue;
+    const pe = pePoints[i].value;
 
     if (pe <= latestPe) {
       fullCount += 1;
@@ -523,8 +514,11 @@ function computeLatestPeStats(points) {
     }
   }
 
-  const peRef = Number(points[lookbackIndex]?.pe_ttm);
-  const peChange1y = Number.isFinite(peRef) && Math.abs(peRef) > 1e-12 ? (latestPe - peRef) / Math.abs(peRef) : 0;
+  const lookbackDate = subtractYears(latest.date, 1);
+  const lookbackPoint = [...pePoints].reverse().find((point) => point.date <= lookbackDate);
+  const peChange1y = lookbackPoint && Math.abs(lookbackPoint.value) > 1e-12
+    ? (latestPe - lookbackPoint.value) / Math.abs(lookbackPoint.value)
+    : null;
 
   return {
     percentile_5y: pct5,
@@ -534,6 +528,25 @@ function computeLatestPeStats(points) {
     regime: regimeFromPercentile(pctFull),
     pe_ttm_change_1y: peChange1y,
   };
+}
+
+function resolveMetricRange(points, metric) {
+  const valid = (Array.isArray(points) ? points : []).filter(
+    (point) => toFiniteNumber(point?.[metric]) !== null
+  );
+  return {
+    startDate: String(valid[0]?.date || ""),
+    endDate: String(valid[valid.length - 1]?.date || ""),
+    pointCount: valid.length,
+  };
+}
+
+function latestMetricValue(points, metric) {
+  for (let index = (Array.isArray(points) ? points.length : 0) - 1; index >= 0; index -= 1) {
+    const value = toFiniteNumber(points[index]?.[metric]);
+    if (value !== null) return value;
+  }
+  return null;
 }
 
 function regimeLabel(regime) {
@@ -561,6 +574,7 @@ function normalizeSnapshotDataset(payload) {
       const points = Array.isArray(item.points) ? item.points : [];
       const firstPoint = points[0] || null;
       const lastPoint = points[points.length - 1] || null;
+      const ttmRange = resolveMetricRange(points, "pe_ttm");
 
       return {
         id,
@@ -574,22 +588,25 @@ function normalizeSnapshotDataset(payload) {
         startDate: String(item.startDate || firstPoint?.date || ""),
         endDate: String(item.endDate || lastPoint?.date || ""),
         pointCount: Number(item.pointCount || points.length || 0),
+        ttmStartDate: String(item.ttmStartDate || ttmRange.startDate || ""),
+        ttmEndDate: String(item.ttmEndDate || ttmRange.endDate || ""),
+        ttmPointCount: Number(item.ttmPointCount || ttmRange.pointCount || 0),
         date: String(item.date || item.endDate || lastPoint?.date || ""),
         pe_ttm: toFiniteNumber(item.pe_ttm),
         pe_forward: toFiniteNumber(item.pe_forward),
         pb: toFiniteNumber(item.pb),
-        percentile_5y: Number.isFinite(Number(item.percentile_5y))
-          ? clamp(Number(item.percentile_5y), 0, 1)
+        percentile_5y: toFiniteNumber(item.percentile_5y) !== null
+          ? clamp(toFiniteNumber(item.percentile_5y), 0, 1)
           : null,
-        percentile_10y: Number.isFinite(Number(item.percentile_10y))
-          ? clamp(Number(item.percentile_10y), 0, 1)
+        percentile_10y: toFiniteNumber(item.percentile_10y) !== null
+          ? clamp(toFiniteNumber(item.percentile_10y), 0, 1)
           : null,
-        percentile_full: Number.isFinite(Number(item.percentile_full))
-          ? clamp(Number(item.percentile_full), 0, 1)
+        percentile_full: toFiniteNumber(item.percentile_full) !== null
+          ? clamp(toFiniteNumber(item.percentile_full), 0, 1)
           : null,
-        z_score_3y: Number.isFinite(Number(item.z_score_3y)) ? Number(item.z_score_3y) : null,
-        pe_ttm_change_1y: Number.isFinite(Number(item.pe_ttm_change_1y))
-          ? Number(item.pe_ttm_change_1y)
+        z_score_3y: toFiniteNumber(item.z_score_3y),
+        pe_ttm_change_1y: toFiniteNumber(item.pe_ttm_change_1y) !== null
+          ? toFiniteNumber(item.pe_ttm_change_1y)
           : null,
         regime: String(item.regime || ""),
         points,
@@ -806,25 +823,19 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
   return result;
 }
 
-function buildSnapshotRows() {
-  state.snapshotRows = state.dataset.indices.map((indexData) => {
+function buildSnapshotRowFromIndexData(indexData) {
     const points = Array.isArray(indexData.points) ? indexData.points : [];
-    const hasSnapshotStats =
-      Number.isFinite(Number(indexData.percentile_full)) &&
-      Number.isFinite(Number(indexData.pe_ttm_change_1y));
+    const derivedTtmRange = resolveMetricRange(points, "pe_ttm");
+    const hasSnapshotStats = toFiniteNumber(indexData.percentile_full) !== null;
     const latestRaw = points[points.length - 1] || {};
     const latestPe = hasSnapshotStats
       ? {
-          percentile_5y: Number.isFinite(Number(indexData.percentile_5y))
-            ? clamp(Number(indexData.percentile_5y), 0, 1)
-            : 0.5,
-          percentile_10y: Number.isFinite(Number(indexData.percentile_10y))
-            ? clamp(Number(indexData.percentile_10y), 0, 1)
-            : 0.5,
+          percentile_5y: toFiniteNumber(indexData.percentile_5y),
+          percentile_10y: toFiniteNumber(indexData.percentile_10y),
           percentile_full: clamp(Number(indexData.percentile_full), 0, 1),
-          z_score_3y: Number(indexData.z_score_3y || 0),
-          pe_ttm_change_1y: Number(indexData.pe_ttm_change_1y || 0),
-          regime: String(indexData.regime || "") || regimeFromPercentile(Number(indexData.percentile_full || 0.5)),
+          z_score_3y: toFiniteNumber(indexData.z_score_3y),
+          pe_ttm_change_1y: toFiniteNumber(indexData.pe_ttm_change_1y),
+          regime: String(indexData.regime || "") || regimeFromPercentile(Number(indexData.percentile_full)),
         }
       : computeLatestPeStats(points);
 
@@ -834,9 +845,9 @@ function buildSnapshotRows() {
       displayName: indexData.displayName,
       group: indexData.group,
       date: String(indexData.date || latestRaw.date || indexData.endDate || ""),
-      pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm) ?? 0,
-      pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward) ?? 0,
-      pb: toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb) ?? 0,
+      pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? latestMetricValue(points, "pe_ttm"),
+      pe_forward: toFiniteNumber(indexData.pe_forward) ?? latestMetricValue(points, "pe_forward"),
+      pb: toFiniteNumber(indexData.pb) ?? latestMetricValue(points, "pb"),
       percentile_5y: latestPe.percentile_5y,
       percentile_10y: latestPe.percentile_10y,
       percentile_full: latestPe.percentile_full,
@@ -846,8 +857,14 @@ function buildSnapshotRows() {
       startDate: String(indexData.startDate || points[0]?.date || ""),
       endDate: String(indexData.endDate || points[points.length - 1]?.date || ""),
       pointCount: Number(indexData.pointCount || points.length || 0),
+      ttmStartDate: String(indexData.ttmStartDate || derivedTtmRange.startDate || ""),
+      ttmEndDate: String(indexData.ttmEndDate || derivedTtmRange.endDate || ""),
+      ttmPointCount: Number(indexData.ttmPointCount || derivedTtmRange.pointCount || 0),
     };
-  });
+}
+
+function buildSnapshotRows() {
+  state.snapshotRows = state.dataset.indices.map((indexData) => buildSnapshotRowFromIndexData(indexData));
 }
 
 function getOverviewFilteredRows() {
@@ -869,20 +886,28 @@ function getOverviewFilteredRows() {
   });
 
   rows.sort((a, b) => {
+    const compareNumbers = (left, right, ascending = false) => {
+      const leftValue = toFiniteNumber(left);
+      const rightValue = toFiniteNumber(right);
+      if (leftValue === null && rightValue === null) return 0;
+      if (leftValue === null) return 1;
+      if (rightValue === null) return -1;
+      return ascending ? leftValue - rightValue : rightValue - leftValue;
+    };
     switch (state.overview.sort) {
       case "attention":
         return compareByAttention(a, b);
       case "percentile_asc":
-        return a.percentile_full - b.percentile_full;
+        return compareNumbers(a.percentile_full, b.percentile_full, true);
       case "pe_desc":
-        return b.pe_ttm - a.pe_ttm;
+        return compareNumbers(a.pe_ttm, b.pe_ttm);
       case "pb_desc":
-        return b.pb - a.pb;
+        return compareNumbers(a.pb, b.pb);
       case "name":
         return a.displayName.localeCompare(b.displayName);
       case "percentile_desc":
       default:
-        return b.percentile_full - a.percentile_full;
+        return compareNumbers(a.percentile_full, b.percentile_full);
     }
   });
 
@@ -898,6 +923,9 @@ function openDetailIndex(indexId) {
 }
 
 function snapshotBadge(row) {
+  if (toFiniteNumber(row.pe_ttm) === null || toFiniteNumber(row.percentile_full) === null) {
+    return '<span class="badge neutral">暂无</span>';
+  }
   if (row.regime === "high") {
     return '<span class="badge high">高估</span>';
   }
@@ -913,10 +941,12 @@ function renderSnapshotGrid(rows) {
 
   elements.snapshotGrid.innerHTML = rows
     .map((row) => {
-      const rawPct = clamp(row.percentile_full * 100, 0, 100);
+      const hasTtm = toFiniteNumber(row.pe_ttm) !== null && toFiniteNumber(row.percentile_full) !== null;
+      const rawPct = hasTtm ? clamp(row.percentile_full * 100, 0, 100) : 50;
       const pinLeft = rawPct;
-      const peChangeTone = row.pe_ttm_change_1y >= 0 ? "up" : "down";
-      const toneVars = snapshotToneVars(row.percentile_full);
+      const peChange = toFiniteNumber(row.pe_ttm_change_1y);
+      const peChangeTone = peChange === null ? "" : peChange >= 0 ? "up" : "down";
+      const toneVars = snapshotToneVars(hasTtm ? row.percentile_full : 0.5);
       const searchCardLayoutStyle = isSearching ? "max-width:320px;width:100%;justify-self:start;" : "";
       const nameLength = String(row.displayName || "").length;
       const nameClass = nameLength >= 28 ? "name name--tight" : nameLength >= 20 ? "name name--compact" : "name";
@@ -938,10 +968,10 @@ function renderSnapshotGrid(rows) {
         <div class="line"><span>PE(TTM)</span><strong>${fmt(row.pe_ttm, 2)}</strong></div>
         <div class="line"><span>PE(FWD)</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
         <div class="line"><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
-        <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(row.pe_ttm_change_1y * 100, 1, true)}</strong></div>
-        <div class="line"><span>百分位</span><strong style="color:${percentileColor(row.percentile_full)}">${fmtPct(row.percentile_full, 1)}</strong></div>
-        <div class="line line-muted"><span>数据区间</span><strong>${row.startDate} ~ ${row.endDate}</strong></div>
-        <div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>
+        <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(peChange === null ? null : peChange * 100, 1, true)}</strong></div>
+        <div class="line"><span>百分位</span><strong${hasTtm ? ` style="color:${percentileColor(row.percentile_full)}"` : ""}>${fmtPct(row.percentile_full, 1)}</strong></div>
+        <div class="line line-muted"><span>TTM 数据区间</span><strong>${row.ttmPointCount > 0 ? `${row.ttmStartDate} ~ ${row.ttmEndDate}` : "暂无可靠数据"}</strong></div>
+        ${hasTtm ? `<div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>` : '<div class="percent-track-mini"></div>'}
       </article>`;
     })
     .join("");
@@ -2446,6 +2476,7 @@ if (!window.__USVM_APP_TEST__) {
 
 export {
   alignCompareSeriesToCommonRange as alignCompareSeriesToCommonRangeForTest,
+  buildSnapshotRowFromIndexData as buildSnapshotRowForTest,
   formatAxisDateForWidth as formatAxisDateForWidthForTest,
   buildMetricSeriesFromIndexData as getMetricSeriesForTest,
   toFiniteNumber as toFiniteNumberForTest,

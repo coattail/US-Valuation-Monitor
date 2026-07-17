@@ -3,16 +3,23 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import {
+  assertPublishedIndexHistoryAppendOnly,
   assertValidatedIndexHistoryUnchanged,
   generateDataset,
   validateDataset,
 } from "./generate.ts";
+import {
+  assertDatasetMatchesIndexHistoryLock,
+  buildIndexHistoryLock,
+  type IndexHistoryLock,
+} from "./index-history-lock.ts";
 import type { ValuationDataset } from "../../core/src/types.ts";
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
 const ROOT_DIR = path.resolve(path.dirname(CURRENT_FILE), "../../..");
 const OUTPUT_DIR = path.join(ROOT_DIR, "data", "standardized");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "valuation-history.json");
+const HISTORY_LOCK_FILE = path.join(OUTPUT_DIR, "index-history-lock.json");
 const PAGES_HISTORY_FILE = path.join(ROOT_DIR, ".pages", "data", "standardized", "valuation-history.json");
 const OUTPUT_SERIES_DIR = path.join(OUTPUT_DIR, "index-series");
 const PAGES_SERIES_DIR = path.join(ROOT_DIR, ".pages", "data", "standardized", "index-series");
@@ -120,16 +127,60 @@ async function syncPagesHistory(dataset: ValuationDataset): Promise<void> {
   await writeFile(PAGES_HISTORY_FILE, `${JSON.stringify(dataset, null, 2)}\n`, "utf8");
 }
 
+async function readIndexHistoryLock(previousDataset: ValuationDataset | undefined): Promise<IndexHistoryLock | undefined> {
+  try {
+    return JSON.parse(await readFile(HISTORY_LOCK_FILE, "utf8")) as IndexHistoryLock;
+  } catch (error) {
+    const code = (error as { code?: string })?.code;
+    if (!previousDataset?.indices?.length || process.env.BOOTSTRAP_INDEX_HISTORY_LOCK === "1") {
+      return undefined;
+    }
+    if (code === "ENOENT") {
+      throw new Error(
+        "index history lock is missing; set BOOTSTRAP_INDEX_HISTORY_LOCK=1 only for an audited one-time bootstrap"
+      );
+    }
+    throw error;
+  }
+}
+
+function getRewriteAllowedIds(dataset: ValuationDataset): Set<string> {
+  if (process.env.ALLOW_VALIDATED_INDEX_HISTORY_REWRITE === "1") {
+    return new Set(dataset.indices.map((index) => index.id));
+  }
+  return new Set(
+    String(process.env.ALLOW_VALIDATED_INDEX_HISTORY_REWRITE_IDS || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  );
+}
+
 async function main(): Promise<void> {
   const previousDataset = await readPreviousDataset();
+  const previousHistoryLock = await readIndexHistoryLock(previousDataset);
+  if (previousDataset && previousHistoryLock) {
+    assertDatasetMatchesIndexHistoryLock(previousDataset, previousHistoryLock);
+  }
+
   const dataset = await generateDataset(undefined, { previousDataset });
   validateDataset(dataset);
+  assertPublishedIndexHistoryAppendOnly(previousDataset, dataset);
   if (process.env.ALLOW_VALIDATED_INDEX_HISTORY_REWRITE !== "1") {
     assertValidatedIndexHistoryUnchanged(previousDataset, dataset);
   }
+  if (previousHistoryLock) {
+    assertDatasetMatchesIndexHistoryLock(dataset, previousHistoryLock, {
+      allowAppendedPoints: true,
+      rewriteAllowedIds: getRewriteAllowedIds(dataset),
+    });
+  }
+
+  const nextHistoryLock = buildIndexHistoryLock(dataset);
 
   await mkdir(OUTPUT_DIR, { recursive: true });
   await writeFile(OUTPUT_FILE, `${JSON.stringify(dataset, null, 2)}\n`, "utf8");
+  await writeFile(HISTORY_LOCK_FILE, `${JSON.stringify(nextHistoryLock, null, 2)}\n`, "utf8");
   await syncPagesHistory(dataset);
 
   console.log(`snapshot written: ${OUTPUT_FILE}`);

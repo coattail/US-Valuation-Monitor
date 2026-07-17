@@ -30,6 +30,7 @@ const DEFAULT_VENDOR_INDEX_FORWARD_PE_FILE = path.join(
   "index-forward-pe-history.csv"
 );
 const VENDOR_INDEX_FORWARD_PE_FILE = process.env.INDEX_FORWARD_PE_HISTORY_FILE || DEFAULT_VENDOR_INDEX_FORWARD_PE_FILE;
+const HISTORY_OF_MARKET_NDX_FORWARD_PE_URL = "https://historyofmarket.com/api/ndx/forward-pe.json";
 const SP500_PB_PREFIX_START_DATE = "1999-12-31";
 const SP500_PB_PREFIX_END_DATE = "2005-02-24";
 
@@ -314,7 +315,8 @@ const CURATED_WSJ_TTM_REFERENCES: Partial<Record<string, Array<{ date: string; v
     { date: "2026-04-17", value: 25.38 },
   ],
   nasdaq100: [
-    { date: "2026-02-20", value: 31.62 },
+    // Retained WSJ checkpoint. The complete published WSJ-derived daily
+    // segment is preserved separately from 2026-04-17 onward.
     { date: "2026-05-08", value: 35.65 },
   ],
 };
@@ -529,13 +531,100 @@ const NASDAQ100_FORWARD_MM_BOOTSTRAP: Array<{ date: string; value: number }> = [
   { date: "2002-12-31", value: 34.12 },
 ];
 
-// Nasdaq article cites FactSet index-level points: 1999-12-31 ~104x, 2000-12-29 ~113x,
-// and indicates 1Q00 peak likely in 150-200x zone; we pin the lower bound for stability.
+// Nasdaq research cites FactSet index-level year-end points of roughly 104x
+// for 1999 and 113x for 2000. We deliberately do not insert a guessed dot-com
+// peak; the official NDX close path between the published observations is what
+// determines the intervening valuation curve.
 const NASDAQ100_TTM_BUBBLE_FACTSET_BOOTSTRAP: Array<{ date: string; value: number }> = [
   { date: "1999-12-31", value: 104.0 },
-  { date: "2000-03-31", value: 150.0 },
   { date: "2000-12-31", value: 113.0 },
+  { date: "2001-12-31", value: 208.3 },
 ];
+
+// Official Nasdaq year-end Price/Earnings observations. Nasdaq's August 2022
+// NDX presentation labels every EOY 2001-2021 value and cites Nasdaq, FactSet
+// and Bloomberg as its sources:
+// https://indexes.nasdaqomx.com/docs/NDX_Extended%20Presentation_August%202022.pdf
+// These replace the unrelated public monthly series that reported, for
+// example, ~13x at 2014 year-end even though the official NDX observation was
+// 22.3x. Between published observations we reconstruct the daily path from the
+// actual NDX close, never by rebasing the full history to today's multiple.
+const NASDAQ100_TTM_VALIDATED_YEAR_END_BOOTSTRAP: Array<{ date: string; value: number }> = [
+  { date: "2001-12-31", value: 208.3 },
+  { date: "2002-12-31", value: 38.4 },
+  { date: "2003-12-31", value: 40.7 },
+  { date: "2004-12-31", value: 36.5 },
+  { date: "2005-12-30", value: 31.3 },
+  { date: "2006-12-29", value: 31.5 },
+  { date: "2007-12-31", value: 28.7 },
+  { date: "2008-12-31", value: 16.9 },
+  { date: "2009-12-31", value: 24.5 },
+  { date: "2010-12-31", value: 18.8 },
+  { date: "2011-12-30", value: 14.7 },
+  { date: "2012-12-31", value: 16.7 },
+  { date: "2013-12-31", value: 22.0 },
+  { date: "2014-12-31", value: 22.3 },
+  { date: "2015-12-31", value: 22.9 },
+  { date: "2016-12-30", value: 22.8 },
+  { date: "2017-12-29", value: 24.6 },
+  { date: "2018-12-31", value: 20.1 },
+  { date: "2019-12-31", value: 26.8 },
+  { date: "2020-12-31", value: 37.7 },
+  { date: "2021-12-31", value: 37.3 },
+  { date: "2022-12-30", value: 20.68 },
+];
+
+// Public point-in-time Nasdaq-100 TTM observations from Siblis bridge the gap
+// between Nasdaq's annual history and the first retained WSJ weekly anchor.
+// https://siblisresearch.com/data/nasdaq-100-pe-ratio/
+const NASDAQ100_TTM_RECENT_SIBLIS_BOOTSTRAP: Array<{ date: string; value: number }> = [
+  { date: "2023-12-29", value: 30.25 },
+  { date: "2024-06-28", value: 31.82 },
+  { date: "2024-12-31", value: 32.36 },
+  { date: "2025-03-31", value: 28.73 },
+  { date: "2025-06-30", value: 32.24 },
+  { date: "2025-09-30", value: 32.98 },
+  { date: "2025-12-31", value: 32.32 },
+  { date: "2026-03-31", value: 30.67 },
+];
+
+// Public Siblis point-in-time Russell 2000 observations. Its methodology
+// includes loss-making constituents, so these values must not be mixed with
+// FTSE Russell multiples that exclude negative earners.
+// https://siblisresearch.com/data/russell-2000-pe-yield/
+const RUSSELL2000_TTM_SIBLIS_BOOTSTRAP: Array<{ date: string; value: number }> = [
+  { date: "2022-06-30", value: 48.59 },
+  { date: "2022-12-30", value: 51.74 },
+  { date: "2023-06-30", value: 27.56 },
+  { date: "2023-12-29", value: 26.72 },
+  { date: "2024-06-28", value: 27.06 },
+  { date: "2024-12-31", value: 33.44 },
+  { date: "2025-06-30", value: 32.36 },
+  { date: "2025-12-31", value: 32.79 },
+];
+
+const RUSSELL2000_FORWARD_SIBLIS_BOOTSTRAP: Array<{ date: string; value: number }> = [
+  { date: "2022-06-30", value: 18.29 },
+  { date: "2022-12-30", value: 21.38 },
+  { date: "2023-06-30", value: 24.29 },
+  { date: "2023-12-29", value: 23.74 },
+  { date: "2024-06-28", value: 23.84 },
+  { date: "2024-12-31", value: 25.41 },
+  { date: "2025-06-30", value: 25.23 },
+  { date: "2025-12-31", value: 25.39 },
+];
+
+const VERIFIED_THEME_METRIC_START_DATES: Partial<
+  Record<string, Partial<Record<IndexRatioMetricKey, string>>>
+> = {
+  igv: { pe_ttm: "2026-07-15", pe_forward: "2026-07-10", pb: "2026-07-15" },
+  soxx: { pe_ttm: "2026-07-15", pe_forward: "2026-07-14", pb: "2026-07-15" },
+  // No public point-in-time TTM/PB observations are currently available for
+  // these funds. A far-future boundary intentionally renders the synthetic
+  // proxy unavailable while retaining their verified forward observations.
+  smh: { pe_ttm: "9999-12-31", pe_forward: "2026-07-16", pb: "9999-12-31" },
+  dram: { pe_ttm: "9999-12-31", pe_forward: "2026-06-30", pb: "9999-12-31" },
+};
 
 const SP500_MACROMICRO_PB_PREFIX_BOOTSTRAP: Array<{ date: string; value: number }> = [
   { date: "1999-12-31", value: 5.19 },
@@ -630,6 +719,10 @@ const INDEX_LIVE_SOURCE_CUTOVER_DATE = "2026-03-27";
 // source coverage can begin decades earlier without authorizing a daily build
 // to rebase the already-published percentile distribution.
 const INDEX_VALIDATED_HISTORY_CUTOFF_DATE = "2026-03-27";
+// The first cached Nasdaq-100 WSJ TTM observation. Every already-published
+// TTM point from this date onward is derived from weekly WSJ anchors plus the
+// intervening daily close path and must survive any earlier-history repair.
+const NASDAQ100_WSJ_TTM_HISTORY_START_DATE = "2026-04-17";
 const INDEX_VALIDATED_HISTORY_CUTOFF_DATE_OVERRIDES: Partial<Record<string, string>> = {
   // Freeze each thematic index's first published history. Otherwise a later
   // current valuation anchor could rebase its whole proxy history again.
@@ -718,12 +811,49 @@ function preserveValidatedIndexHistory(
 
   if (shouldReplaceIncompleteInitialThemeHistory(indexId, previousPoints)) return nextPoints;
 
+  // This environment flag already bypasses the post-generation immutability
+  // assertion in build-snapshot.ts. It must also bypass the merge here;
+  // otherwise a requested correction silently writes the old frozen history
+  // back into the rebuilt dataset.
+  if (isValidatedIndexHistoryRewriteAllowed(indexId)) return nextPoints;
+
   const cutoffDate = INDEX_VALIDATED_HISTORY_CUTOFF_DATE_OVERRIDES[indexId] || INDEX_VALIDATED_HISTORY_CUTOFF_DATE;
   return mergeHistoricalSeriesAtCutover(
     previousPoints,
     nextPoints,
     cutoffDate
   );
+}
+
+function preservePublishedIndexHistoryAppendOnly(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[],
+  indexId = ""
+): RawValuationPoint[] {
+  if (!previousPoints?.length) return nextPoints;
+  if (isValidatedIndexHistoryRewriteAllowed(indexId)) return nextPoints;
+
+  const previousEndDate = previousPoints[previousPoints.length - 1]?.date || "";
+  if (!previousEndDate) return previousPoints;
+
+  const mergedByDate = new Map(previousPoints.map((point) => [point.date, point]));
+  for (const point of nextPoints || []) {
+    // Published rows are immutable. A routine refresh may only append trading
+    // dates after the last row that was present when the build started.
+    if (point?.date && point.date > previousEndDate) {
+      mergedByDate.set(point.date, point);
+    }
+  }
+
+  return [...mergedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function preservePublishedIndexHistoryAppendOnlyForTest(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[],
+  indexId = ""
+): RawValuationPoint[] {
+  return preservePublishedIndexHistoryAppendOnly(previousPoints, nextPoints, indexId);
 }
 
 function shouldReplaceIncompleteInitialThemeHistory(
@@ -738,6 +868,15 @@ function shouldReplaceIncompleteInitialThemeHistory(
     expectedStartDate < INDEX_VALIDATED_HISTORY_CUTOFF_DATE &&
     firstPreviousDate >= INDEX_VALIDATED_HISTORY_CUTOFF_DATE
   );
+}
+
+function isValidatedIndexHistoryRewriteAllowed(indexId: string): boolean {
+  if (process.env.ALLOW_VALIDATED_INDEX_HISTORY_REWRITE === "1") return true;
+  const allowedIds = String(process.env.ALLOW_VALIDATED_INDEX_HISTORY_REWRITE_IDS || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return Boolean(indexId && allowedIds.includes(indexId));
 }
 
 function mergePublishedIndexHistoryAtCutover(
@@ -769,11 +908,45 @@ export function preserveValidatedIndexHistoryForTest(
   return preserveValidatedIndexHistory(previousPoints, nextPoints, indexId);
 }
 
+function preservePublishedMetricHistoryFromDate(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[],
+  metric: PeMetricKey,
+  startDate: string
+): RawValuationPoint[] {
+  if (!previousPoints?.length || !nextPoints?.length || !startDate) return nextPoints;
+
+  const previousEndDate = previousPoints[previousPoints.length - 1]?.date || "";
+  if (!previousEndDate || previousEndDate < startDate) return nextPoints;
+
+  const nextByDate = new Map(nextPoints.map((point) => [point.date, point]));
+  for (const previousPoint of previousPoints) {
+    if (previousPoint.date < startDate || previousPoint.date > previousEndDate) continue;
+    const nextPoint = nextByDate.get(previousPoint.date);
+    nextByDate.set(previousPoint.date, {
+      ...(nextPoint || previousPoint),
+      [metric]: previousPoint[metric],
+    });
+  }
+
+  return [...nextByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function preservePublishedMetricHistoryFromDateForTest(
+  previousPoints: RawValuationPoint[],
+  nextPoints: RawValuationPoint[],
+  metric: PeMetricKey,
+  startDate: string
+): RawValuationPoint[] {
+  return preservePublishedMetricHistoryFromDate(previousPoints, nextPoints, metric, startDate);
+}
+
 function assertValidatedIndexPointsUnchanged(
   indexId: string,
   previousPoints: RawValuationPoint[],
   nextPoints: RawValuationPoint[]
 ): void {
+  if (isValidatedIndexHistoryRewriteAllowed(indexId)) return;
   if (shouldReplaceIncompleteInitialThemeHistory(indexId, previousPoints)) return;
 
   const cutoffDate = INDEX_VALIDATED_HISTORY_CUTOFF_DATE_OVERRIDES[indexId] || INDEX_VALIDATED_HISTORY_CUTOFF_DATE;
@@ -813,6 +986,49 @@ export function assertValidatedIndexHistoryUnchanged(
       throw new Error(`validated index history missing for ${previousIndex.id}`);
     }
     assertValidatedIndexPointsUnchanged(previousIndex.id, previousIndex.points, nextIndex.points);
+  }
+}
+
+export function assertPublishedIndexHistoryAppendOnly(
+  previousDataset: ValuationDataset | null | undefined,
+  nextDataset: ValuationDataset
+): void {
+  if (!previousDataset?.indices?.length) return;
+
+  const nextById = new Map(nextDataset.indices.map((index) => [index.id, index]));
+  const fields: Array<keyof RawValuationPoint> = ["date", "pe_ttm", "pe_forward", "pb", "us10y_yield"];
+
+  for (const previousIndex of previousDataset.indices) {
+    if (isValidatedIndexHistoryRewriteAllowed(previousIndex.id)) continue;
+    const nextIndex = nextById.get(previousIndex.id);
+    if (!nextIndex) {
+      throw new Error(`published index history missing for ${previousIndex.id}`);
+    }
+    if (nextIndex.points.length < previousIndex.points.length) {
+      throw new Error(
+        `published index history shortened for ${previousIndex.id}: ${previousIndex.points.length} -> ${nextIndex.points.length}`
+      );
+    }
+
+    for (let i = 0; i < previousIndex.points.length; i += 1) {
+      const previousPoint = previousIndex.points[i];
+      const nextPoint = nextIndex.points[i];
+      for (const field of fields) {
+        if (previousPoint[field] !== nextPoint?.[field]) {
+          throw new Error(
+            `published index history changed for ${previousIndex.id} at ${previousPoint.date}: ${String(field)}`
+          );
+        }
+      }
+    }
+
+    const previousEndDate = previousIndex.points[previousIndex.points.length - 1]?.date || "";
+    const invalidAppend = nextIndex.points.slice(previousIndex.points.length).find((point) => point.date <= previousEndDate);
+    if (invalidAppend) {
+      throw new Error(
+        `published index history inserted a non-appended date for ${previousIndex.id}: ${invalidAppend.date}`
+      );
+    }
   }
 }
 
@@ -3171,6 +3387,40 @@ function parseTrendonifyMonthlySeries(html: string): MonthlyMetricPoint[] {
     .map(([date, value]) => ({ date, value, ts: parseDate(date).getTime() }));
 }
 
+function parseHistoryOfMarketNdxForwardSeries(jsonText: string): MonthlyMetricPoint[] {
+  try {
+    const payload = JSON.parse(jsonText) as {
+      forward?: Array<{ date?: unknown; value?: unknown }>;
+    };
+    const byDate = new Map<string, number>();
+    for (const row of payload.forward || []) {
+      const date = String(row?.date || "").slice(0, 10);
+      const value = sanitizeSignedRatio(row?.value);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      if (value === null || !isReasonableForwardPe(value)) continue;
+      byDate.set(date, value);
+    }
+    return [...byDate.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, value]) => ({ date, value, ts: parseDate(date).getTime() }));
+  } catch {
+    return [];
+  }
+}
+
+export function parseHistoryOfMarketNdxForwardSeriesForTest(jsonText: string): MonthlyMetricPoint[] {
+  return parseHistoryOfMarketNdxForwardSeries(jsonText);
+}
+
+async function fetchHistoryOfMarketNdxForwardSeries(): Promise<MonthlyMetricPoint[] | undefined> {
+  const body = await curlGet(HISTORY_OF_MARKET_NDX_FORWARD_PE_URL, 25000, {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    Accept: "application/json,text/plain,*/*",
+  });
+  const series = parseHistoryOfMarketNdxForwardSeries(body);
+  return series.length >= 120 ? series : undefined;
+}
+
 async function fetchTrendonifySeries(urls: string[]): Promise<MonthlyMetricPoint[] | undefined> {
   const expandedUrls: string[] = [];
   for (const rawUrl of urls) {
@@ -4092,6 +4342,60 @@ async function fetchIndexCloseSeries(symbol: string, startDate: string, endDate:
   return fetchStooqCloseSeries(symbol, startDate, endDate);
 }
 
+function parseFredIndexCloseSeries(
+  csvText: string,
+  seriesId: string,
+  startDate: string,
+  endDate: string
+): ClosePoint[] {
+  const rows = parseCsv(csvText);
+  if (!rows.length) return [];
+
+  const header = rows[0].map((value) => String(value || "").trim().toLowerCase());
+  const dateIndex = header.findIndex((value) => value === "observation_date" || value === "date");
+  const valueIndex = header.findIndex((value) => value === seriesId.toLowerCase());
+  if (dateIndex < 0 || valueIndex < 0) return [];
+
+  const result: ClosePoint[] = [];
+  for (const row of rows.slice(1)) {
+    const date = String(row[dateIndex] || "").trim();
+    const close = Number(row[valueIndex]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    if (date < startDate || date > endDate) continue;
+    if (!Number.isFinite(close) || close <= 0) continue;
+    result.push({ date, close });
+  }
+  return result.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function parseFredIndexCloseSeriesForTest(
+  csvText: string,
+  seriesId: string,
+  startDate: string,
+  endDate: string
+): ClosePoint[] {
+  return parseFredIndexCloseSeries(csvText, seriesId, startDate, endDate);
+}
+
+async function fetchNasdaq100IndexCloseSeries(startDate: string, endDate: string): Promise<ClosePoint[]> {
+  // FRED republishes Nasdaq's official NDX daily close series. Using NDX here
+  // avoids mixing an ETF total-return proxy (QQQ) with index-level P/E anchors.
+  const csvText = await curlGet("https://fred.stlouisfed.org/graph/fredgraph.csv?id=NASDAQ100", 30000);
+  const points = parseFredIndexCloseSeries(csvText, "NASDAQ100", startDate, endDate);
+  if (!points.length) {
+    throw new Error("No usable NASDAQ100 close values from FRED");
+  }
+  return points;
+}
+
+async function fetchRussell2000IndexCloseSeries(startDate: string, endDate: string): Promise<ClosePoint[]> {
+  const points = await fetchYahooCloseSeries("^RUT", startDate, endDate);
+  if (!points.length) {
+    throw new Error("No usable Russell 2000 index close values from Yahoo");
+  }
+  return points;
+}
+
 async function fetchUs10ySeries(endDate: string): Promise<YieldPoint[]> {
   const csvText = await curlGet("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10", 25000);
   const rows = parseCsv(csvText);
@@ -4736,6 +5040,106 @@ function applyCloseAnchoredOverrides(
   });
 }
 
+function applyValidatedNasdaq100TtmHistory(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  validatedForwardSeries?: MonthlyMetricPoint[]
+): RawValuationPoint[] {
+  const authoritativeAnchors = buildBootstrapSeries([
+    ...NASDAQ100_TTM_BUBBLE_FACTSET_BOOTSTRAP,
+    ...NASDAQ100_TTM_VALIDATED_YEAR_END_BOOTSTRAP,
+    ...NASDAQ100_TTM_RECENT_SIBLIS_BOOTSTRAP,
+    ...(CURATED_WSJ_TTM_REFERENCES.nasdaq100 || []),
+  ]);
+  const authoritativeForwardAnchors = validatedForwardSeries?.length
+    ? mergeMonthlySeries(
+        validatedForwardSeries,
+        buildBootstrapSeries(NASDAQ100_FORWARD_MM_BOOTSTRAP)
+      )
+    : buildBootstrapSeries(NASDAQ100_FORWARD_MM_BOOTSTRAP);
+
+  let corrected = applyCloseAnchoredOverrides(points, closes, authoritativeAnchors, authoritativeForwardAnchors, {
+    minTtm: 2.4,
+    maxTtm: 240,
+    maxAnchorLagDays: 5,
+    // Annual/quarterly verified observations control only the interval between
+    // adjacent anchors. The actual index path prevents a one-day reset while
+    // the smoothly progressing denominator lands exactly on both observations.
+    trailingMaxSegmentSpanDays: 800,
+    trailingSegmentMode: "denom_progress",
+    // The Bloomberg history has a few early multi-month gaps. Bridge those
+    // observations instead of creating a one-day reset when coverage resumes.
+    forwardMaxSegmentSpanDays: 400,
+    forwardSegmentMode: "denom_progress",
+  });
+  corrected = clearMetricBeforeDate(corrected, "pe_ttm", "1999-12-31");
+  corrected = clearMetricBeforeDate(corrected, "pe_forward", "2000-01-31");
+  return corrected;
+}
+
+export function applyValidatedNasdaq100TtmHistoryForTest(
+  points: RawValuationPoint[],
+  closes: ClosePoint[],
+  validatedForwardSeries?: MonthlyMetricPoint[]
+): RawValuationPoint[] {
+  return applyValidatedNasdaq100TtmHistory(points, closes, validatedForwardSeries);
+}
+
+function applyValidatedRussell2000PeHistory(
+  points: RawValuationPoint[],
+  closes: ClosePoint[]
+): RawValuationPoint[] {
+  let corrected = applyCloseAnchoredOverrides(
+    points,
+    closes,
+    buildBootstrapSeries(RUSSELL2000_TTM_SIBLIS_BOOTSTRAP),
+    buildBootstrapSeries(RUSSELL2000_FORWARD_SIBLIS_BOOTSTRAP),
+    {
+      minTtm: 2.4,
+      maxTtm: 240,
+      minForward: 2,
+      maxForward: 120,
+      maxAnchorLagDays: 5,
+      trailingMaxSegmentSpanDays: 800,
+      forwardMaxSegmentSpanDays: 800,
+      trailingSegmentMode: "denom_progress",
+      forwardSegmentMode: "denom_progress",
+    }
+  );
+  corrected = clearMetricBeforeDate(corrected, "pe_ttm", RUSSELL2000_TTM_SIBLIS_BOOTSTRAP[0].date);
+  corrected = clearMetricBeforeDate(corrected, "pe_forward", RUSSELL2000_FORWARD_SIBLIS_BOOTSTRAP[0].date);
+  return corrected;
+}
+
+export function applyValidatedRussell2000PeHistoryForTest(
+  points: RawValuationPoint[],
+  closes: ClosePoint[]
+): RawValuationPoint[] {
+  return applyValidatedRussell2000PeHistory(points, closes);
+}
+
+function applyVerifiedThemeMetricCoverage(
+  points: RawValuationPoint[],
+  indexId: string
+): RawValuationPoint[] {
+  const coverage = VERIFIED_THEME_METRIC_START_DATES[indexId];
+  if (!coverage) return points;
+
+  let corrected = points;
+  for (const metric of ["pe_ttm", "pe_forward", "pb"] as IndexRatioMetricKey[]) {
+    const startDate = coverage[metric];
+    if (startDate) corrected = clearMetricBeforeDate(corrected, metric, startDate);
+  }
+  return corrected;
+}
+
+export function applyVerifiedThemeMetricCoverageForTest(
+  points: RawValuationPoint[],
+  indexId: string
+): RawValuationPoint[] {
+  return applyVerifiedThemeMetricCoverage(points, indexId);
+}
+
 export function applyCloseAnchoredOverridesForTest(
   points: RawValuationPoint[],
   closes: ClosePoint[],
@@ -5305,7 +5709,10 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let macroMicroForwardCount = 0;
   let stockMarketPeRatioTrailingCount = 0;
   let ndxForwardBootstrapCount = 0;
+  let ndxBloombergForwardCount = 0;
   let ndxTtmFactsetBootstrapCount = 0;
+  let ndxOfficialCloseCount = 0;
+  let rutIndexCloseCount = 0;
   let multplTrailingCount = 0;
   let multplPbCount = 0;
   let ychartsPbCount = 0;
@@ -5336,6 +5743,31 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       const minimumClosePoints = MIN_CLOSE_POINTS_BY_INDEX[meta.id] || 120;
       if (closes.length < minimumClosePoints) {
         throw new Error(`insufficient close data: ${meta.id}`);
+      }
+      let valuationCloses = closes;
+      if (meta.id === "nasdaq100") {
+        try {
+          const officialNdxCloses = await fetchNasdaq100IndexCloseSeries(startDate, effectiveEnd);
+          if (officialNdxCloses.length >= minimumClosePoints) {
+            valuationCloses = officialNdxCloses;
+            ndxOfficialCloseCount += 1;
+          }
+        } catch {
+          // Retain the existing QQQ close path only as a network fallback. The
+          // validated anchors still prevent a current multiple from rebasing
+          // the full history.
+        }
+      } else if (meta.id === "russell2000") {
+        try {
+          const russellIndexCloses = await fetchRussell2000IndexCloseSeries(startDate, effectiveEnd);
+          if (russellIndexCloses.length >= minimumClosePoints) {
+            valuationCloses = russellIndexCloses;
+            rutIndexCloseCount += 1;
+          }
+        } catch {
+          // IWM remains a network fallback; published Siblis observations still
+          // anchor every reconstructed interval.
+        }
       }
       const latestCloseDate = closes[closes.length - 1]?.date || effectiveEnd;
       const yahooFetchResult = await fetchYahooIndexRatioPayload(meta.symbol).catch(
@@ -5382,6 +5814,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
       let trailingSeries: MonthlyMetricPoint[] | undefined;
       let forwardSeries: MonthlyMetricPoint[] | undefined;
+      let ndxBloombergForwardSeries: MonthlyMetricPoint[] | undefined;
       let pbSeries: MonthlyMetricPoint[] | undefined;
       let siblisLatestTrailingSnapshot: number | undefined;
       let siblisLatestForwardSnapshot: number | undefined;
@@ -5635,6 +6068,18 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       }
 
       if (meta.id === "nasdaq100") {
+        try {
+          ndxBloombergForwardSeries = await fetchHistoryOfMarketNdxForwardSeries();
+          if (ndxBloombergForwardSeries?.length) {
+            forwardSeries = forwardSeries?.length
+              ? mergeMonthlySeries(ndxBloombergForwardSeries, forwardSeries)
+              : ndxBloombergForwardSeries;
+            ndxBloombergForwardCount += 1;
+          }
+        } catch {
+          // retain the committed vendor/bootstrap history when the public JSON is unavailable
+        }
+
         const bubbleTrailing = buildBootstrapSeries(NASDAQ100_TTM_BUBBLE_FACTSET_BOOTSTRAP);
         if (bubbleTrailing.length) {
           trailingSeries = trailingSeries?.length ? mergeMonthlySeries(bubbleTrailing, trailingSeries) : bubbleTrailing;
@@ -6235,7 +6680,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       const effectiveYahooSnapshots = collapseRedundantExplicitLatestSnapshots(
         buildEffectiveIndexYahooDailyMetricSnapshots(closes, cleanedYahooSnapshots)
       );
-      indexYahooDailyMetricsBySymbol.set(meta.symbol, effectiveYahooSnapshots);
+      // Treat pruning, date alignment and duplicate collapsing as a calculation
+      // view only. Replacing the persisted cache here used to erase previously
+      // captured source fields when a later run judged them implausible. The raw
+      // observation log stays append-only; every build still filters that log
+      // before any value is allowed into the published history.
       const explicitLatestYahooSnapshots = effectiveYahooSnapshots.filter(
         (snapshot) => snapshot.date > liveSourceCutoverDate && isExplicitIndexYahooLatestMetricSource(snapshot.source || "")
       );
@@ -6437,10 +6886,30 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           });
         }
       }
+      if (meta.id === "nasdaq100") {
+        // Final authoritative historical overlay. It deliberately runs after
+        // all mutable web feeds and source-specific repairs.
+        points = applyValidatedNasdaq100TtmHistory(points, valuationCloses, ndxBloombergForwardSeries);
+        points = preservePublishedMetricHistoryFromDate(
+          previousPoints,
+          points,
+          "pe_ttm",
+          NASDAQ100_WSJ_TTM_HISTORY_START_DATE
+        );
+      }
+      if (meta.id === "russell2000") {
+        points = applyValidatedRussell2000PeHistory(points, valuationCloses);
+      }
+      points = applyVerifiedThemeMetricCoverage(points, meta.id);
       // Run this as the final history transformation. Several source-specific
       // repairs above intentionally rebuild long ranges, but only post-cutoff
       // points may replace the previously validated published history.
       points = preserveValidatedIndexHistory(previousPoints, points, meta.id);
+      // Final publication boundary: routine refreshes are append-only across
+      // the entire already-published series, including the formerly mutable
+      // post-cutover tail. Historical rewrites require an explicit operator
+      // authorization and are additionally tracked by the history lock file.
+      points = preservePublishedIndexHistoryAppendOnly(previousPoints, points, meta.id);
       if (effectiveEnd > liveSourceCutoverDate) {
         const latestPointDate = points[points.length - 1]?.date || "";
         if (!latestPointDate || latestPointDate <= liveSourceCutoverDate) {
@@ -6457,7 +6926,12 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         group: meta.group,
         displayName: meta.displayName,
         description: meta.description,
-        forwardStartDate: meta.id === "sp500" ? SP500_FORWARD_PE_PUBLIC_START_DATE : forwardStartDate,
+        forwardStartDate:
+          meta.id === "sp500"
+            ? SP500_FORWARD_PE_PUBLIC_START_DATE
+            : meta.id === "nasdaq100"
+              ? "2000-01-31"
+              : forwardStartDate,
         points,
       });
     } catch (error) {
@@ -6496,6 +6970,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           }
         }
         repairedHistoryPoints = preserveValidatedIndexHistory(historyPoints, repairedHistoryPoints, meta.id);
+        repairedHistoryPoints = preservePublishedIndexHistoryAppendOnly(
+          historyPoints,
+          repairedHistoryPoints,
+          meta.id
+        );
         generatedPointsByIndexId.set(meta.id, repairedHistoryPoints);
         indices.push({
           id: meta.id,
@@ -6597,8 +7076,17 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (ndxForwardBootstrapCount > 0) {
     source += `+ndx-fpe-bootstrap-${ndxForwardBootstrapCount}`;
   }
+  if (ndxBloombergForwardCount > 0) {
+    source += `+ndx-bloomberg-fpe-${ndxBloombergForwardCount}`;
+  }
   if (ndxTtmFactsetBootstrapCount > 0) {
     source += `+ndx-ttm-factset-${ndxTtmFactsetBootstrapCount}`;
+  }
+  if (ndxOfficialCloseCount > 0) {
+    source += `+ndx-official-close-${ndxOfficialCloseCount}`;
+  }
+  if (rutIndexCloseCount > 0) {
+    source += `+rut-index-close-${rutIndexCloseCount}`;
   }
   if (stockAnalysisForwardCount > 0) {
     source += `+stockanalysis-fpe-${stockAnalysisForwardCount}`;

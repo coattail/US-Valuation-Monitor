@@ -4,9 +4,9 @@ import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 
 interface RawValuationPoint {
   date: string;
-  pe_ttm: number;
-  pe_forward: number;
-  pb: number;
+  pe_ttm: number | null;
+  pe_forward: number | null;
+  pb: number | null;
   us10y_yield: number;
 }
 
@@ -36,16 +36,19 @@ interface SnapshotIndexRow {
   startDate: string;
   endDate: string;
   pointCount: number;
+  ttmStartDate: string;
+  ttmEndDate: string;
+  ttmPointCount: number;
   date: string;
-  pe_ttm: number;
-  pe_forward: number;
-  pb: number;
-  percentile_5y: number;
-  percentile_10y: number;
-  percentile_full: number;
-  z_score_3y: number;
-  pe_ttm_change_1y: number;
-  regime: "high" | "low" | "neutral";
+  pe_ttm: number | null;
+  pe_forward: number | null;
+  pb: number | null;
+  percentile_5y: number | null;
+  percentile_10y: number | null;
+  percentile_full: number | null;
+  z_score_3y: number | null;
+  pe_ttm_change_1y: number | null;
+  regime: "high" | "low" | "neutral" | null;
 }
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
@@ -111,61 +114,65 @@ function regimeFromPercentile(percentile: number): "high" | "low" | "neutral" {
   return "neutral";
 }
 
+function toFiniteRatio(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const ratio = Number(value);
+  return Number.isFinite(ratio) ? ratio : null;
+}
+
+function metricPoints(points: RawValuationPoint[], metric: "pe_ttm" | "pe_forward" | "pb") {
+  return points.flatMap((point) => {
+    const value = toFiniteRatio(point?.[metric]);
+    return value === null ? [] : [{ date: point.date, value }];
+  });
+}
+
 function computeLatestPeStats(points: RawValuationPoint[]) {
-  if (!Array.isArray(points) || !points.length) {
+  const pePoints = metricPoints(Array.isArray(points) ? points : [], "pe_ttm");
+  if (!pePoints.length) {
     return {
-      percentile_5y: 0.5,
-      percentile_10y: 0.5,
-      percentile_full: 0.5,
-      z_score_3y: 0,
-      regime: "neutral" as const,
-      pe_ttm_change_1y: 0,
+      percentile_5y: null,
+      percentile_10y: null,
+      percentile_full: null,
+      z_score_3y: null,
+      regime: null,
+      pe_ttm_change_1y: null,
     };
   }
 
-  const values = points.map((point) => Number(point.pe_ttm)).filter((value) => Number.isFinite(value));
-  if (!values.length) {
-    return {
-      percentile_5y: 0.5,
-      percentile_10y: 0.5,
-      percentile_full: 0.5,
-      z_score_3y: 0,
-      regime: "neutral" as const,
-      pe_ttm_change_1y: 0,
-    };
-  }
-
-  const latestPoint = points[points.length - 1];
-  const latestPe = Number(latestPoint.pe_ttm);
+  const values = pePoints.map((point) => point.value);
+  const latestPoint = pePoints[pePoints.length - 1];
+  const latestPe = latestPoint.value;
   const latestDate = latestPoint.date;
-
-  let lookbackIndex = points.length - 1;
   const lookbackDate = subtractYears(latestDate, 1);
-  while (lookbackIndex > 0 && points[lookbackIndex].date > lookbackDate) {
-    lookbackIndex -= 1;
-  }
-  const peRef = Number(points[lookbackIndex]?.pe_ttm);
-  const peChange1y = Number.isFinite(peRef) && Math.abs(peRef) > 1e-12 ? (latestPe - peRef) / Math.abs(peRef) : 0;
+  const lookbackPoint = [...pePoints].reverse().find((point) => point.date <= lookbackDate);
+  const peChange1y = lookbackPoint && Math.abs(lookbackPoint.value) > 1e-12
+    ? (latestPe - lookbackPoint.value) / Math.abs(lookbackPoint.value)
+    : null;
+  const percentileFull = percentileWindow(values, 0, values.length - 1, latestPe);
 
   return {
     percentile_5y: percentileWindow(values, values.length - TRADING_DAYS_PER_YEAR * 5, values.length - 1, latestPe),
     percentile_10y: percentileWindow(values, values.length - TRADING_DAYS_PER_YEAR * 10, values.length - 1, latestPe),
-    percentile_full: percentileWindow(values, 0, values.length - 1, latestPe),
+    percentile_full: percentileFull,
     z_score_3y: zScoreWindow(values, values.length - TRADING_DAYS_PER_YEAR * 3, values.length - 1, latestPe),
-    regime: regimeFromPercentile(percentileWindow(values, 0, values.length - 1, latestPe)),
+    regime: regimeFromPercentile(percentileFull),
     pe_ttm_change_1y: peChange1y,
   };
 }
 
-function buildSnapshotRow(item: IndexInput): SnapshotIndexRow {
+export function buildSnapshotRowForTest(item: IndexInput): SnapshotIndexRow {
   const points = Array.isArray(item.points) ? item.points : [];
   const latestRaw = points[points.length - 1] || {
     date: "",
-    pe_ttm: 0,
-    pe_forward: 0,
-    pb: 0,
+    pe_ttm: null,
+    pe_forward: null,
+    pb: null,
     us10y_yield: 0,
   };
+  const ttmPoints = metricPoints(points, "pe_ttm");
+  const forwardPoints = metricPoints(points, "pe_forward");
+  const pbPoints = metricPoints(points, "pb");
   const latestPe = computeLatestPeStats(points);
 
   return {
@@ -178,10 +185,13 @@ function buildSnapshotRow(item: IndexInput): SnapshotIndexRow {
     startDate: String(points[0]?.date || ""),
     endDate: String(points[points.length - 1]?.date || ""),
     pointCount: points.length,
+    ttmStartDate: String(ttmPoints[0]?.date || ""),
+    ttmEndDate: String(ttmPoints[ttmPoints.length - 1]?.date || ""),
+    ttmPointCount: ttmPoints.length,
     date: String(latestRaw.date || ""),
-    pe_ttm: Number(latestRaw.pe_ttm || 0),
-    pe_forward: Number(latestRaw.pe_forward || 0),
-    pb: Number(latestRaw.pb || 0),
+    pe_ttm: ttmPoints[ttmPoints.length - 1]?.value ?? null,
+    pe_forward: forwardPoints[forwardPoints.length - 1]?.value ?? null,
+    pb: pbPoints[pbPoints.length - 1]?.value ?? null,
     percentile_5y: latestPe.percentile_5y,
     percentile_10y: latestPe.percentile_10y,
     percentile_full: latestPe.percentile_full,
@@ -189,6 +199,10 @@ function buildSnapshotRow(item: IndexInput): SnapshotIndexRow {
     pe_ttm_change_1y: latestPe.pe_ttm_change_1y,
     regime: latestPe.regime,
   };
+}
+
+function buildSnapshotRow(item: IndexInput): SnapshotIndexRow {
+  return buildSnapshotRowForTest(item);
 }
 
 async function removeStaleSeriesFiles(validFileNames: Set<string>): Promise<void> {
@@ -262,7 +276,9 @@ async function main(): Promise<void> {
   console.log(`[index] series count: ${indices.length}`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (path.resolve(process.argv[1] || "") === CURRENT_FILE) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
