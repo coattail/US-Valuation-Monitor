@@ -4,7 +4,7 @@ const WATCHLIST_STORAGE_KEY = "usvm-company-watchlist";
 
 const METRIC_OPTIONS = [
   { label: "PE(TTM)", value: "pe_ttm" },
-  { label: "PE(Forward)", value: "pe_forward" },
+  { label: "PE(Forward · Yahoo)", value: "pe_forward" },
   { label: "PB", value: "pb" },
 ];
 

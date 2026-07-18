@@ -62,7 +62,7 @@ This project follows a **multi-source merge with reliability guardrails** strate
 - Forward PE availability is tracked per index via `forwardStartDate` and enforced in API responses.
 - Latest index snapshots include an anti-spike deviation guard to reduce one-day source-regime jumps.
 - Company `PE(TTM)` is refreshed for every company after each trading-day close from Yahoo Finance quote data (for example, `https://finance.yahoo.com/quote/NVDA/`, backed by Yahoo quote API fields such as `trailingPE`).
-- Company `PE(FWD)` latest values prefer Yahoo trusted sources; when a daily Yahoo snapshot is untrusted for `pe_forward`, that day is stored as `null` (no manual fill).
+- Latest company `PE(FWD)` is the value in Yahoo Finance's company Quote page, **Valuation Measures → Current → Forward P/E**. The `forwardPeRatio` timeseries is used only for history or when the page value is unavailable, so its separate refresh cadence cannot overwrite the page's Current value. When a daily Yahoo snapshot is untrusted for `pe_forward`, that day is stored as `null` (no manual fill).
 - Company `PE(FWD)` can be backfilled from point-in-time or public historical anchors. The repository loads `data/bootstrap/tsm-forward-pe-gurufocus.csv` by default and also accepts `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv` for private vendor data. The included TSM anchors come from the public GuruFocus quarterly table starting on 2015-12-31. They only fill the range before the existing company forward PE source start date; they never substitute TTM PE for forward PE or overwrite the StockAnalysis/YCharts/Yahoo-calibrated range.
 - The CSV keeps the public source's raw quarterly values; the published daily series still applies the existing Yahoo cutover rebasing rule, so displayed values may be scaled to the common basis without becoming TTM PE.
 - Each daily refresh also keeps the previously published company forward PE history as a lower-priority fallback. If a public source temporarily returns only a short recent window, the historical start date does not move forward; current Yahoo/available-source observations still win on matching dates.
@@ -307,7 +307,7 @@ curl -sS "http://127.0.0.1:9040/api/series?indexId=sp500&metric=pe_ttm"
   - verify source anchor coverage and rebuild dataset; the pipeline uses close-aware reconstruction inside valid ranges
 - Company `PE(TTM)` / `PE(FWD)` differs from Yahoo:
   - company `PE(TTM)` latest-day refresh now prioritizes Yahoo quote data (`trailingPE` as shown on pages such as `https://finance.yahoo.com/quote/NVDA/`) after each trading-day close
-  - `PE(FWD)` and other valuation metrics keep their existing source chain and Yahoo trusted-source override behavior
+  - `PE(FWD)` follows the Current column in the Quote page's Key Statistics → Valuation Measures table; `forwardPeRatio` remains only a history anchor and page-fetch fallback
   - check whether `data/standardized/company-yahoo-daily-metrics.json` is being appended (use `yahoo-market-latest-date-*` and `yahoo-latest-override-*` source tags to verify date alignment and coverage)
   - when a source transition happens (missing previous day, available latest day), the pipeline rebases historical `PE(FWD)` by a price-adjusted fixed factor to connect to Yahoo latest value
   - latest Yahoo override is enabled for all symbols by default (`YAHOO_LATEST_OVERRIDE_SYMBOLS=*`); exclude special cases with `YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS=SYM1,SYM2`

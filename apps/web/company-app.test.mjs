@@ -141,7 +141,7 @@ test("buildMetricAvailabilityNoteForTest explains when selected range exceeds av
       range: "10y",
       rows: [{ date: "2021-08-02" }, { date: "2026-04-27" }],
     }),
-    "PE(Forward) 最早可用 2021-08-02；10Y 按实际可用区间展示。"
+    "PE(Forward · Yahoo Current) 最早可用 2021-08-02；10Y 按实际可用区间展示。"
   );
 });
 

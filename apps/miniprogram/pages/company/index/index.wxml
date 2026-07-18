@@ -68,7 +68,7 @@
               <text>{{item.peTtmText}}</text>
             </view>
             <view class="card-line">
-              <text>PE(FWD)</text>
+              <text>PE(FWD · Yahoo)</text>
               <text>{{item.peForwardText}}</text>
             </view>
             <view class="card-line">

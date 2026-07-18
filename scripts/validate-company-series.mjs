@@ -42,6 +42,7 @@ export function validateCompanySeriesPayloads(
 ) {
   const errors = [];
   let recentYahooAnchorCount = 0;
+  let recentYahooForwardAnchorCount = 0;
   const payloadBySymbol = new Map();
 
   for (const payload of companyPayloads || []) {
@@ -57,30 +58,37 @@ export function validateCompanySeriesPayloads(
     const yahooRows = Array.isArray(yahooMetricsBySymbol?.[symbol])
       ? yahooMetricsBySymbol[symbol]
       : [];
-    const latestYahooTtm = yahooRows
-      .map((row) => ({ ...row, pe_ttm: finiteNonZero(row?.pe_ttm) }))
-      .filter((row) => row.pe_ttm !== null && /^\d{4}-\d{2}-\d{2}$/.test(String(row?.date || "")))
-      .sort((left, right) => String(left.date).localeCompare(String(right.date)))
-      .at(-1);
+    for (const { key, label } of [
+      { key: "pe_ttm", label: "TTM PE" },
+      { key: "pe_forward", label: "Forward PE" },
+    ]) {
+      const latestYahooMetric = yahooRows
+        .map((row) => ({ ...row, value: finiteNonZero(row?.[key]) }))
+        .filter((row) => row.value !== null && /^\d{4}-\d{2}-\d{2}$/.test(String(row?.date || "")))
+        .sort((left, right) => String(left.date).localeCompare(String(right.date)))
+        .at(-1);
 
-    if (
-      !latestYahooTtm ||
-      daysBetween(String(latestYahooTtm.date), latestDate) > recentYahooAnchorMaxAgeDays
-    ) {
-      continue;
-    }
+      if (
+        !latestYahooMetric ||
+        daysBetween(String(latestYahooMetric.date), latestDate) > recentYahooAnchorMaxAgeDays
+      ) {
+        continue;
+      }
 
-    recentYahooAnchorCount += 1;
-    const published = points.find((point) => point?.date === latestYahooTtm.date);
-    const publishedPe = finiteNonZero(published?.pe_ttm);
-    const factor = ratioDistance(publishedPe, latestYahooTtm.pe_ttm);
-    if (factor > 1 + yahooAnchorMaxRelativeError) {
-      errors.push(
-        `${symbol} Yahoo TTM PE mismatch on ${latestYahooTtm.date}: ` +
-          `published=${publishedPe ?? "missing"} yahoo=${latestYahooTtm.pe_ttm} factor=${
-            Number.isFinite(factor) ? factor.toFixed(4) : "infinite"
-          }`
-      );
+      if (key === "pe_ttm") recentYahooAnchorCount += 1;
+      else recentYahooForwardAnchorCount += 1;
+
+      const published = points.find((point) => point?.date === latestYahooMetric.date);
+      const publishedPe = finiteNonZero(published?.[key]);
+      const factor = ratioDistance(publishedPe, latestYahooMetric.value);
+      if (factor > 1 + yahooAnchorMaxRelativeError) {
+        errors.push(
+          `${symbol} Yahoo ${label} mismatch on ${latestYahooMetric.date}: ` +
+            `published=${publishedPe ?? "missing"} yahoo=${latestYahooMetric.value} factor=${
+              Number.isFinite(factor) ? factor.toFixed(4) : "infinite"
+            }`
+        );
+      }
     }
   }
 
@@ -164,6 +172,7 @@ export function validateCompanySeriesPayloads(
   return {
     companyCount: payloadBySymbol.size,
     recentYahooAnchorCount,
+    recentYahooForwardAnchorCount,
   };
 }
 
@@ -183,7 +192,8 @@ async function main() {
 
   console.log(
     `[company] validated ${summary.companyCount} series; ` +
-      `recent Yahoo TTM anchors=${summary.recentYahooAnchorCount}`
+      `recent Yahoo TTM anchors=${summary.recentYahooAnchorCount}; ` +
+      `recent Yahoo Forward PE anchors=${summary.recentYahooForwardAnchorCount}`
   );
 }
 

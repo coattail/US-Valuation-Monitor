@@ -44,6 +44,27 @@ test("company validation rejects stale published PE when Yahoo arrives late", ()
   );
 });
 
+test("company validation rejects a published Forward PE that differs from Yahoo", () => {
+  assert.throws(
+    () =>
+      validateCompanySeriesPayloads(
+        [
+          {
+            symbol: "META",
+            points: [
+              { date: "2026-07-16", pe_ttm: 24.17, pe_forward: 21.64 },
+              { date: "2026-07-17", pe_ttm: 23.49, pe_forward: 21.64 },
+            ],
+          },
+        ],
+        {
+          META: [{ date: "2026-07-17", pe_ttm: 23.49, pe_forward: 18.31 }],
+        }
+      ),
+    /META Yahoo Forward PE mismatch on 2026-07-17/
+  );
+});
+
 test("company validation applies the Yahoo rule to every symbol", () => {
   assert.throws(
     () =>

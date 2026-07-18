@@ -169,6 +169,7 @@ interface YahooDailyMetricSnapshot {
 interface YahooRatioPayloadResult {
   payload: RatioPayload | null;
   quoteLatestPayload: RatioPayload | null;
+  pageValuationPayload: RatioPayload | null;
   trailingPePayload: RatioPayload | null;
   forwardPePayload: RatioPayload | null;
   latestMetricDates: Partial<Record<RatioMetricKey, string>>;
@@ -249,6 +250,10 @@ const MIN_FORWARD_ANCHORS_FOR_HISTORY = 4;
 const FORWARD_PE_REBASE_TRIGGER_FACTOR = 1.15;
 const FORWARD_PE_REBASE_MAX_FACTOR = 4;
 const FORWARD_PE_REBASE_MIN_VALUE = 4;
+// The Current column in Yahoo's Valuation Measures table is the source of
+// truth for the latest company Forward P/E.  The fundamentals timeseries is
+// retained for historical anchors only and must not overwrite that value.
+const YAHOO_PAGE_FORWARD_PE_MAX_AGE_DAYS = 10;
 const RECENT_PE_PULSE_LOOKBACK_DAYS = 180;
 const RECENT_PE_PULSE_MAX_CALENDAR_DAYS = 14;
 const RECENT_PE_PULSE_MAX_POINT_SPAN = 8;
@@ -2157,8 +2162,6 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
     minValue: number,
     maxValue: number
   ): number | null => {
-    let resolved: number | null = null;
-
     for (const candidate of candidates) {
       for (const label of labels) {
         const escapedLabel = escapeForRegex(label);
@@ -2173,13 +2176,16 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
             const value = sanitizeSignedRatio(match[1]);
             if (value === null) continue;
             if (value < minValue || value > maxValue) continue;
-            resolved = value;
+            // Yahoo renders the Current value first, followed by quarterly or
+            // annual history.  Keeping the first match avoids silently using
+            // a historical-column value as the current Forward P/E.
+            return value;
           }
         }
       }
     }
 
-    return resolved;
+    return null;
   };
 
   const asOfDate =
@@ -2537,6 +2543,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
   let quoteSummaryPayload: RatioPayload | null = null;
   let quoteApiPayload: RatioPayload | null = null;
   let quotePagePayload: RatioPayload | null = null;
+  let pageValuationPayload: RatioPayload | null = null;
   let trailingPePayload: RatioPayload | null = null;
   let forwardPePayload: RatioPayload | null = null;
   let trailingPegPayload: RatioPayload | null = null;
@@ -2676,6 +2683,14 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
               };
             }
 
+            const valuationMeasuresPayload = parseYahooValuationMeasuresFromHtml(html);
+            if (!pageValuationPayload && valuationMeasuresPayload) {
+              pageValuationPayload = {
+                ...valuationMeasuresPayload,
+                source: `${valuationMeasuresPayload.source}:${host.replace(/^https?:\/\//i, "")}`,
+              };
+            }
+
             const payload = parseYahooKeyStatisticsRatioPayload(html);
             if (payload) {
               keyStatisticsPayload = {
@@ -2695,6 +2710,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
   quoteSummaryPayload = sanitizeYahooRatioPayloadMetrics(quoteSummaryPayload);
   quoteApiPayload = sanitizeYahooRatioPayloadMetrics(quoteApiPayload);
   quotePagePayload = sanitizeYahooRatioPayloadMetrics(quotePagePayload);
+  pageValuationPayload = sanitizeYahooRatioPayloadMetrics(pageValuationPayload);
   trailingPePayload = sanitizeYahooRatioPayloadMetrics(trailingPePayload);
   forwardPePayload = sanitizeYahooRatioPayloadMetrics(forwardPePayload);
   trailingPegPayload = sanitizeYahooRatioPayloadMetrics(trailingPegPayload);
@@ -2730,6 +2746,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
   return {
     payload,
     quoteLatestPayload,
+    pageValuationPayload,
     trailingPePayload,
     forwardPePayload,
     latestMetricDates: {
@@ -3057,6 +3074,44 @@ function selectLatestYahooRatioOverride(
     buildLatestRatioOverrideFromYahooDailySnapshot(snapshots, targetDate) ||
     buildLatestRatioOverrideFromYahooDailySnapshot(effectiveSnapshots, targetDate)
   );
+}
+
+function buildYahooPageForwardPeOverride(
+  pageValuationPayload: RatioPayload | null,
+  targetDate: string
+): RatioPayload | null {
+  if (!pageValuationPayload || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) return null;
+
+  const targetTs = toTs(targetDate);
+  const latestAnchor = [...(pageValuationPayload.anchors || [])]
+    .filter((anchor) => {
+      const anchorTs = toTs(anchor.date);
+      const ageDays = Number.isFinite(anchorTs) && Number.isFinite(targetTs)
+        ? (targetTs - anchorTs) / 86_400_000
+        : Number.POSITIVE_INFINITY;
+      return (
+        anchor.date <= targetDate &&
+        ageDays >= 0 &&
+        ageDays <= YAHOO_PAGE_FORWARD_PE_MAX_AGE_DAYS &&
+        sanitizeYahooMetricValue("pe_forward", anchor.pe_forward, pageValuationPayload.source) !== null
+      );
+    })
+    .sort((left, right) => left.date.localeCompare(right.date))
+    .at(-1);
+  if (!latestAnchor) return null;
+
+  const peForward = sanitizeYahooMetricValue(
+    "pe_forward",
+    latestAnchor.pe_forward,
+    pageValuationPayload.source
+  );
+  if (peForward === null) return null;
+
+  return {
+    anchors: [],
+    latest: { pe_ttm: null, pe_forward: peForward, pb: null, peg: null },
+    source: `${pageValuationPayload.source}+yahoo-page-forward-pe-current`,
+  };
 }
 
 function buildEffectiveYahooDailyMetricSnapshots(
@@ -7567,7 +7622,15 @@ async function main(): Promise<void> {
       shouldUseYahooLatestOverride && lastCloseDate
         ? selectLatestYahooRatioOverride(yahooDailySnapshots, effectiveYahooSnapshots, lastCloseDate)
         : null;
-    const preferredLatestRatioOverride = shouldUseYahooLatestOverride ? snapshotLatestRatioOverride : null;
+    const pageForwardPeOverride =
+      shouldUseYahooLatestOverride && lastCloseDate
+        ? buildYahooPageForwardPeOverride(yahooFetchResult?.pageValuationPayload || null, lastCloseDate)
+        : null;
+    const preferredLatestRatioOverride = shouldUseYahooLatestOverride
+      ? mergeRatioPayloadList(
+          [pageForwardPeOverride, snapshotLatestRatioOverride].filter(Boolean) as RatioPayload[]
+        )
+      : null;
     if (shouldUseYahooLatestOverride) {
       if (preferredLatestRatioOverride) {
         yahooLatestOverrideAppliedCount += 1;
@@ -7880,6 +7943,7 @@ export {
   parseVendorCompanyForwardPeCsv as parseVendorCompanyForwardPeCsvForTest,
   parseYahooValuationMeasuresFromHtml,
   parseYahooQuotePageRatioPayload as parseYahooQuotePageRatioPayloadForTest,
+  buildYahooPageForwardPeOverride as buildYahooPageForwardPeOverrideForTest,
   selectLatestYahooRatioOverride as selectLatestYahooRatioOverrideForTest,
 };
 

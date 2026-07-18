@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   createYahooDailyMetricSnapshots,
+  buildYahooPageForwardPeOverrideForTest,
   fillMissingCompanySeriesFromPreviousForTest,
   mergeCurrentYahooSnapshotsIntoHistoryForTest,
   mergeYahooLatestQuotePayloadsForTest,
@@ -234,6 +235,50 @@ test("Yahoo valuation measures are anchored to their As of date", () => {
       peg: 0.71,
     },
   ]);
+});
+
+test("Yahoo valuation parser keeps the Current column instead of a historical Forward P/E column", () => {
+  const payload = parseYahooValuationMeasuresFromHtml(`
+    <section data-testid="valuation-measures">
+      <div class="asofdate">As of 7/17/2026</div>
+      <table>
+        <thead><tr><th></th><th>Current</th><th>6/30/2026</th><th>3/31/2026</th></tr></thead>
+        <tbody><tr><td>Forward P/E</td><td>18.31</td><td>21.64</td><td>19.08</td></tr></tbody>
+      </table>
+    </section>
+  `);
+
+  assert.equal(payload?.anchors[0]?.pe_forward, 18.31);
+});
+
+test("Yahoo page Current Forward P/E overrides the timeseries latest value when the page is fresh", () => {
+  const override = buildYahooPageForwardPeOverrideForTest(
+    {
+      anchors: [
+        { date: "2026-07-16", pe_ttm: 24.17, pe_forward: 18.31, pb: 7.1, peg: 0.96 },
+      ],
+      latest: { pe_ttm: null, pe_forward: null, pb: null, peg: null },
+      source: "yahoo-key-statistics-valuation-measures",
+    },
+    "2026-07-17"
+  );
+
+  assert.deepEqual(override?.latest, { pe_ttm: null, pe_forward: 18.31, pb: null, peg: null });
+});
+
+test("stale Yahoo page Forward P/E cannot overwrite a newer fallback", () => {
+  const override = buildYahooPageForwardPeOverrideForTest(
+    {
+      anchors: [
+        { date: "2026-06-30", pe_ttm: 24.17, pe_forward: 18.31, pb: 7.1, peg: 0.96 },
+      ],
+      latest: { pe_ttm: null, pe_forward: null, pb: null, peg: null },
+      source: "yahoo-key-statistics-valuation-measures",
+    },
+    "2026-07-17"
+  );
+
+  assert.equal(override, null);
 });
 
 test("Yahoo valuation measures do not keep impossible future as-of dates", () => {

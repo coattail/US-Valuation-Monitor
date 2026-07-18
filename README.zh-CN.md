@@ -61,7 +61,7 @@ us-valuation-monitor/
 - 标普500前瞻市盈率（Forward PE）从 2020-01-17 起使用可核验的 FactSet/WSJ 公开锚点；锚点之间按交易日收盘路径延展。
 - 每个指数的前瞻估值起始可用日由 `forwardStartDate` 标记，API 会在查询时严格处理。
 - 指数最新快照值有“防跳变阈值”校验，避免单日源口径切换造成异常尖刺。
-- 企业 `PE(FWD)` 最新值优先使用 Yahoo 可信来源；若当日 Yahoo 快照来源不可信，则该日 `pe_forward` 记为 `null`（不做人为补值）。
+- 企业 `PE(FWD)` 最新值以 Yahoo Finance 公司 Quote 页的 **Valuation Measures → Current → Forward P/E** 为准；`forwardPeRatio` 时间序列仅用于历史锚点或页面值不可用时的回退，避免刷新节奏不同而覆盖页面 Current 值。若当日 Yahoo 快照来源不可信，则该日 `pe_forward` 记为 `null`（不做人为补值）。
 - 企业 `PE(FWD)` 支持从 point-in-time/公开历史锚点回补早期历史：仓库默认读取 `data/bootstrap/tsm-forward-pe-gurufocus.csv`，同时支持用 `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv` 增加或覆盖私有供应商文件。内置 TSM 数据包含 GuruFocus 公开季度表从 2015-12-31 开始的历史锚点；这些锚点只填补现有公司 forward PE 起点之前的区间，不把 TTM PE 冒充为 forward PE，也不覆盖 StockAnalysis/YCharts/Yahoo 已校准区间。
 - CSV 中保留的是公开来源的原始季度值；写入日线序列时会沿用现有 Yahoo cutover 重基准规则，因此展示值可能经过同口径缩放，但不会因此改成 TTM PE。
 - 每次日更还会把上一版已发布的公司 forward PE 历史作为低优先级回退；当公开源临时只返回近几周时，不会把历史起点回缩。最新交易日仍由 Yahoo/当前可用源覆盖。
@@ -306,7 +306,7 @@ curl -sS "http://127.0.0.1:9040/api/series?indexId=sp500&metric=pe_ttm"
 - 某段估值看起来异常平滑：
   - 检查该区间锚点覆盖和源数据可用性；当前管线会在有效锚点区间使用收盘路径进行重建
 - 企业卡片 `PE(TTM)` / `PE(FWD)` 与 Yahoo 页面不一致：
-  - 最新覆盖优先使用 Yahoo timeseries（`trailingPeRatio` / `forwardPeRatio`）+ quote API，尽量对齐 Yahoo Valuation Measures 口径
+  - `PE(FWD)` 以 Quote 页面 Key Statistics 中 Valuation Measures 的 **Current** 列为准；`forwardPeRatio` 仅作为历史锚点和页面抓取失败时的回退
   - 检查 `data/standardized/company-yahoo-daily-metrics.json` 是否持续有数据写入（可结合 `yahoo-market-latest-date-*` 与 `yahoo-latest-override-*` 源标签核对日期和覆盖率）
   - 当出现源口径切换（前一天 `pe_forward` 缺失、最新日恢复）时，管线会按“价格变化修正后的固定系数”重基准历史 `PE(FWD)`，用于和 Yahoo 最新值连续衔接
   - 默认对全部公司启用 Yahoo 最新值覆盖（`YAHOO_LATEST_OVERRIDE_SYMBOLS=*`）；如个别标的口径特殊，可用 `YAHOO_LATEST_OVERRIDE_EXCLUDE_SYMBOLS=SYM1,SYM2` 排除

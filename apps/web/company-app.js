@@ -35,7 +35,7 @@ const STORAGE_KEYS = {
 
 const METRIC_CONFIG = {
   pe_ttm: { label: "PE (TTM)", digits: 2 },
-  pe_forward: { label: "PE (Forward)", digits: 2 },
+  pe_forward: { label: "PE (Forward · Yahoo Current)", digits: 2 },
   pb: { label: "PB", digits: 2 },
 };
 const NEGATIVE_VALUATION_BASE = 1_000_000;
@@ -418,7 +418,7 @@ function buildMetricAvailabilityNote({ metric, range, rows }) {
   const requestedStart = subtractYears(end, years);
   if (start <= requestedStart) return "";
 
-  return `PE(Forward) 最早可用 ${start}；${String(range).toUpperCase()} 按实际可用区间展示。`;
+  return `PE(Forward · Yahoo Current) 最早可用 ${start}；${String(range).toUpperCase()} 按实际可用区间展示。`;
 }
 
 function percentileWindow(values, startIndex, endIndex, current) {
@@ -1147,7 +1147,7 @@ function renderSnapshotGrid(rows) {
         </div>
         <div class="line"><span>市值</span><strong>${fmtMarketCap(row.marketCap)}</strong></div>
         <div class="line"><span>PE(TTM)</span><strong>${fmt(row.pe_ttm, 2)}</strong></div>
-        <div class="line"><span>PE(FWD)</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
+        <div class="line"><span title="Yahoo Finance Current">PE(FWD · Yahoo)</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
         <div class="line"><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
         <div class="line"><span>PEG</span><strong>${fmt(row.peg, 2)}</strong></div>
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(row.pe_ttm_change_1y * 100, 1, true)}</strong></div>
