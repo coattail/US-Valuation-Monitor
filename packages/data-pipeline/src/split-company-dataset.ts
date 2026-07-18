@@ -2,6 +2,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 
+import { midrankPercentileRank } from "../../core/src/stats.ts";
+
 interface CompanyValuationPoint {
   date: string;
   pe_ttm?: number | null;
@@ -141,8 +143,10 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
 
   const percentileFromRows = (rows: Array<{ date: string; pe: number | null }>) => {
     if (!rows.length) return 0.5;
-    const count = rows.filter((row) => valuationRankValue(Number(row.pe)) <= latestPeRank).length;
-    return clamp(count / rows.length, 0, 1);
+    return midrankPercentileRank(
+      rows.map((row) => valuationRankValue(Number(row.pe))),
+      latestPeRank
+    );
   };
 
   const percentileFull = percentileFromRows(validRows);

@@ -11,6 +11,20 @@ export function percentileRank(values: number[], current: number): number {
   return clamp(belowOrEqual / values.length, 0, 1);
 }
 
+// Midrank empirical percentile. Giving tied observations half weight avoids
+// reporting a constant series as 100% and keeps an in-sample minimum/maximum
+// away from misleading absolute 0%/100% boundaries.
+export function midrankPercentileRank(values: number[], current: number): number {
+  if (!values.length) return 0.5;
+  let below = 0;
+  let equal = 0;
+  for (const value of values) {
+    if (value < current) below += 1;
+    else if (value === current) equal += 1;
+  }
+  return clamp((below + equal / 2) / values.length, 0, 1);
+}
+
 export function mean(values: number[]): number {
   if (!values.length) return 0;
   return values.reduce((acc, value) => acc + value, 0) / values.length;

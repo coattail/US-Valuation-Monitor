@@ -54,7 +54,14 @@ const {
   fetchCompanySeriesForTest,
   recomputeRangeRollingStatsForTest,
   formatAxisDateForWidthForTest,
+  formatPercentileForTest,
 } = await import("./company-app.js");
+
+test("company percentiles do not round non-boundary values to absolute 0% or 100%", () => {
+  assert.equal(formatPercentileForTest(0.9996022275, 1), "99.9%");
+  assert.equal(formatPercentileForTest(0.0003977725, 1), "0.1%");
+  assert.equal(formatPercentileForTest(0.5, 1), "50.0%");
+});
 
 test("company chart dates shorten progressively for phone and tablet widths", () => {
   const date = Date.UTC(2026, 6, 16);
@@ -112,7 +119,7 @@ test("negative PE ranks above every positive PE in percentile stats", () => {
     "pe_ttm"
   );
 
-  assert.equal(rows.at(-1).percentile_full, 1);
+  assert.equal(rows.at(-1).percentile_full, 5 / 6);
 });
 
 test("negative PE closer to zero ranks as more expensive", () => {
@@ -124,7 +131,7 @@ test("negative PE closer to zero ranks as more expensive", () => {
     "pe_ttm"
   );
 
-  assert.equal(rows.at(-1).percentile_full, 1);
+  assert.equal(rows.at(-1).percentile_full, 0.75);
 });
 
 test("buildMetricAvailabilityNoteForTest explains when selected range exceeds available history", () => {
@@ -185,7 +192,7 @@ test("zoomed detail percentile recomputes from the visible window", () => {
     "pe_ttm"
   );
 
-  assert.equal(baseRows.at(-1).percentile_full, 0.5);
+  assert.equal(baseRows.at(-1).percentile_full, 0.375);
 
   const visibleRows = recomputeRangeRollingStatsForTest(
     filterRowsByZoomRangeForTest(baseRows, { start: 50, end: 100 }),
@@ -193,8 +200,8 @@ test("zoomed detail percentile recomputes from the visible window", () => {
   );
 
   assert.deepEqual(visibleRows.map((row) => row.date), ["2026-01-03", "2026-01-04"]);
-  assert.equal(visibleRows.at(-1).percentile_full, 0.5);
-  assert.equal(visibleRows.at(-1).percentile_5y, 0.5);
+  assert.equal(visibleRows.at(-1).percentile_full, 0.25);
+  assert.equal(visibleRows.at(-1).percentile_5y, 0.25);
 });
 
 test("zoomed detail percentile series blanks rows outside the visible window", () => {
@@ -214,6 +221,6 @@ test("zoomed detail percentile series blanks rows outside the visible window", (
 
   assert.deepEqual(
     buildZoomedPercentileSeriesDataForTest(baseRows, visibleRows).map((point) => point[1]),
-    [null, null, 100, 50]
+    [null, null, 50, 25]
   );
 });

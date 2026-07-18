@@ -14,6 +14,7 @@ import {
   buildMetricSeries,
   buildSnapshot,
   detectCrossing,
+  midrankPercentileRank,
   resolveDateRange,
   resolveDirection,
   severityFromPercentile,
@@ -24,6 +25,7 @@ import type {
   AlertState,
   MetricId,
   RawValuationPoint,
+  SeriesMetricPoint,
   UserWatchlist,
   ValuationDataset,
 } from "../../packages/core/src/index.ts";
@@ -551,8 +553,10 @@ function computeLatestCompanyPeStats(points: CompanyValuationPoint[]) {
 
   const percentileFromRows = (rows: Array<{ date: string; value: number }>) => {
     if (!rows.length) return 0.5;
-    const count = rows.filter((row) => valuationRankValue(row.value) <= latestRankValue).length;
-    return Math.max(0, Math.min(1, count / rows.length));
+    return midrankPercentileRank(
+      rows.map((row) => valuationRankValue(row.value)),
+      latestRankValue
+    );
   };
 
   const percentileFull = percentileFromRows(validRows);
@@ -674,6 +678,56 @@ function buildCompanySnapshotPayloadCached(dataset: CompanyValuationDataset) {
   return payload;
 }
 
+function buildCompanyMetricSeries(
+  points: CompanyValuationPoint[],
+  metric: CompanyMetricId,
+  fromDate?: string,
+  toDate?: string
+): SeriesMetricPoint[] {
+  const rankValues: number[] = [];
+  const dates: string[] = [];
+  const rows: SeriesMetricPoint[] = [];
+  let start5 = 0;
+  let start10 = 0;
+
+  for (const point of points) {
+    if ((fromDate && point.date < fromDate) || (toDate && point.date > toDate)) {
+      continue;
+    }
+
+    const value = Number(point[metric]);
+    if (!Number.isFinite(value)) continue;
+    if ((metric === "pe_ttm" || metric === "pe_forward") && Math.abs(value) < 1e-8) {
+      continue;
+    }
+
+    const rankValue = valuationRankValue(value);
+    rankValues.push(rankValue);
+    dates.push(point.date);
+    const valueIndex = rankValues.length - 1;
+    const cutoff5 = subtractYears(point.date, 5);
+    const cutoff10 = subtractYears(point.date, 10);
+
+    while (start5 < valueIndex && dates[start5] < cutoff5) start5 += 1;
+    while (start10 < valueIndex && dates[start10] < cutoff10) start10 += 1;
+
+    const percentile5 = midrankPercentileRank(rankValues.slice(start5), rankValue);
+    const percentile10 = midrankPercentileRank(rankValues.slice(start10), rankValue);
+    const percentileFull = midrankPercentileRank(rankValues, rankValue);
+
+    rows.push({
+      date: point.date,
+      value,
+      percentile_5y: percentile5,
+      percentile_10y: percentile10,
+      percentile_full: percentileFull,
+      regime: regimeFromPercentile(percentileFull),
+    });
+  }
+
+  return rows;
+}
+
 export function buildCompanySeriesPayload(
   dataset: CompanyValuationDataset,
   indexId: string,
@@ -700,7 +754,7 @@ export function buildCompanySeriesPayload(
         : fromDate || forwardStartDate
       : fromDate;
 
-  const rows = buildMetricSeries(index.points, metric, effectiveFrom, toDate);
+  const rows = buildCompanyMetricSeries(index.points, metric, effectiveFrom, toDate);
   const range = resolveRowsDateRange(rows);
   return {
     generatedAt: dataset.generatedAt,

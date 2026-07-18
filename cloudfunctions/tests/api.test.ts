@@ -97,6 +97,32 @@ test("company series payload supports default full history", async () => {
   assert.equal(payload.rows[payload.rows.length - 1].date, payload.availableRange.endDate);
 });
 
+test("company series payload uses midrank percentiles", () => {
+  const dataset = {
+    generatedAt: "2026-03-27T00:00:00.000Z",
+    source: "test",
+    indices: [
+      {
+        id: "company_test",
+        symbol: "TEST",
+        displayName: "Test Inc",
+        description: "Test Inc (TEST)",
+        points: [
+          { date: "2026-03-24", pe_ttm: 10, pe_forward: 9, pb: 2 },
+          { date: "2026-03-25", pe_ttm: 20, pe_forward: 18, pb: 3 },
+          { date: "2026-03-26", pe_ttm: 30, pe_forward: 27, pb: 4 },
+        ],
+      },
+    ],
+  };
+
+  const payload = buildCompanySeriesPayload(dataset, "company_test", "pe_ttm");
+  assert.equal(payload.rows[0]?.percentile_full, 0.5);
+  assert.equal(payload.rows[2]?.percentile_5y, 5 / 6);
+  assert.equal(payload.rows[2]?.percentile_10y, 5 / 6);
+  assert.equal(payload.rows[2]?.percentile_full, 5 / 6);
+});
+
 test("company snapshot payload prefers latest point peg over stale top-level peg", () => {
   const dataset = {
     generatedAt: "2026-03-27T00:00:00.000Z",
@@ -120,6 +146,32 @@ test("company snapshot payload prefers latest point peg over stale top-level peg
 
   const payload = buildCompanySnapshotPayload(dataset);
   assert.equal(payload.rows[0]?.peg, 1.8);
+});
+
+test("company snapshot uses midrank percentiles instead of absolute in-sample boundaries", () => {
+  const dataset = {
+    generatedAt: "2026-03-27T00:00:00.000Z",
+    source: "test",
+    indices: [
+      {
+        id: "company_test",
+        symbol: "TEST",
+        displayName: "Test Inc",
+        description: "Test Inc (TEST)",
+        rank: 1,
+        marketCap: 100,
+        points: [
+          { date: "2026-03-24", pe_ttm: 10, pe_forward: 9, pb: 2 },
+          { date: "2026-03-25", pe_ttm: 20, pe_forward: 18, pb: 3 },
+          { date: "2026-03-26", pe_ttm: 30, pe_forward: 27, pb: 4 },
+        ],
+      },
+    ],
+  };
+
+  const payload = buildCompanySnapshotPayload(dataset);
+  assert.equal(payload.rows[0]?.percentile_10y, 5 / 6);
+  assert.equal(payload.rows[0]?.percentile_full, 5 / 6);
 });
 
 test("watchlist normalization applies defaults and clamps invalid input", () => {

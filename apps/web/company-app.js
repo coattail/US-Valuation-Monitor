@@ -261,7 +261,15 @@ function fmtSigned(value, digits = 2, asPct = false) {
 }
 
 function fmtPct(value, digits = 1) {
-  return `${fmt(Number(value) * 100, digits)}%`;
+  if (!Number.isFinite(Number(value))) return "--";
+  const precision = Math.max(0, Number(digits) || 0);
+  const displayStep = 1 / 10 ** precision;
+  let percentage = clamp(Number(value) * 100, 0, 100);
+  // A rounded boundary reads as an absolute claim. Preserve the distinction
+  // between an extreme percentile and a literal 0%/100% result.
+  if (percentage > 0 && percentage < displayStep) percentage = displayStep;
+  if (percentage < 100 && percentage > 100 - displayStep) percentage = 100 - displayStep;
+  return `${percentage.toFixed(precision)}%`;
 }
 
 function fmtMarketCap(value) {
@@ -417,12 +425,14 @@ function percentileWindow(values, startIndex, endIndex, current) {
   const start = Math.max(0, startIndex);
   const end = Math.min(values.length - 1, endIndex);
   if (end < start) return 0.5;
-  let count = 0;
+  let below = 0;
+  let equal = 0;
   const length = end - start + 1;
   for (let i = start; i <= end; i += 1) {
-    if (values[i] <= current) count += 1;
+    if (values[i] < current) below += 1;
+    else if (values[i] === current) equal += 1;
   }
-  return clamp(count / length, 0, 1);
+  return clamp((below + equal / 2) / length, 0, 1);
 }
 
 function metricUsesNegativeAwareRanking(metric) {
@@ -555,8 +565,14 @@ function computeLatestPeStats(points) {
 
   const percentileFromRows = (rows) => {
     if (!rows.length) return 0.5;
-    const count = rows.filter((row) => metricRankValue("pe_ttm", Number(row.pe)) <= latestPeRank).length;
-    return clamp(count / rows.length, 0, 1);
+    let below = 0;
+    let equal = 0;
+    for (const row of rows) {
+      const rankValue = metricRankValue("pe_ttm", Number(row.pe));
+      if (rankValue < latestPeRank) below += 1;
+      else if (rankValue === latestPeRank) equal += 1;
+    }
+    return clamp((below + equal / 2) / rows.length, 0, 1);
   };
 
   const pctFull = percentileFromRows(rowsFull);
@@ -2963,6 +2979,7 @@ export {
   fetchCompanySeries as fetchCompanySeriesForTest,
   filterRowsByZoomRange as filterRowsByZoomRangeForTest,
   formatAxisDateForWidth as formatAxisDateForWidthForTest,
+  fmtPct as formatPercentileForTest,
   metricValueFromRaw as metricValueFromRawForTest,
   recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
 };
