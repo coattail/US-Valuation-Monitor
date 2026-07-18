@@ -65,6 +65,7 @@ us-valuation-monitor/
 - 企业 `PE(FWD)` 支持从 point-in-time/公开历史锚点回补早期历史：仓库默认读取 `data/bootstrap/tsm-forward-pe-gurufocus.csv`，同时支持用 `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv` 增加或覆盖私有供应商文件。内置 TSM 数据包含 GuruFocus 公开季度表从 2015-12-31 开始的历史锚点；这些锚点只填补现有公司 forward PE 起点之前的区间，不把 TTM PE 冒充为 forward PE，也不覆盖 StockAnalysis/YCharts/Yahoo 已校准区间。
 - CSV 中保留的是公开来源的原始季度值；写入日线序列时会沿用现有 Yahoo cutover 重基准规则，因此展示值可能经过同口径缩放，但不会因此改成 TTM PE。
 - 每次日更还会把上一版已发布的公司 forward PE 历史作为低优先级回退；当公开源临时只返回近几周时，不会把历史起点回缩。最新交易日仍由 Yahoo/当前可用源覆盖。
+- 若存在已验证的公开/授权 forward PE 锚点，锚点覆盖区间会重新按来源锚点计算，不再把上一版日线值带回该区间，避免历史口径错误被日更永久保留。
 - 当企业 `PE(FWD)` 出现“前一交易日不可用、最新交易日恢复可用”的口径切换时，会按**固定系数重基准**衔接历史：
   - 系数 = `Yahoo最新FWD / (上一有效FWD × 最新收盘价/上一有效收盘价)`
   - 用于把历史 `forward PE` 与 Yahoo 最新值在同一口径下衔接，避免源切换导致的突变断层。

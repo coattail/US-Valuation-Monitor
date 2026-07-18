@@ -7477,7 +7477,13 @@ async function main(): Promise<void> {
       buildVendorCompanyForwardPeSeries(vendorForwardPeHistoryBySymbol.get(company.symbol) || [], closePoints),
       existingForwardStartDate
     );
-    const previousForwardSeries = buildPreviousCompanyForwardPeSeries(previousSeries?.points || []);
+    // A verified vendor/public anchor series must be allowed to rebuild its covered
+    // interval from source anchors. Reusing the already-published daily values in
+    // that interval can preserve a prior source-basis error forever (TSM had a
+    // historical forward PE pulse that was then fed back into every refresh).
+    const previousForwardSeries = vendorForwardSeries.length
+      ? []
+      : buildPreviousCompanyForwardPeSeries(previousSeries?.points || []);
     const vendorAndPreviousForwardSeries = mergeMetricSeriesWithPreference(
       vendorForwardSeries,
       previousForwardSeries

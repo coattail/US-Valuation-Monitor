@@ -124,12 +124,33 @@ export function validateCompanySeriesPayloads(
     if (!forwardRows.length) {
       errors.push("TSM forward PE validation failed: no finite historical observations");
     } else {
+      forwardRows.sort((left, right) => left.date.localeCompare(right.date));
       const earliest = forwardRows[0]?.date || "";
       if (earliest > "2016-01-15" || forwardRows.length < 500) {
         errors.push(
           `TSM forward PE validation failed: earliest=${earliest || "missing"} ` +
             `observations=${forwardRows.length}`
         );
+      }
+
+      const extreme = forwardRows.find((point) => Math.abs(point.value) > 100);
+      if (extreme) {
+        errors.push(
+          `TSM forward PE validation failed: extreme value ${extreme.value} on ${extreme.date}`
+        );
+      }
+
+      for (let index = 1; index < forwardRows.length; index += 1) {
+        const previous = forwardRows[index - 1];
+        const current = forwardRows[index];
+        const factor = ratioDistance(previous.value, current.value);
+        if (daysBetween(previous.date, current.date) <= 7 && factor > 2.5) {
+          errors.push(
+            `TSM forward PE validation failed: ${factor.toFixed(4)} jump ` +
+              `from ${previous.date} to ${current.date}`
+          );
+          break;
+        }
       }
     }
   }

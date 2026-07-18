@@ -87,3 +87,28 @@ test("company validation protects the long TSM forward PE history", () => {
 
   assert.equal(summary.companyCount, 1);
 });
+
+test("company validation rejects an extreme short-window TSM forward PE jump", () => {
+  assert.throws(
+    () =>
+      validateCompanySeriesPayloads(
+        [
+          {
+            symbol: "TSM",
+            points: [
+              { date: "2015-12-31", pe_forward: 20, pe_ttm: 20 },
+              ...Array.from({ length: 500 }, (_, index) => ({
+                date: "2016-01-01",
+                pe_forward: index === 0 ? 200 : 20 + index / 100,
+                pe_ttm: 20,
+              })),
+              { date: "2026-07-17", pe_forward: 27.03, pe_ttm: 30 },
+            ],
+          },
+        ],
+        {},
+        { requireTsmForwardHistory: true }
+      ),
+    /TSM forward PE validation failed:/
+  );
+});
