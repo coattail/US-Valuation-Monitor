@@ -1712,6 +1712,49 @@ async function fetchCloseHistoryFromNasdaq(symbol: string): Promise<ClosePoint[]
   return [];
 }
 
+function selectCompanyCloseHistory(
+  fromStooq: ClosePoint[],
+  fromYahoo: ClosePoint[],
+  fromNasdaq: ClosePoint[],
+  fromCompaniesMarketCap: ClosePoint[]
+): ClosePoint[] {
+  const hasYahoo = fromYahoo.length >= 200;
+  const hasStooq = fromStooq.length >= 200;
+  const hasNasdaq = fromNasdaq.length >= 200;
+  const hasCompaniesMarketCap = fromCompaniesMarketCap.length >= 24;
+
+  // Yahoo is the authoritative daily close inside its coverage. Stooq/Nasdaq
+  // may extend the prefix or a temporarily unavailable latest day, but must not
+  // overwrite overlapping Yahoo dates. Mixing those paths around earnings dates
+  // can pair a fresh PE anchor with the wrong price return.
+  let selected: ClosePoint[] = [];
+  if (hasYahoo) {
+    const fallback = hasStooq ? fromStooq : hasNasdaq ? fromNasdaq : fromCompaniesMarketCap;
+    selected = fallback.length ? mergeCloseSeries(fallback, fromYahoo) : fromYahoo;
+  } else if (hasStooq) {
+    selected = fromStooq;
+  } else if (hasNasdaq) {
+    selected = fromNasdaq;
+  } else if (hasCompaniesMarketCap) {
+    selected = fromCompaniesMarketCap;
+  }
+
+  if (selected.length && hasCompaniesMarketCap && selected !== fromCompaniesMarketCap) {
+    selected = mergeCloseSeries(fromCompaniesMarketCap, selected);
+  }
+
+  return selected.sort((a, b) => a.ts - b.ts);
+}
+
+export function selectCompanyCloseHistoryForTest(
+  fromStooq: ClosePoint[],
+  fromYahoo: ClosePoint[],
+  fromNasdaq: ClosePoint[],
+  fromCompaniesMarketCap: ClosePoint[]
+): ClosePoint[] {
+  return selectCompanyCloseHistory(fromStooq, fromYahoo, fromNasdaq, fromCompaniesMarketCap);
+}
+
 async function fetchCloseHistory(symbol: string, slug: string): Promise<ClosePoint[]> {
   const candidates = getStooqSymbolCandidates(symbol);
   let fromStooq: ClosePoint[] = [];
@@ -1735,23 +1778,12 @@ async function fetchCloseHistory(symbol: string, slug: string): Promise<ClosePoi
   const fromNasdaq = await fetchCloseHistoryFromNasdaq(symbol);
   const fromCompaniesMarketCap = await fetchCloseHistoryFromCompaniesMarketCap(slug);
 
-  let selected: ClosePoint[] = [];
-
-  if (fromStooq.length >= 200 && fromCompaniesMarketCap.length >= 24) {
-    selected = mergeCloseSeries(fromCompaniesMarketCap, fromStooq);
-  } else if (fromStooq.length >= 200) {
-    selected = fromStooq;
-  } else if (fromYahoo.length >= 200 && fromCompaniesMarketCap.length >= 24) {
-    selected = mergeCloseSeries(fromCompaniesMarketCap, fromYahoo);
-  } else if (fromNasdaq.length >= 200 && fromCompaniesMarketCap.length >= 24) {
-    selected = mergeCloseSeries(fromCompaniesMarketCap, fromNasdaq);
-  } else if (fromYahoo.length >= 200) {
-    selected = fromYahoo;
-  } else if (fromNasdaq.length >= 200) {
-    selected = fromNasdaq;
-  } else if (fromCompaniesMarketCap.length >= 24) {
-    selected = fromCompaniesMarketCap;
-  }
+  const selected = selectCompanyCloseHistory(
+    fromStooq,
+    fromYahoo,
+    fromNasdaq,
+    fromCompaniesMarketCap
+  );
 
   if (!selected.length) {
     return [];
@@ -3686,6 +3718,66 @@ function carryForwardLatestYahooPeTtmByClose(
   });
 
   return changed ? nextPoints : valuationPoints;
+}
+
+function assertRecentYahooPeTtmCarryConsistency(
+  valuationPoints: SnapshotPoint[],
+  snapshots: YahooDailyMetricSnapshot[],
+  maxCarryCalendarDays = 7
+): void {
+  if (!Array.isArray(valuationPoints) || !valuationPoints.length || !Array.isArray(snapshots)) return;
+
+  const yahooTtmByDate = new Map<string, number>();
+  for (const item of snapshots) {
+    const normalized = normalizeYahooDailyMetricSnapshot(item);
+    const peTtm = sanitizeSignedRatio(normalized?.pe_ttm);
+    if (!normalized || peTtm === null) continue;
+    yahooTtmByDate.set(normalized.date, peTtm);
+  }
+  if (!yahooTtmByDate.size) return;
+
+  let anchorDate = "";
+  let anchorTs = 0;
+  let anchorPe: number | null = null;
+  let anchorClose: number | null = null;
+
+  for (const point of valuationPoints) {
+    const pointTs = toTs(point.date);
+    const pointClose = sanitizeSignedRatio(point.close);
+    const explicitPe = yahooTtmByDate.get(point.date);
+
+    if (explicitPe !== undefined) {
+      anchorDate = point.date;
+      anchorTs = pointTs;
+      anchorPe = explicitPe;
+      anchorClose = pointClose;
+    }
+
+    if (!anchorTs || anchorPe === null || anchorClose === null || !pointClose || pointClose <= 0) continue;
+    const ageDays = (pointTs - anchorTs) / 86_400_000;
+    if (!Number.isFinite(ageDays) || ageDays < 0 || ageDays > maxCarryCalendarDays) continue;
+
+    const expectedPe = anchorPe * (pointClose / anchorClose);
+    const actualPe = sanitizeSignedRatio(point.pe_ttm);
+    if (actualPe === null || !Number.isFinite(expectedPe) || Math.abs(expectedPe) <= 1e-8) {
+      throw new Error(`Yahoo TTM PE carry invariant failed at ${point.date} after ${anchorDate}`);
+    }
+    const relativeError = Math.abs(actualPe / expectedPe - 1);
+    if (relativeError > 0.00001) {
+      throw new Error(
+        `Yahoo TTM PE carry invariant failed at ${point.date} after ${anchorDate}: ` +
+        `actual=${actualPe} expected=${roundTo(expectedPe, 6)}`
+      );
+    }
+  }
+}
+
+export function assertRecentYahooPeTtmCarryConsistencyForTest(
+  valuationPoints: SnapshotPoint[],
+  snapshots: YahooDailyMetricSnapshot[],
+  maxCarryCalendarDays = 7
+): void {
+  assertRecentYahooPeTtmCarryConsistency(valuationPoints, snapshots, maxCarryCalendarDays);
 }
 
 function preserveRecordedYahooDailyPoints(
@@ -7255,11 +7347,10 @@ async function main(): Promise<void> {
 
     const ychartsClosePoints = metricPointsToCloseSeries(ychartsSeries?.price || []);
     let closePoints = closePointsRaw;
-    if (ychartsClosePoints.length >= 200) {
-      closePoints =
-        closePointsRaw.length >= 200
-          ? mergeCloseSeries(closePointsRaw, ychartsClosePoints)
-          : ychartsClosePoints;
+    if (closePointsRaw.length < 200 && ychartsClosePoints.length >= 200) {
+      // YCharts remains a last-resort price fallback. It must not replace the
+      // authoritative Yahoo daily path used to carry point-in-time PE anchors.
+      closePoints = ychartsClosePoints;
       closePoints = densifyCloseSeriesWithRecentDailyVol(closePoints);
     }
     closePoints = capCloseSeriesByDate(closePoints, companySeriesCapDate);
@@ -7471,7 +7562,17 @@ async function main(): Promise<void> {
       pointsWithYahooDailyMetricsBeforePulseRepair,
       protectedYahooPeTtmDates
     );
-    const pointsWithYahooDailyMetrics = pulseRepair.points;
+    // This final pass is intentionally after every interpolation/repair step.
+    // A delayed Yahoo PE observation must rebase the following short window,
+    // and no later fallback is allowed to restore an older EPS denominator.
+    const pointsWithYahooDailyMetrics = carryForwardLatestYahooPeTtmByClose(
+      pulseRepair.points,
+      yahooDailySnapshots
+    );
+    assertRecentYahooPeTtmCarryConsistency(
+      pointsWithYahooDailyMetrics,
+      yahooDailySnapshots
+    );
     if (pulseRepair.repairedCount) {
       console.log(
         `[company] repaired transient PE(TTM) pulse ${company.symbol}: points=${pulseRepair.repairedCount}`

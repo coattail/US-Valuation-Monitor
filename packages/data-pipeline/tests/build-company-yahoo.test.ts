@@ -16,6 +16,8 @@ import {
   repairRecentTransientPeTtmPulsesForTest,
   carryForwardLatestYahooPeTtmByCloseForTest,
   carryForwardMissingPeTtmByPreviousCloseForTest,
+  assertRecentYahooPeTtmCarryConsistencyForTest,
+  selectCompanyCloseHistoryForTest,
   selectLatestYahooRatioOverrideForTest,
   stripGrowthOnlyFieldsFromSnapshotPointsForTest,
 } from "../src/build-company-snapshot.ts";
@@ -38,6 +40,21 @@ test("dense close overlay removes fallback holiday points and rebases its prefix
   assert.deepEqual(merged.map((point) => point.date), ["2001-09-07", "2001-09-10", "2001-09-17", "2001-09-18"]);
   assert.ok(Math.abs(merged[0].close - 38.4) < 1e-9);
   assert.equal(merged[1].close, 40);
+});
+
+test("Yahoo close history wins on overlapping dates while fallback may extend the tail", () => {
+  const start = Date.UTC(2025, 11, 1);
+  const makePoint = (index, close) => {
+    const date = new Date(start + index * 86_400_000).toISOString().slice(0, 10);
+    return { date, close, ts: Date.parse(`${date}T00:00:00Z`) };
+  };
+  const stooq = Array.from({ length: 201 }, (_, index) => makePoint(index, 100 + index));
+  const yahoo = Array.from({ length: 200 }, (_, index) => makePoint(index, 200 + index));
+
+  const selected = selectCompanyCloseHistoryForTest(stooq, yahoo, [], []);
+
+  assert.equal(selected.find((point) => point.date === yahoo[199].date)?.close, yahoo[199].close);
+  assert.ok(selected.some((point) => point.date === stooq[200].date));
 });
 
 test("a failed new entrant keeps the previous company set at the target size", () => {
@@ -525,6 +542,42 @@ test("latest Yahoo TTM PE is carried by close when the next Yahoo snapshot lacks
 
   assert.equal(carried[1].pe_ttm, 26.491991);
   assert.equal(carried[2].pe_ttm, 26.754288);
+});
+
+test("TSM earnings-day Yahoo anchor forces the next close onto the same TTM EPS basis", () => {
+  const points = [
+    { date: "2026-07-16", close: 409.74, pe_ttm: 30.657888, pe_forward: 27.03, pb: 11.84, peg: 1.28, us10y_yield: 0 },
+    { date: "2026-07-17", close: 398.37, pe_ttm: 31.982134, pe_forward: 27.03, pb: 11.81, peg: 1.28, us10y_yield: 0 },
+  ];
+  const snapshots = [
+    {
+      date: "2026-07-16",
+      pe_ttm: 30.657888,
+      pe_forward: 27.03,
+      pb: 11.84,
+      peg: 1.2817,
+      source: "yahoo-trailing-pe-timeseries",
+      capturedAt: "2026-07-17T22:15:07.406Z",
+    },
+    {
+      date: "2026-07-17",
+      pe_ttm: null,
+      pe_forward: 27.03,
+      pb: 11.81,
+      peg: null,
+      source: "yahoo-quote-page-latest",
+      capturedAt: "2026-07-17T22:15:07.406Z",
+    },
+  ];
+
+  assert.throws(
+    () => assertRecentYahooPeTtmCarryConsistencyForTest(points, snapshots),
+    /carry invariant failed/
+  );
+
+  const carried = carryForwardLatestYahooPeTtmByCloseForTest(points, snapshots);
+  assert.equal(carried[1].pe_ttm, 29.807153);
+  assert.doesNotThrow(() => assertRecentYahooPeTtmCarryConsistencyForTest(carried, snapshots));
 });
 
 test("a delayed Yahoo TTM PE observation replaces the stale published value and carries forward", () => {
