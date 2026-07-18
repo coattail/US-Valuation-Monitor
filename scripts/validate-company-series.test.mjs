@@ -64,3 +64,26 @@ test("company validation applies the Yahoo rule to every symbol", () => {
     /ABC Yahoo TTM PE mismatch/
   );
 });
+
+test("company validation protects the long TSM forward PE history", () => {
+  const summary = validateCompanySeriesPayloads(
+    [
+      {
+        symbol: "TSM",
+        points: [
+          { date: "2015-12-31", pe_forward: 13.97, pe_ttm: 20 },
+          ...Array.from({ length: 500 }, (_, index) => ({
+            date: `2016-01-${String((index % 28) + 1).padStart(2, "0")}`,
+            pe_forward: 14 + index / 100,
+            pe_ttm: 20,
+          })),
+          { date: "2026-07-17", pe_forward: 27.03, pe_ttm: 30 },
+        ],
+      },
+    ],
+    {},
+    { requireTsmForwardHistory: true }
+  );
+
+  assert.equal(summary.companyCount, 1);
+});

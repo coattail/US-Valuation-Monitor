@@ -63,7 +63,9 @@ This project follows a **multi-source merge with reliability guardrails** strate
 - Latest index snapshots include an anti-spike deviation guard to reduce one-day source-regime jumps.
 - Company `PE(TTM)` is refreshed for every company after each trading-day close from Yahoo Finance quote data (for example, `https://finance.yahoo.com/quote/NVDA/`, backed by Yahoo quote API fields such as `trailingPE`).
 - Company `PE(FWD)` latest values prefer Yahoo trusted sources; when a daily Yahoo snapshot is untrusted for `pe_forward`, that day is stored as `null` (no manual fill).
-- Company `PE(FWD)` can be backfilled from licensed point-in-time vendor data. The default import path is `data/vendor/company-forward-pe-history.csv`; override it with `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv`. The import only supplies anchors before the existing company forward PE source start date, so it does not overwrite the StockAnalysis/YCharts/Yahoo-calibrated range.
+- Company `PE(FWD)` can be backfilled from point-in-time or public historical anchors. The repository loads `data/bootstrap/tsm-forward-pe-gurufocus.csv` by default and also accepts `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv` for private vendor data. The included TSM anchors come from the public GuruFocus quarterly table starting on 2015-12-31. They only fill the range before the existing company forward PE source start date; they never substitute TTM PE for forward PE or overwrite the StockAnalysis/YCharts/Yahoo-calibrated range.
+- The CSV keeps the public source's raw quarterly values; the published daily series still applies the existing Yahoo cutover rebasing rule, so displayed values may be scaled to the common basis without becoming TTM PE.
+- Each daily refresh also keeps the previously published company forward PE history as a lower-priority fallback. If a public source temporarily returns only a short recent window, the historical start date does not move forward; current Yahoo/available-source observations still win on matching dates.
 - For source-regime transitions (previous trading day unavailable, latest day available), historical `forward PE` is rebased using a fixed factor that includes the latest-day price move:
   - factor = `latestYahooForward / (previousForward × latestClose/previousClose)`
   - this keeps historical forward PE and latest Yahoo forward PE connected under the same basis.
@@ -241,7 +243,7 @@ To trigger manually:
 - Runtime alerts: `data/runtime/alerts.json`
 - Alert states: `data/runtime/alert-state.json`
 - Index historical Forward PE import: `data/vendor/index-forward-pe-history.csv`; sample file: `data/vendor/index-forward-pe-history.example.csv`. Use this for public references or audited index-level PIT/historical consensus sources such as FactSet index aggregates, LSEG I/B/E/S, Bloomberg BEst, or S&P Capital IQ.
-- Licensed company historical Forward PE import: `data/vendor/company-forward-pe-history.csv` (not committed); sample file: `data/vendor/company-forward-pe-history.example.csv`
+- Licensed company historical Forward PE import: `data/vendor/company-forward-pe-history.csv` (private and not committed); public bootstrap data: `data/bootstrap/tsm-forward-pe-gurufocus.csv`
 
 The index historical Forward PE CSV accepts:
 

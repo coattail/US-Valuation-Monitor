@@ -62,7 +62,9 @@ us-valuation-monitor/
 - 每个指数的前瞻估值起始可用日由 `forwardStartDate` 标记，API 会在查询时严格处理。
 - 指数最新快照值有“防跳变阈值”校验，避免单日源口径切换造成异常尖刺。
 - 企业 `PE(FWD)` 最新值优先使用 Yahoo 可信来源；若当日 Yahoo 快照来源不可信，则该日 `pe_forward` 记为 `null`（不做人为补值）。
-- 企业 `PE(FWD)` 支持从授权的 point-in-time 机构数据回补早期历史：默认读取 `data/vendor/company-forward-pe-history.csv`，也可用 `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv` 指定文件。该文件只用于填补现有公司 forward PE 起点之前的历史锚点，不覆盖 StockAnalysis/YCharts/Yahoo 已校准区间。
+- 企业 `PE(FWD)` 支持从 point-in-time/公开历史锚点回补早期历史：仓库默认读取 `data/bootstrap/tsm-forward-pe-gurufocus.csv`，同时支持用 `COMPANY_FORWARD_PE_HISTORY_FILE=/path/to/file.csv` 增加或覆盖私有供应商文件。内置 TSM 数据包含 GuruFocus 公开季度表从 2015-12-31 开始的历史锚点；这些锚点只填补现有公司 forward PE 起点之前的区间，不把 TTM PE 冒充为 forward PE，也不覆盖 StockAnalysis/YCharts/Yahoo 已校准区间。
+- CSV 中保留的是公开来源的原始季度值；写入日线序列时会沿用现有 Yahoo cutover 重基准规则，因此展示值可能经过同口径缩放，但不会因此改成 TTM PE。
+- 每次日更还会把上一版已发布的公司 forward PE 历史作为低优先级回退；当公开源临时只返回近几周时，不会把历史起点回缩。最新交易日仍由 Yahoo/当前可用源覆盖。
 - 当企业 `PE(FWD)` 出现“前一交易日不可用、最新交易日恢复可用”的口径切换时，会按**固定系数重基准**衔接历史：
   - 系数 = `Yahoo最新FWD / (上一有效FWD × 最新收盘价/上一有效收盘价)`
   - 用于把历史 `forward PE` 与 Yahoo 最新值在同一口径下衔接，避免源切换导致的突变断层。
@@ -241,7 +243,7 @@ npx wrangler pages deploy .pages --project-name us-valuation-monitor --branch ma
 - 提醒存储：`data/runtime/alerts.json`
 - 提醒状态：`data/runtime/alert-state.json`
 - 指数历史 Forward PE 导入：`data/vendor/index-forward-pe-history.csv`；示例文件为 `data/vendor/index-forward-pe-history.example.csv`。可用于公开参考点，或 FactSet 指数聚合、LSEG I/B/E/S、Bloomberg BEst、S&P Capital IQ 等可审计的指数级 PIT/历史一致预期数据。
-- 企业历史 Forward PE 授权数据导入：`data/vendor/company-forward-pe-history.csv`（不提交仓库）；示例文件为 `data/vendor/company-forward-pe-history.example.csv`
+- 企业历史 Forward PE 授权数据导入：`data/vendor/company-forward-pe-history.csv`（私有供应商文件，默认不提交仓库）；公开引导数据为 `data/bootstrap/tsm-forward-pe-gurufocus.csv`。
 
 指数历史 Forward PE CSV 支持列名：
 

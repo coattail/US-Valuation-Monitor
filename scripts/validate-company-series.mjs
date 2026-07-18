@@ -35,6 +35,7 @@ export function validateCompanySeriesPayloads(
   yahooMetricsBySymbol,
   {
     requireNvdaHistory = false,
+    requireTsmForwardHistory = false,
     recentYahooAnchorMaxAgeDays = RECENT_YAHOO_ANCHOR_MAX_AGE_DAYS,
     yahooAnchorMaxRelativeError = YAHOO_ANCHOR_MAX_RELATIVE_ERROR,
   } = {}
@@ -114,6 +115,25 @@ export function validateCompanySeriesPayloads(
     }
   }
 
+  if (requireTsmForwardHistory) {
+    const tsm = payloadBySymbol.get("TSM");
+    const forwardRows = (Array.isArray(tsm?.points) ? tsm.points : [])
+      .map((point) => ({ date: String(point?.date || ""), value: finiteNonZero(point?.pe_forward) }))
+      .filter((point) => /^\d{4}-\d{2}-\d{2}$/.test(point.date) && point.value !== null);
+
+    if (!forwardRows.length) {
+      errors.push("TSM forward PE validation failed: no finite historical observations");
+    } else {
+      const earliest = forwardRows[0]?.date || "";
+      if (earliest > "2016-01-15" || forwardRows.length < 500) {
+        errors.push(
+          `TSM forward PE validation failed: earliest=${earliest || "missing"} ` +
+            `observations=${forwardRows.length}`
+        );
+      }
+    }
+  }
+
   if (errors.length) {
     const preview = errors.slice(0, 20).map((error) => `- ${error}`).join("\n");
     const suffix = errors.length > 20 ? `\n- ... ${errors.length - 20} more` : "";
@@ -137,7 +157,7 @@ async function main() {
   const summary = validateCompanySeriesPayloads(
     companyPayloads,
     yahooPayload?.symbols || {},
-    { requireNvdaHistory: true }
+    { requireNvdaHistory: true, requireTsmForwardHistory: true }
   );
 
   console.log(

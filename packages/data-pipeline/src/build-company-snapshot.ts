@@ -191,9 +191,19 @@ const OUTPUT_FILE = path.join(OUTPUT_DIR, "company-valuation-history.json");
 const YAHOO_DAILY_METRICS_FILE = path.join(OUTPUT_DIR, "company-yahoo-daily-metrics.json");
 const COMPANY_SERIES_DIR = path.join(OUTPUT_DIR, "company-series");
 const PREVIOUS_COMPANY_SERIES_DIR = process.env.PREVIOUS_COMPANY_SERIES_DIR || COMPANY_SERIES_DIR;
+const DEFAULT_PUBLIC_COMPANY_FORWARD_PE_FILE = path.join(
+  ROOT_DIR,
+  "data",
+  "bootstrap",
+  "tsm-forward-pe-gurufocus.csv"
+);
 const DEFAULT_VENDOR_COMPANY_FORWARD_PE_FILE = path.join(ROOT_DIR, "data", "vendor", "company-forward-pe-history.csv");
 const VENDOR_COMPANY_FORWARD_PE_FILE =
   process.env.COMPANY_FORWARD_PE_HISTORY_FILE || DEFAULT_VENDOR_COMPANY_FORWARD_PE_FILE;
+const COMPANY_FORWARD_PE_HISTORY_FILES = [
+  DEFAULT_PUBLIC_COMPANY_FORWARD_PE_FILE,
+  VENDOR_COMPANY_FORWARD_PE_FILE,
+].filter((file, index, files) => file && files.indexOf(file) === index);
 const execFileAsync = promisify(execFile);
 let companiesMarketCapFetchChain: Promise<unknown> = Promise.resolve();
 let yahooSplitFetchChain: Promise<unknown> = Promise.resolve();
@@ -1528,6 +1538,24 @@ function filterVendorForwardPeSeriesBeforeExistingStart(
   return vendorSeries.filter((point) => point.date < existingForwardStartDate);
 }
 
+function maskStockForwardAnchorsBeforeDate(
+  payload: RatioPayload | null,
+  cutoffDate: string
+): RatioPayload | null {
+  if (!payload || !/^\d{4}-\d{2}-\d{2}$/.test(String(cutoffDate || ""))) return payload;
+
+  return {
+    ...payload,
+    anchors: (payload.anchors || [])
+      .map((anchor) =>
+        anchor.date < cutoffDate
+          ? { ...anchor, pe_forward: null }
+          : anchor
+      )
+      .filter((anchor) => anchor.pe_ttm || anchor.pe_forward || anchor.pb || anchor.peg),
+  };
+}
+
 function metricPointsToCloseSeries(points: MetricPoint[]): ClosePoint[] {
   return (points || [])
     .filter((point) => point?.date && Number.isFinite(point.ts) && Number.isFinite(point.value) && point.value > 0)
@@ -1535,6 +1563,28 @@ function metricPointsToCloseSeries(points: MetricPoint[]): ClosePoint[] {
       date: point.date,
       ts: point.ts,
       close: point.value,
+    }))
+    .sort((a, b) => a.ts - b.ts);
+}
+
+function buildPreviousCompanyForwardPeSeries(points: SnapshotPoint[]): MetricPoint[] {
+  return (points || [])
+    .map((point) => {
+      const date = String(point?.date || "").trim();
+      const value = sanitizeSignedRatio(point?.pe_forward);
+      return { date, ts: toTs(date), value };
+    })
+    .filter(
+      (point): point is MetricPoint =>
+        /^\d{4}-\d{2}-\d{2}$/.test(point.date) &&
+        Number.isFinite(point.ts) &&
+        point.value !== null &&
+        Number.isFinite(point.value)
+    )
+    .map((point) => ({
+      date: point.date,
+      ts: point.ts,
+      value: roundTo(clamp(Number(point.value), -METRIC_MAX.pe_forward, METRIC_MAX.pe_forward), 4),
     }))
     .sort((a, b) => a.ts - b.ts);
 }
@@ -5940,6 +5990,48 @@ function mergeRatioPayloads(
   };
 }
 
+function applyPreferredForwardPeAnchors(
+  payload: RatioPayload | null,
+  preferredSeries: MetricPoint[],
+  closePoints: ClosePoint[]
+): RatioPayload | null {
+  if (!payload || !preferredSeries.length) return payload;
+
+  const preferredByDate = new Map<string, number>();
+  for (const point of preferredSeries) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(point.date) || !Number.isFinite(point.value)) continue;
+    const alignedDate = alignRatioAnchorDateToTradingDay(closePoints, point.date) || point.date;
+    preferredByDate.set(alignedDate, point.value);
+  }
+
+  const byDate = new Map<string, RatioAnchor>();
+  for (const anchor of payload.anchors || []) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor.date)) continue;
+    const alignedDate = alignRatioAnchorDateToTradingDay(closePoints, anchor.date) || anchor.date;
+    if (preferredByDate.has(alignedDate)) continue;
+    byDate.set(alignedDate, { ...anchor, date: alignedDate });
+  }
+
+  for (const [date, value] of preferredByDate.entries()) {
+    const current = byDate.get(date) || {
+      date,
+      pe_ttm: null,
+      pe_forward: null,
+      pb: null,
+      peg: null,
+    };
+    current.pe_forward = value;
+    byDate.set(date, current);
+  }
+
+  return {
+    ...payload,
+    anchors: [...byDate.values()]
+      .filter((anchor) => anchor.pe_ttm || anchor.pe_forward || anchor.pb || anchor.peg)
+      .sort((left, right) => left.date.localeCompare(right.date)),
+  };
+}
+
 function dropIsolatedMetricSpikeAnchors(
   anchors: RatioAnchor[],
   key: "pe_ttm" | "pe_forward" | "pb",
@@ -7176,13 +7268,22 @@ async function loadYahooDailyMetricSnapshotsBySymbol(): Promise<Map<string, Yaho
 }
 
 async function loadVendorCompanyForwardPeHistoryBySymbol(): Promise<Map<string, VendorCompanyForwardPePoint[]>> {
-  try {
-    const raw = await readFile(VENDOR_COMPANY_FORWARD_PE_FILE, "utf8");
-    return parseVendorCompanyForwardPeCsv(raw);
-  } catch (error) {
-    if ((error as { code?: string })?.code === "ENOENT") return new Map();
-    throw error;
+  const bySymbol = new Map<string, VendorCompanyForwardPePoint[]>();
+
+  for (const file of COMPANY_FORWARD_PE_HISTORY_FILES) {
+    try {
+      const raw = await readFile(file, "utf8");
+      const parsed = parseVendorCompanyForwardPeCsv(raw);
+      for (const [symbol, rows] of parsed.entries()) {
+        bySymbol.set(symbol, [...(bySymbol.get(symbol) || []), ...rows]);
+      }
+    } catch (error) {
+      if ((error as { code?: string })?.code === "ENOENT") continue;
+      throw error;
+    }
   }
+
+  return bySymbol;
 }
 
 function serializeYahooDailyMetricSnapshots(
@@ -7261,7 +7362,8 @@ async function main(): Promise<void> {
   const companySeriesCapDate = getLastCompletedUsMarketDate();
   console.log(`[company] company series cap date: ${companySeriesCapDate}`);
   console.log(
-    `[company] vendor forward PE rows: symbols=${vendorForwardPeHistoryBySymbol.size} file=${VENDOR_COMPANY_FORWARD_PE_FILE}`
+    `[company] forward PE history rows: symbols=${vendorForwardPeHistoryBySymbol.size} ` +
+      `files=${COMPANY_FORWARD_PE_HISTORY_FILES.join(",")}`
   );
 
   console.log(`[company] parsed ${companies.length} companies, building series...`);
@@ -7273,6 +7375,7 @@ async function main(): Promise<void> {
   let yahooLatestOverrideAppliedCount = 0;
   let yahooLatestOverrideMissingCount = 0;
   let vendorForwardBackfillPointCount = 0;
+  let previousForwardHistoryPointCount = 0;
 
   const built = await mapLimit(companies, CONCURRENCY, async (company, index) => {
     console.log(`[company] ${String(index + 1).padStart(3, "0")}/${companies.length} ${company.symbol}`);
@@ -7374,9 +7477,20 @@ async function main(): Promise<void> {
       buildVendorCompanyForwardPeSeries(vendorForwardPeHistoryBySymbol.get(company.symbol) || [], closePoints),
       existingForwardStartDate
     );
+    const previousForwardSeries = buildPreviousCompanyForwardPeSeries(previousSeries?.points || []);
+    const vendorAndPreviousForwardSeries = mergeMetricSeriesWithPreference(
+      vendorForwardSeries,
+      previousForwardSeries
+    );
+    mergedLongForwardSeries = mergeMetricSeriesWithPreference(
+      mergedLongForwardSeries,
+      vendorAndPreviousForwardSeries
+    );
     if (vendorForwardSeries.length) {
       vendorForwardBackfillPointCount += vendorForwardSeries.length;
-      mergedLongForwardSeries = mergeMetricSeriesWithPreference(mergedLongForwardSeries, vendorForwardSeries);
+    }
+    if (previousForwardSeries.length) {
+      previousForwardHistoryPointCount += previousForwardSeries.length;
     }
 
     const sourceHints = {
@@ -7384,7 +7498,8 @@ async function main(): Promise<void> {
       pb: (ychartsSeries?.pb || []).length ? "ycharts-price-to-book-value" : "companiesmarketcap-pb-ratio",
       forward: [
         useYchartsForwardFallback ? "ycharts-forward-pe-ratio-fallback" : "stockanalysis-forward-ratios-primary",
-        vendorForwardSeries.length ? "vendor-pit-company-forward-pe-backfill" : "",
+        vendorForwardSeries.length ? "company-forward-pe-history-backfill" : "",
+        previousForwardSeries.length ? "previous-published-forward-pe-history" : "",
       ]
         .filter(Boolean)
         .join("+"),
@@ -7482,7 +7597,7 @@ async function main(): Promise<void> {
     );
 
     let ratioPayload = mergeRatioPayloads(
-      stockPayload,
+      maskStockForwardAnchorsBeforeDate(stockPayload, vendorForwardSeries.length ? existingForwardStartDate : ""),
       mergedLongPeSeries,
       mergedLongPbSeries,
       mergedLongForwardSeries,
@@ -7495,6 +7610,7 @@ async function main(): Promise<void> {
       yahooFetchResult?.trailingPePayload || null,
       yahooFetchResult?.forwardPePayload || null
     );
+    ratioPayload = applyPreferredForwardPeAnchors(ratioPayload, vendorForwardSeries, closePoints);
     const yahooTtmCutoffDate = minIsoDate(
       getEarliestMetricAnchorDate(yahooFetchResult?.trailingPePayload || null, "pe_ttm"),
       getEarliestSnapshotMetricDate(effectiveYahooSnapshots, "pe_ttm")
@@ -7686,7 +7802,7 @@ async function main(): Promise<void> {
       "ycharts-fund-data-pe-ratio",
       "ycharts-fund-data-forward-pe-ratio",
       "ycharts-fund-data-price-to-book-value",
-      vendorForwardPeHistoryBySymbol.size ? "vendor-pit-company-forward-pe-history" : "",
+      vendorForwardPeHistoryBySymbol.size ? "company-forward-pe-history-anchors" : "",
       "companiesmarketcap-pe-ratio",
       "companiesmarketcap-pb-ratio",
       "stockanalysis-quarterly-ratios",
@@ -7707,6 +7823,7 @@ async function main(): Promise<void> {
       "sec-companyfacts-quarterly-net-income",
       "anchor-interval-daily-return-projection",
       `vendor-forward-backfill-points-${vendorForwardBackfillPointCount}`,
+      `previous-forward-history-points-${previousForwardHistoryPointCount}`,
       `fallback-anchor-${fallbackAnchorCount}`,
       `reused-previous-series-${reusedPreviousCount}`,
       `skipped-${skippedCount}`,
@@ -7729,6 +7846,7 @@ async function main(): Promise<void> {
   console.log(`[company] series count: ${indices.length}`);
   console.log(`[company] fallback anchors: ${fallbackAnchorCount}`);
   console.log(`[company] vendor forward backfill points: ${vendorForwardBackfillPointCount}`);
+  console.log(`[company] previous forward history points preserved: ${previousForwardHistoryPointCount}`);
   console.log(`[company] reused previous: ${reusedPreviousCount}`);
   console.log(`[company] skipped: ${skippedCount}`);
   console.log(
@@ -7738,6 +7856,8 @@ async function main(): Promise<void> {
 }
 
 export {
+  applyPreferredForwardPeAnchors as applyPreferredForwardPeAnchorsForTest,
+  buildPreviousCompanyForwardPeSeries as buildPreviousCompanyForwardPeSeriesForTest,
   buildVendorCompanyForwardPeSeries as buildVendorCompanyForwardPeSeriesForTest,
   buildEffectiveYahooDailyMetricSnapshots as buildEffectiveYahooDailyMetricSnapshotsForTest,
   createYahooDailyMetricSnapshots,

@@ -1,0 +1,46 @@
+# Public quarterly historical anchors for TSM / Taiwan Semiconductor Manufacturing Co., Ltd.
+# Source: GuruFocus, https://www.gurufocus.com/term/forward-pe-ratio/TSM
+# These are quarter-end forward PE observations and are used as sparse point-in-time anchors.
+symbol,date,pe_forward,eps_fy1,source
+TSM,2015-12-31,13.97,,gurufocus-public-quarterly-forward-pe
+TSM,2016-03-31,16.18,,gurufocus-public-quarterly-forward-pe
+TSM,2016-06-30,13.97,,gurufocus-public-quarterly-forward-pe
+TSM,2016-09-30,16.13,,gurufocus-public-quarterly-forward-pe
+TSM,2016-12-31,14.90,,gurufocus-public-quarterly-forward-pe
+TSM,2017-03-31,14.99,,gurufocus-public-quarterly-forward-pe
+TSM,2017-06-30,16.10,,gurufocus-public-quarterly-forward-pe
+TSM,2017-09-30,17.12,,gurufocus-public-quarterly-forward-pe
+TSM,2017-12-31,17.30,,gurufocus-public-quarterly-forward-pe
+TSM,2018-03-31,18.21,,gurufocus-public-quarterly-forward-pe
+TSM,2018-06-30,16.37,,gurufocus-public-quarterly-forward-pe
+TSM,2018-09-30,18.12,,gurufocus-public-quarterly-forward-pe
+TSM,2018-12-31,16.67,,gurufocus-public-quarterly-forward-pe
+TSM,2019-03-31,19.76,,gurufocus-public-quarterly-forward-pe
+TSM,2019-06-30,19.84,,gurufocus-public-quarterly-forward-pe
+TSM,2019-09-30,19.96,,gurufocus-public-quarterly-forward-pe
+TSM,2019-12-31,22.47,,gurufocus-public-quarterly-forward-pe
+TSM,2020-03-31,17.27,,gurufocus-public-quarterly-forward-pe
+TSM,2020-06-30,20.62,,gurufocus-public-quarterly-forward-pe
+TSM,2020-09-30,25.13,,gurufocus-public-quarterly-forward-pe
+TSM,2020-12-31,29.41,,gurufocus-public-quarterly-forward-pe
+TSM,2021-03-31,30.67,,gurufocus-public-quarterly-forward-pe
+TSM,2021-06-30,29.24,,gurufocus-public-quarterly-forward-pe
+TSM,2021-09-30,25.13,,gurufocus-public-quarterly-forward-pe
+TSM,2021-12-31,25.64,,gurufocus-public-quarterly-forward-pe
+TSM,2022-03-31,20.96,,gurufocus-public-quarterly-forward-pe
+TSM,2022-06-30,15.43,,gurufocus-public-quarterly-forward-pe
+TSM,2022-09-30,12.00,,gurufocus-public-quarterly-forward-pe
+TSM,2022-12-31,12.67,,gurufocus-public-quarterly-forward-pe
+TSM,2023-03-31,17.30,,gurufocus-public-quarterly-forward-pe
+TSM,2023-06-30,20.04,,gurufocus-public-quarterly-forward-pe
+TSM,2023-09-30,15.13,,gurufocus-public-quarterly-forward-pe
+TSM,2023-12-31,16.34,,gurufocus-public-quarterly-forward-pe
+TSM,2024-03-31,22.03,,gurufocus-public-quarterly-forward-pe
+TSM,2024-06-30,28.01,,gurufocus-public-quarterly-forward-pe
+TSM,2024-09-30,21.69,,gurufocus-public-quarterly-forward-pe
+TSM,2024-12-31,22.60,,gurufocus-public-quarterly-forward-pe
+TSM,2025-03-31,18.09,,gurufocus-public-quarterly-forward-pe
+TSM,2025-06-30,24.09,,gurufocus-public-quarterly-forward-pe
+TSM,2025-09-30,26.52,,gurufocus-public-quarterly-forward-pe
+TSM,2025-12-31,24.28,,gurufocus-public-quarterly-forward-pe
+TSM,2026-03-31,23.15,,gurufocus-public-quarterly-forward-pe
