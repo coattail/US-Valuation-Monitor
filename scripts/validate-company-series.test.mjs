@@ -73,6 +73,7 @@ test("company validation waits for the price series to reach a future Yahoo metr
         points: [
           { date: "2026-07-16", pe_ttm: 17.245553, pe_forward: 12.92 },
           { date: "2026-07-17", pe_ttm: 17.1499, pe_forward: 12.92 },
+          { date: "2026-07-21", pe_ttm: 17.4, pe_forward: 13.1 },
         ],
       },
     ],

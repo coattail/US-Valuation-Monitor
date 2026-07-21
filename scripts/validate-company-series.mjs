@@ -55,6 +55,7 @@ export function validateCompanySeriesPayloads(
     payloadBySymbol.set(symbol, payload);
 
     const latestDate = String(points.at(-1)?.date || "");
+    const publishedByDate = new Map(points.map((point) => [String(point?.date || ""), point]));
     const yahooRows = Array.isArray(yahooMetricsBySymbol?.[symbol])
       ? yahooMetricsBySymbol[symbol]
       : [];
@@ -64,13 +65,20 @@ export function validateCompanySeriesPayloads(
     ]) {
       const latestYahooMetric = yahooRows
         .map((row) => ({ ...row, value: finiteNonZero(row?.[key]) }))
-        .filter((row) => row.value !== null && /^\d{4}-\d{2}-\d{2}$/.test(String(row?.date || "")))
+        .filter((row) => {
+          const date = String(row?.date || "");
+          return (
+            row.value !== null &&
+            /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+            date <= latestDate &&
+            publishedByDate.has(date)
+          );
+        })
         .sort((left, right) => String(left.date).localeCompare(String(right.date)))
         .at(-1);
 
       if (
         !latestYahooMetric ||
-        String(latestYahooMetric.date) > latestDate ||
         daysBetween(String(latestYahooMetric.date), latestDate) > recentYahooAnchorMaxAgeDays
       ) {
         continue;
@@ -79,7 +87,7 @@ export function validateCompanySeriesPayloads(
       if (key === "pe_ttm") recentYahooAnchorCount += 1;
       else recentYahooForwardAnchorCount += 1;
 
-      const published = points.find((point) => point?.date === latestYahooMetric.date);
+      const published = publishedByDate.get(String(latestYahooMetric.date));
       const publishedPe = finiteNonZero(published?.[key]);
       const factor = ratioDistance(publishedPe, latestYahooMetric.value);
       if (factor > 1 + yahooAnchorMaxRelativeError) {
