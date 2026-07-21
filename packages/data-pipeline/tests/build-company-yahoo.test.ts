@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   createYahooDailyMetricSnapshots,
   buildYahooPageForwardPeOverrideForTest,
+  applyRecordedYahooForwardPeAnchorsToPointsForTest,
   fillMissingCompanySeriesFromPreviousForTest,
   mergeCurrentYahooSnapshotsIntoHistoryForTest,
   mergeYahooLatestQuotePayloadsForTest,
@@ -391,6 +392,30 @@ test("Yahoo trailing PE timeseries does not replace generated TTM PE history", (
     { date: "2026-04-27", pe_ttm: 32.24, pe_forward: 29.94, pb: 10.15, peg: null },
     { date: "2026-04-28", pe_ttm: 32.5, pe_forward: 30.1, pb: 10.2, peg: null },
   ]);
+});
+
+test("recorded Yahoo Forward PE wins after price-path interpolation", () => {
+  const points = [
+    { date: "2026-07-16", close: 71.4, pe_ttm: 13.252336, pe_forward: 7.59, pb: 1.35, peg: 1.24, us10y_yield: 0 },
+    { date: "2026-07-17", close: 69.12, pe_ttm: 13.6, pe_forward: 7.3472, pb: 1.39, peg: -1, us10y_yield: 0 },
+    { date: "2026-07-20", close: 64.36, pe_ttm: 13.426791, pe_forward: 6.8409, pb: 1.3722, peg: 1.256, us10y_yield: 0 },
+  ];
+
+  const reconciled = applyRecordedYahooForwardPeAnchorsToPointsForTest(points, [
+    {
+      date: "2026-07-17",
+      pe_ttm: 13.6,
+      pe_forward: 7.66,
+      pb: 1.39,
+      peg: -1,
+      source: "yahoo-key-statistics-valuation-measures+yahoo-quote-page-latest:finance.yahoo.com",
+      capturedAt: "2026-07-21T22:24:47.000Z",
+    },
+  ]);
+
+  assert.equal(reconciled[0].pe_forward, 7.59);
+  assert.equal(reconciled[1].pe_forward, 7.66);
+  assert.equal(reconciled[2].pe_forward, 6.8409);
 });
 
 test("existing TTM PE history is preserved while new dates remain generated", () => {

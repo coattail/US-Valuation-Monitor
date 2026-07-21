@@ -65,6 +65,26 @@ test("company validation rejects a published Forward PE that differs from Yahoo"
   );
 });
 
+test("company validation waits for the price series to reach a future Yahoo metric date", () => {
+  const summary = validateCompanySeriesPayloads(
+    [
+      {
+        symbol: "TCEHY",
+        points: [
+          { date: "2026-07-16", pe_ttm: 17.245553, pe_forward: 12.92 },
+          { date: "2026-07-17", pe_ttm: 17.1499, pe_forward: 12.92 },
+        ],
+      },
+    ],
+    {
+      TCEHY: [{ date: "2026-07-20", pe_ttm: 17.248368, pe_forward: null }],
+    }
+  );
+
+  assert.equal(summary.companyCount, 1);
+  assert.equal(summary.recentYahooAnchorCount, 0);
+});
+
 test("company validation applies the Yahoo rule to every symbol", () => {
   assert.throws(
     () =>

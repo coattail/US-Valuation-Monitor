@@ -3740,6 +3740,40 @@ function applyYahooDailyMetricSnapshotsToPoints(
   return changed ? nextPoints : valuationPoints;
 }
 
+function applyRecordedYahooForwardPeAnchorsToPoints(
+  valuationPoints: SnapshotPoint[],
+  snapshots: YahooDailyMetricSnapshot[]
+): SnapshotPoint[] {
+  if (!Array.isArray(valuationPoints) || !valuationPoints.length || !Array.isArray(snapshots) || !snapshots.length) {
+    return valuationPoints;
+  }
+
+  const yahooForwardByDate = new Map<string, number>();
+  for (const item of snapshots) {
+    const normalized = normalizeYahooDailyMetricSnapshot(item);
+    const peForward = sanitizeSignedRatio(normalized?.pe_forward);
+    if (!normalized || peForward === null) continue;
+    yahooForwardByDate.set(normalized.date, peForward);
+  }
+  if (!yahooForwardByDate.size) return valuationPoints;
+
+  let changed = false;
+  const nextPoints = valuationPoints.map((point) => {
+    const yahooForward = yahooForwardByDate.get(point.date);
+    if (yahooForward === undefined || yahooForward === sanitizeSignedRatio(point.pe_forward)) {
+      return point;
+    }
+
+    changed = true;
+    return {
+      ...point,
+      pe_forward: roundTo(yahooForward, 4),
+    };
+  });
+
+  return changed ? nextPoints : valuationPoints;
+}
+
 function carryForwardLatestYahooPeTtmByClose(
   valuationPoints: SnapshotPoint[],
   snapshots: YahooDailyMetricSnapshot[],
@@ -7750,8 +7784,15 @@ async function main(): Promise<void> {
     // This final pass is intentionally after every interpolation/repair step.
     // A delayed Yahoo PE observation must rebase the following short window,
     // and no later fallback is allowed to restore an older EPS denominator.
-    const pointsWithYahooDailyMetrics = carryForwardLatestYahooPeTtmByClose(
+    // Price-path interpolation can overwrite a recorded Yahoo Forward P/E on
+    // the same date. Reapply those source-of-truth anchors after every forward
+    // transformation, then finish the independent TTM carry pass.
+    const pointsWithRecordedYahooForwardPe = applyRecordedYahooForwardPeAnchorsToPoints(
       pulseRepair.points,
+      yahooDailySnapshots
+    );
+    const pointsWithYahooDailyMetrics = carryForwardLatestYahooPeTtmByClose(
+      pointsWithRecordedYahooForwardPe,
       yahooDailySnapshots
     );
     assertRecentYahooPeTtmCarryConsistency(
@@ -7931,6 +7972,7 @@ export {
   buildEffectiveYahooDailyMetricSnapshots as buildEffectiveYahooDailyMetricSnapshotsForTest,
   createYahooDailyMetricSnapshots,
   filterVendorForwardPeSeriesBeforeExistingStart as filterVendorForwardPeSeriesBeforeExistingStartForTest,
+  applyRecordedYahooForwardPeAnchorsToPoints as applyRecordedYahooForwardPeAnchorsToPointsForTest,
   carryForwardLatestYahooPeTtmByClose as carryForwardLatestYahooPeTtmByCloseForTest,
   carryForwardMissingPeTtmByPreviousClose as carryForwardMissingPeTtmByPreviousCloseForTest,
   mergeYahooDrivenRatioPayload as mergeYahooDrivenRatioPayloadForTest,

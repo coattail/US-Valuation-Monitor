@@ -70,6 +70,7 @@ export function validateCompanySeriesPayloads(
 
       if (
         !latestYahooMetric ||
+        String(latestYahooMetric.date) > latestDate ||
         daysBetween(String(latestYahooMetric.date), latestDate) > recentYahooAnchorMaxAgeDays
       ) {
         continue;
