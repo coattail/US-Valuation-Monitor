@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-23T22:32:48.149Z",
+  "generatedAt": "2026-07-24T22:35:57.319Z",
   "symbols": {
     "DIA": [
       {
@@ -521,6 +521,14 @@
         "pb": null,
         "source": "wsj-latest",
         "capturedAt": "2026-07-23T22:29:57.086Z"
+      },
+      {
+        "date": "2026-07-24",
+        "pe_ttm": 22.06,
+        "pe_forward": 20.23,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-07-24T22:33:43.219Z"
       }
     ],
     "DRAM": [
@@ -563,6 +571,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-07-23T22:32:47.550Z"
+      },
+      {
+        "date": "2026-07-24",
+        "pe_ttm": 32.38,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-07-24T22:35:56.991Z"
       }
     ],
     "IGV": [
@@ -605,6 +621,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-07-23T22:32:38.940Z"
+      },
+      {
+        "date": "2026-07-24",
+        "pe_ttm": 38.07,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-07-24T22:35:52.414Z"
       }
     ],
     "IJH": [
@@ -796,9 +820,9 @@
         "date": "2026-06-30",
         "pe_ttm": null,
         "pe_forward": null,
-        "pb": 23.59,
+        "pb": 23.69,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-07-23T22:30:28.014Z"
+        "capturedAt": "2026-07-24T22:34:09.971Z"
       },
       {
         "date": "2026-07-15",
@@ -839,6 +863,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-07-23T22:30:28.653Z"
+      },
+      {
+        "date": "2026-07-24",
+        "pe_ttm": 21.29,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-07-24T22:34:10.364Z"
       }
     ],
     "IWM": [
@@ -1062,9 +1094,9 @@
         "date": "2026-06-30",
         "pe_ttm": null,
         "pe_forward": null,
-        "pb": 19.04,
+        "pb": 18.93,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-07-23T22:30:10.611Z"
+        "capturedAt": "2026-07-24T22:33:52.045Z"
       },
       {
         "date": "2026-07-02",
@@ -1104,7 +1136,7 @@
         "pe_forward": 30.89,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-07-23T22:30:10.611Z"
+        "capturedAt": "2026-07-24T22:33:52.046Z"
       }
     ],
     "QQQ": [
@@ -1226,7 +1258,7 @@
         "pe_forward": 25.14,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-07-23T22:29:52.271Z"
+        "capturedAt": "2026-07-24T22:33:39.054Z"
       }
     ],
     "SMH": [
@@ -1269,6 +1301,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-07-23T22:32:45.569Z"
+      },
+      {
+        "date": "2026-07-24",
+        "pe_ttm": 49.72,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-07-24T22:35:55.715Z"
       }
     ],
     "SOXX": [
@@ -1311,6 +1351,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-07-23T22:32:42.138Z"
+      },
+      {
+        "date": "2026-07-24",
+        "pe_ttm": 55.53,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-07-24T22:35:54.281Z"
       }
     ],
     "SPY": [
@@ -1432,7 +1480,7 @@
         "pe_forward": 21.54,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-07-23T22:29:32.716Z"
+        "capturedAt": "2026-07-24T22:33:23.167Z"
       }
     ],
     "VTI": [
@@ -1643,6 +1691,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-07-23T22:30:54.421Z"
+      },
+      {
+        "date": "2026-07-24",
+        "pe_ttm": 26.02,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-07-24T22:34:26.132Z"
       }
     ],
     "XLB": [
@@ -2101,6 +2157,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:32:11.399Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 24.97,
+        "pe_forward": 17.39,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:35:28.012Z"
       }
     ],
     "XLC": [
@@ -2543,6 +2607,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:31:09.661Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 15.13,
+        "pe_forward": 13.09,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:34:34.888Z"
       }
     ],
     "XLE": [
@@ -3001,6 +3073,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:31:33.891Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 22.23,
+        "pe_forward": 13.02,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:34:54.258Z"
       }
     ],
     "XLF": [
@@ -3443,6 +3523,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:31:42.917Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 16.42,
+        "pe_forward": null,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:35:00.080Z"
       }
     ],
     "XLI": [
@@ -3901,6 +3989,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:32:01.841Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 31.06,
+        "pe_forward": 26.76,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:35:18.503Z"
       }
     ],
     "XLK": [
@@ -4359,6 +4455,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:32:28.349Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 36.07,
+        "pe_forward": 27.99,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:35:43.490Z"
       }
     ],
     "XLP": [
@@ -4809,6 +4913,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:31:23.625Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 25.52,
+        "pe_forward": 20.19,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:34:46.368Z"
       }
     ],
     "XLRE": [
@@ -5251,6 +5363,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:32:18.849Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 34.82,
+        "pe_forward": null,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:35:35.573Z"
       }
     ],
     "XLU": [
@@ -5701,6 +5821,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:32:36.028Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 21.27,
+        "pe_forward": 19.22,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:35:50.746Z"
       }
     ],
     "XLV": [
@@ -6159,6 +6287,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:31:55.105Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 29.28,
+        "pe_forward": 19.69,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:35:12.508Z"
       }
     ],
     "XLY": [
@@ -6609,6 +6745,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-07-23T22:31:14.720Z"
+      },
+      {
+        "date": "2026-07-23",
+        "pe_ttm": 29.47,
+        "pe_forward": 24.01,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-07-24T22:34:41.085Z"
       }
     ]
   }
