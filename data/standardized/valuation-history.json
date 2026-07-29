@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-29T20:25:30.164Z",
+  "generatedAt": "2026-07-29T22:29:32.884Z",
   "source": "free-live-proxy-v6+stockanalysis-pe-2+stockmarketperatio-pe-1+multpl-pb-1+wsj-pe-4+wsj-curated-ttm-1+stockanalysis-snap-2+curated-public-fpe-8+siblis-pe-2+siblis-fpe-2+vendor-index-fpe-2+ndx-bloomberg-fpe-1+ndx-ttm-factset-1+ndx-official-close-1+rut-index-close-1+history-fpe-4+sp500-pb-prefix-1+sp500-wsj-carry-1+sp500-yardeni-refinitiv-fpe-prefix-1+fred10y",
   "indices": [
     {
@@ -145247,8 +145247,8 @@
         },
         {
           "date": "2026-07-29",
-          "pe_ttm": 21.8911,
-          "pe_forward": 19.7881,
+          "pe_ttm": 21.84,
+          "pe_forward": 20.23,
           "pb": 5.0542,
           "us10y_yield": 0.0465
         }
