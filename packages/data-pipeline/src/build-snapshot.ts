@@ -6,6 +6,7 @@ import {
   assertPublishedIndexHistoryAppendOnly,
   assertValidatedIndexHistoryUnchanged,
   generateDataset,
+  loadAuthoritativePublishedMetricCorrections,
   validateDataset,
 } from "./generate.ts";
 import {
@@ -156,6 +157,26 @@ function getRewriteAllowedIds(dataset: ValuationDataset): Set<string> {
   );
 }
 
+function getChangedPublishedPrefixIds(
+  previousDataset: ValuationDataset | undefined,
+  nextDataset: ValuationDataset
+): Set<string> {
+  const changedIds = new Set<string>();
+  if (!previousDataset?.indices?.length) return changedIds;
+
+  const nextById = new Map(nextDataset.indices.map((index) => [index.id, index]));
+  const fields = ["date", "pe_ttm", "pe_forward", "pb", "us10y_yield"] as const;
+  for (const previousIndex of previousDataset.indices) {
+    const nextIndex = nextById.get(previousIndex.id);
+    if (!nextIndex) continue;
+    const changed = previousIndex.points.some((previousPoint, pointIndex) =>
+      fields.some((field) => previousPoint[field] !== nextIndex.points[pointIndex]?.[field])
+    );
+    if (changed) changedIds.add(previousIndex.id);
+  }
+  return changedIds;
+}
+
 async function main(): Promise<void> {
   const previousDataset = await readPreviousDataset();
   const previousHistoryLock = await readIndexHistoryLock(previousDataset);
@@ -164,15 +185,22 @@ async function main(): Promise<void> {
   }
 
   const dataset = await generateDataset(undefined, { previousDataset });
+  const authoritativeCorrections = await loadAuthoritativePublishedMetricCorrections();
   validateDataset(dataset);
-  assertPublishedIndexHistoryAppendOnly(previousDataset, dataset);
+  assertPublishedIndexHistoryAppendOnly(previousDataset, dataset, authoritativeCorrections);
   if (process.env.ALLOW_VALIDATED_INDEX_HISTORY_REWRITE !== "1") {
     assertValidatedIndexHistoryUnchanged(previousDataset, dataset);
   }
   if (previousHistoryLock) {
+    const rewriteAllowedIds = getRewriteAllowedIds(dataset);
+    for (const indexId of getChangedPublishedPrefixIds(previousDataset, dataset)) {
+      // The strict point-by-point assertion above has already proved that any
+      // changed locked field equals a persisted authoritative observation.
+      rewriteAllowedIds.add(indexId);
+    }
     assertDatasetMatchesIndexHistoryLock(dataset, previousHistoryLock, {
       allowAppendedPoints: true,
-      rewriteAllowedIds: getRewriteAllowedIds(dataset),
+      rewriteAllowedIds,
     });
   }
 

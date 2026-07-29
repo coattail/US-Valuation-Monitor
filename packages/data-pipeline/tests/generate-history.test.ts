@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  applyAuthoritativePublishedMetricCorrectionsForTest,
   applyValidatedNasdaq100TtmHistoryForTest,
   applyValidatedRussell2000PeHistoryForTest,
   assertPublishedIndexHistoryAppendOnly,
@@ -90,6 +91,41 @@ test("routine refreshes preserve every published point and append only newer dat
   ]);
 });
 
+test("authoritative delayed snapshots correct only their exact published metrics", () => {
+  const published = [
+    point("2026-07-23", 33.2282),
+    point("2026-07-24", 32.857),
+    point("2026-07-27", 32.9481),
+  ];
+
+  const corrected = applyAuthoritativePublishedMetricCorrectionsForTest(
+    published,
+    "nasdaq100",
+    [
+      {
+        date: "2026-07-24",
+        pe_ttm: 33.05,
+        pe_forward: 25.12,
+        pb: null,
+        source: "wsj-latest",
+      },
+      {
+        date: "2026-07-27",
+        pe_ttm: 99,
+        pe_forward: null,
+        pb: null,
+        source: "stockanalysis-latest",
+      },
+    ]
+  );
+
+  assert.deepEqual(corrected, [
+    published[0],
+    { ...published[1], pe_ttm: 33.05, pe_forward: 25.12 },
+    published[2],
+  ]);
+});
+
 test("append-only assertion rejects a mutation anywhere in published history", () => {
   const previous = {
     generatedAt: "2026-07-16T00:00:00.000Z",
@@ -116,6 +152,77 @@ test("append-only assertion rejects a mutation anywhere in published history", (
   const appended = structuredClone(previous);
   appended.indices[0].points.push(point("2026-07-17", 32.1));
   assert.doesNotThrow(() => assertPublishedIndexHistoryAppendOnly(previous, appended));
+});
+
+test("append-only assertion allows only persisted authoritative metric corrections", () => {
+  const previous = {
+    generatedAt: "2026-07-24T00:00:00.000Z",
+    source: "test",
+    indices: [
+      {
+        id: "nasdaq100",
+        symbol: "QQQ",
+        group: "core" as const,
+        displayName: "Nasdaq 100",
+        description: "test",
+        points: [point("2026-07-24", 32.857)],
+      },
+    ],
+  };
+  const corrected = structuredClone(previous);
+  corrected.indices[0].points[0].pe_ttm = 33.05;
+  const corrections = new Map([
+    ["nasdaq100", new Map([["2026-07-24", { pe_ttm: 33.05 }]])],
+  ]);
+
+  assert.doesNotThrow(() =>
+    assertPublishedIndexHistoryAppendOnly(previous, corrected, corrections)
+  );
+
+  corrected.indices[0].points[0].pe_forward = 99;
+  assert.throws(
+    () => assertPublishedIndexHistoryAppendOnly(previous, corrected, corrections),
+    /published index history changed.*nasdaq100.*pe_forward/
+  );
+});
+
+test("append-only assertion permits a derived PB repair only for an impossible published outlier", () => {
+  const previous = {
+    generatedAt: "2026-07-24T00:00:00.000Z",
+    source: "test",
+    indices: [
+      {
+        id: "russell2000",
+        symbol: "IWM",
+        group: "core" as const,
+        displayName: "Russell 2000",
+        description: "test",
+        points: [{ ...point("2026-07-24", 37.27), pb: 18.5872 }],
+      },
+    ],
+  };
+  const corrected = structuredClone(previous);
+  corrected.indices[0].points[0].pb = 2.1745;
+  const corrections = new Map([
+    [
+      "russell2000",
+      new Map([
+        ["2026-07-15", { pb: 2.17 }],
+        ["2026-07-16", { pb: 2.16 }],
+        ["2026-07-28", { pb: 2.15 }],
+      ]),
+    ],
+  ]);
+
+  assert.doesNotThrow(() =>
+    assertPublishedIndexHistoryAppendOnly(previous, corrected, corrections)
+  );
+
+  corrected.indices[0].points[0].pb = 8;
+  assert.throws(
+    () => assertPublishedIndexHistoryAppendOnly(previous, corrected, corrections),
+    /published index history changed.*russell2000.*pb/
+  );
 });
 
 test("allows an explicit validated-history rewrite to replace a bad frozen baseline", () => {

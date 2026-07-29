@@ -25,6 +25,7 @@ import {
   parseStockMarketPeRatioSeriesForTest,
   parseSsgaIndexMetricsForTest,
   parseWsjPeSnapshotFromTextForTest,
+  pickLatestWsjPeSnapshotForTest,
   pickAnchorForwardPeForTest,
   parseYahooChartCloseSeries,
   parseYchartsPbSeriesForTest,
@@ -521,6 +522,46 @@ test("parseWsjPeSnapshotFromTextForTest ignores market ticker strips and parses 
     asOfDate: "2026-04-10",
   });
   assert.equal(parsed.get("dow30"), undefined);
+});
+
+test("cached WSJ observations win when the live page is stale or unavailable", () => {
+  const cached = [
+    {
+      date: "2026-07-24",
+      pe_ttm: 33.05,
+      pe_forward: 25.12,
+      pb: null,
+      source: "wsj-latest",
+    },
+  ];
+
+  assert.deepEqual(pickLatestWsjPeSnapshotForTest(undefined, cached), {
+    trailing: 33.05,
+    forward: 25.12,
+    asOfDate: "2026-07-24",
+  });
+  assert.deepEqual(
+    pickLatestWsjPeSnapshotForTest(
+      { trailing: 33.39, forward: 25.14, asOfDate: "2026-07-17" },
+      cached
+    ),
+    {
+      trailing: 33.05,
+      forward: 25.12,
+      asOfDate: "2026-07-24",
+    }
+  );
+  assert.deepEqual(
+    pickLatestWsjPeSnapshotForTest(
+      { trailing: 5, forward: 76, asOfDate: "2026-07-28" },
+      cached
+    ),
+    {
+      trailing: 33.05,
+      forward: 25.12,
+      asOfDate: "2026-07-24",
+    }
+  );
 });
 
 test("getIndexLiveSourceCutoverDateForTest rebuilds known reliable index histories from source start dates", () => {
@@ -1232,6 +1273,21 @@ test("parseIsharesPortfolioMetricsForTest supports the current embedded JSON for
     pe_ttm: 35.12,
     pe_forward: null,
     pb: 6.74,
+    source: "ishares-official-latest",
+  });
+});
+
+test("parseIsharesPortfolioMetricsForTest keeps reversed JSON fields inside their own metric object", () => {
+  const html = `
+    &quot;priceBook&quot;:{&quot;formattedAsOfDate&quot;:&quot;Jul 28, 2026&quot;,&quot;formattedValue&quot;:&quot;2.15&quot;,&quot;label&quot;:&quot;P/B Ratio&quot;},
+    &quot;priceEarnings&quot;:{&quot;formattedAsOfDate&quot;:&quot;Jul 28, 2026&quot;,&quot;formattedValue&quot;:&quot;19.01&quot;,&quot;label&quot;:&quot;P/E Ratio&quot;}
+  `;
+
+  assert.deepEqual(parseIsharesPortfolioMetricsForTest(html), {
+    date: "2026-07-28",
+    pe_ttm: 19.01,
+    pe_forward: null,
+    pb: 2.15,
     source: "ishares-official-latest",
   });
 });

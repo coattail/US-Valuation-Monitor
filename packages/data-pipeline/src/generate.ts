@@ -723,6 +723,11 @@ interface IndexYahooDailyMetricSnapshot {
   capturedAt?: string;
 }
 
+export type AuthoritativePublishedMetricCorrections = Map<
+  string,
+  Map<string, Partial<Record<IndexRatioMetricKey, number>>>
+>;
+
 interface IndexYahooRatioPayloadResult {
   payload: IndexRatioPayload | null;
   quoteLatestPayload: IndexRatioPayload | null;
@@ -781,6 +786,11 @@ const INDEX_POST_CUTOVER_MAX_FORWARD_FILL_DAYS = 5;
 const INDEX_PE_RECENT_CARRY_LOOKBACK_POINTS = 10;
 const INDEX_FORWARD_RECENT_CARRY_LOOKBACK_POINTS = 10;
 const INDEX_PB_RECENT_CARRY_LOOKBACK_POINTS = 3;
+const AUTHORITATIVE_PUBLISHED_SNAPSHOT_SOURCES = new Set([
+  "wsj-latest",
+  "ssga-official-latest",
+  "ishares-official-latest",
+]);
 
 function parseDate(dateText: string): Date {
   return new Date(`${dateText}T00:00:00Z`);
@@ -869,6 +879,93 @@ function preservePublishedIndexHistoryAppendOnly(
   }
 
   return [...mergedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function buildAuthoritativeMetricCorrections(
+  indexId: string,
+  snapshots: IndexYahooDailyMetricSnapshot[]
+): Map<string, Partial<Record<IndexRatioMetricKey, number>>> {
+  const corrections = new Map<string, Partial<Record<IndexRatioMetricKey, number>>>();
+  const cleanedSnapshots = pruneImpossibleCachedPbSnapshots(snapshots);
+  const immutableBeforeDate =
+    INDEX_VALIDATED_HISTORY_CUTOFF_DATE_OVERRIDES[indexId] || INDEX_VALIDATED_HISTORY_CUTOFF_DATE;
+
+  for (const snapshot of cleanedSnapshots) {
+    if (!snapshot?.date || snapshot.date < immutableBeforeDate) continue;
+    if (!AUTHORITATIVE_PUBLISHED_SNAPSHOT_SOURCES.has(String(snapshot.source || ""))) continue;
+
+    const values: Partial<Record<IndexRatioMetricKey, number>> = {};
+    for (const metric of ["pe_ttm", "pe_forward", "pb"] as const) {
+      const value = sanitizeSignedRatio(snapshot[metric]);
+      if (value !== null) values[metric] = value;
+    }
+    if (Object.keys(values).length) corrections.set(snapshot.date, values);
+  }
+
+  return corrections;
+}
+
+function applyAuthoritativePublishedMetricCorrections(
+  points: RawValuationPoint[],
+  indexId: string,
+  snapshots: IndexYahooDailyMetricSnapshot[]
+): RawValuationPoint[] {
+  const corrections = buildAuthoritativeMetricCorrections(indexId, snapshots);
+  if (!corrections.size) return points;
+
+  return points.map((point) => {
+    const correction = corrections.get(point.date);
+    return correction ? { ...point, ...correction } : point;
+  });
+}
+
+function getCorrectionMedian(
+  corrections: Map<string, Partial<Record<IndexRatioMetricKey, number>>> | undefined,
+  metric: IndexRatioMetricKey
+): number | null {
+  const values = [...(corrections?.values() || [])]
+    .map((correction) => sanitizeSignedRatio(correction[metric]))
+    .filter((value): value is number => value !== null)
+    .sort((a, b) => a - b);
+  if (values.length < 3) return null;
+  const middle = Math.floor(values.length / 2);
+  return values.length % 2 === 0
+    ? (values[middle - 1] + values[middle]) / 2
+    : values[middle];
+}
+
+function repairPublishedPbOutliers(
+  publishedPoints: RawValuationPoint[],
+  regeneratedPoints: RawValuationPoint[],
+  indexId: string,
+  snapshots: IndexYahooDailyMetricSnapshot[]
+): RawValuationPoint[] {
+  const corrections = buildAuthoritativeMetricCorrections(indexId, snapshots);
+  const medianPb = getCorrectionMedian(corrections, "pb");
+  if (medianPb === null || medianPb <= 0) return publishedPoints;
+
+  const regeneratedByDate = new Map(regeneratedPoints.map((point) => [point.date, point]));
+  return publishedPoints.map((point) => {
+    const regenerated = regeneratedByDate.get(point.date);
+    const previousPb = sanitizeSignedRatio(point.pb);
+    const regeneratedPb = sanitizeSignedRatio(regenerated?.pb);
+    if (previousPb === null || regeneratedPb === null) return point;
+    const previousRatio = previousPb / medianPb;
+    const regeneratedRatio = regeneratedPb / medianPb;
+    const previousIsImpossible = previousRatio < 1 / 3 || previousRatio > 3;
+    const regeneratedIsPlausible = regeneratedRatio >= 1 / 3 && regeneratedRatio <= 3;
+    return previousIsImpossible && regeneratedIsPlausible
+      ? { ...point, pb: regeneratedPb }
+      : point;
+  });
+}
+
+export function applyAuthoritativePublishedMetricCorrectionsForTest(
+  points: RawValuationPoint[],
+  indexId: string,
+  snapshots: IndexYahooDailyMetricSnapshot[]
+): RawValuationPoint[] {
+  return applyAuthoritativePublishedMetricCorrections(points, indexId, snapshots);
 }
 
 export function preservePublishedIndexHistoryAppendOnlyForTest(
@@ -1014,7 +1111,8 @@ export function assertValidatedIndexHistoryUnchanged(
 
 export function assertPublishedIndexHistoryAppendOnly(
   previousDataset: ValuationDataset | null | undefined,
-  nextDataset: ValuationDataset
+  nextDataset: ValuationDataset,
+  authoritativeCorrections: AuthoritativePublishedMetricCorrections = new Map()
 ): void {
   if (!previousDataset?.indices?.length) return;
 
@@ -1036,8 +1134,25 @@ export function assertPublishedIndexHistoryAppendOnly(
     for (let i = 0; i < previousIndex.points.length; i += 1) {
       const previousPoint = previousIndex.points[i];
       const nextPoint = nextIndex.points[i];
+      const indexCorrections = authoritativeCorrections.get(previousIndex.id);
+      const allowedCorrections = indexCorrections?.get(previousPoint.date);
+      const medianAuthoritativePb = getCorrectionMedian(indexCorrections, "pb");
       for (const field of fields) {
-        if (previousPoint[field] !== nextPoint?.[field]) {
+        if (previousPoint[field] === nextPoint?.[field]) continue;
+        const isAllowedAuthoritativeCorrection =
+          (field === "pe_ttm" || field === "pe_forward" || field === "pb") &&
+          allowedCorrections?.[field] === nextPoint?.[field];
+        const previousPb = field === "pb" ? sanitizeSignedRatio(previousPoint.pb) : null;
+        const nextPb = field === "pb" ? sanitizeSignedRatio(nextPoint?.pb) : null;
+        const isAllowedPbOutlierRepair =
+          field === "pb" &&
+          medianAuthoritativePb !== null &&
+          previousPb !== null &&
+          nextPb !== null &&
+          (previousPb / medianAuthoritativePb < 1 / 3 || previousPb / medianAuthoritativePb > 3) &&
+          nextPb / medianAuthoritativePb >= 1 / 3 &&
+          nextPb / medianAuthoritativePb <= 3;
+        if (!isAllowedAuthoritativeCorrection && !isAllowedPbOutlierRepair) {
           throw new Error(
             `published index history changed for ${previousIndex.id} at ${previousPoint.date}: ${String(field)}`
           );
@@ -2356,7 +2471,7 @@ function pruneInvalidExplicitIndexSnapshots(
   forwardSeries: MonthlyMetricPoint[],
   pbSeries: MonthlyMetricPoint[]
 ): IndexYahooDailyMetricSnapshot[] {
-  return snapshots
+  return pruneImpossibleCachedPbSnapshots(snapshots)
     .map((snapshot) => {
       const next: IndexYahooDailyMetricSnapshot = { ...snapshot };
       const isDeviationCheckedSource =
@@ -2396,6 +2511,31 @@ function pruneInvalidExplicitIndexSnapshots(
       return normalizeIndexYahooDailyMetricSnapshot(next);
     })
     .filter((snapshot): snapshot is IndexYahooDailyMetricSnapshot => !!snapshot);
+}
+
+function pruneImpossibleCachedPbSnapshots(
+  snapshots: IndexYahooDailyMetricSnapshot[]
+): IndexYahooDailyMetricSnapshot[] {
+  const pbValues = (snapshots || [])
+    .map((snapshot) => sanitizeSignedRatio(snapshot.pb))
+    .filter((value): value is number => value !== null)
+    .sort((a, b) => a - b);
+  if (pbValues.length < 3) return snapshots;
+
+  const middle = Math.floor(pbValues.length / 2);
+  const median =
+    pbValues.length % 2 === 0
+      ? (pbValues[middle - 1] + pbValues[middle]) / 2
+      : pbValues[middle];
+  if (!Number.isFinite(median) || median <= 0) return snapshots;
+
+  return snapshots.map((snapshot) => {
+    const pb = sanitizeSignedRatio(snapshot.pb);
+    if (pb === null) return snapshot;
+    const ratio = pb / median;
+    if (ratio >= 1 / 3 && ratio <= 3) return snapshot;
+    return { ...snapshot, pb: null };
+  });
 }
 
 export function pruneInvalidExplicitIndexSnapshotsForTest(
@@ -3036,6 +3176,23 @@ function parseSsgaIndexMetrics(html: string): OfficialIndexSnapshot | undefined 
 function parseIsharesMetricBlock(html: string, label: string): { date?: string; value?: number } {
   const source = String(html || "");
   const decodedSource = source.replace(/&quot;/gi, '"').replace(/&#34;/gi, '"');
+  const normalizedLabel = normalizeLookupText(label);
+
+  // The current iShares payload puts formattedValue before label. Searching
+  // forward from "P/B Ratio" therefore used to read the following P/E value
+  // as PB. Parse one JSON object at a time so field order cannot cross metrics.
+  for (const match of decodedSource.matchAll(/\{[^{}]{0,10000}\}/g)) {
+    const objectText = match[0];
+    const objectLabelMatch = objectText.match(/"label"\s*:\s*"([^"]+)"/i);
+    if (!objectLabelMatch || normalizeLookupText(objectLabelMatch[1]) !== normalizedLabel) continue;
+    const objectDateMatch = objectText.match(/"formattedAsOfDate"\s*:\s*"([^"]+)"/i);
+    const objectValueMatch = objectText.match(/"formattedValue"\s*:\s*"([^"]+)"/i);
+    return {
+      date: objectDateMatch ? parseAsOfDateFromText(`as of ${objectDateMatch[1]}`) : undefined,
+      value: objectValueMatch ? parseNumericText(objectValueMatch[1]) : undefined,
+    };
+  }
+
   const index = decodedSource.indexOf(label);
   if (index < 0) return {};
 
@@ -3173,6 +3330,43 @@ function attachWsjSnapshotDate(
     next.set(key, { ...value, asOfDate: value.asOfDate || asOfDate });
   }
   return next;
+}
+
+function pickLatestWsjPeSnapshot(
+  liveSnapshot: LatestPeSnapshot | undefined,
+  cachedSnapshots: IndexYahooDailyMetricSnapshot[]
+): LatestPeSnapshot | undefined {
+  const cached = [...(cachedSnapshots || [])]
+    .filter((snapshot) => snapshot.source === "wsj-latest")
+    .filter((snapshot) => isReasonablePe(snapshot.pe_ttm ?? undefined))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-1)[0];
+  const cachedSnapshot = cached
+    ? {
+        trailing: Number(cached.pe_ttm),
+        forward: isReasonableForwardPe(cached.pe_forward ?? undefined)
+          ? Number(cached.pe_forward)
+          : undefined,
+        asOfDate: cached.date,
+      }
+    : undefined;
+
+  if (!liveSnapshot) return cachedSnapshot;
+  if (!cachedSnapshot) return liveSnapshot;
+  const livePairIsPlausible = isPlausibleForwardPair(liveSnapshot.trailing, liveSnapshot.forward);
+  const cachedPairIsPlausible = isPlausibleForwardPair(cachedSnapshot.trailing, cachedSnapshot.forward);
+  if (cachedPairIsPlausible && !livePairIsPlausible) return cachedSnapshot;
+  if (livePairIsPlausible && !cachedPairIsPlausible) return liveSnapshot;
+  return String(cachedSnapshot.asOfDate || "") > String(liveSnapshot.asOfDate || "")
+    ? cachedSnapshot
+    : liveSnapshot;
+}
+
+export function pickLatestWsjPeSnapshotForTest(
+  liveSnapshot: LatestPeSnapshot | undefined,
+  cachedSnapshots: IndexYahooDailyMetricSnapshot[]
+): LatestPeSnapshot | undefined {
+  return pickLatestWsjPeSnapshot(liveSnapshot, cachedSnapshots);
 }
 
 function parseWsjPeSnapshotFromHtml(html: string): Map<string, LatestPeSnapshot> {
@@ -6277,7 +6471,10 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
       let wsjAnchorTrailing: number | undefined;
       let wsjAnchorForward: number | undefined;
-      const wsjLatest = wsjPeSnapshot.get(meta.id);
+      const wsjLatest = pickLatestWsjPeSnapshot(
+        wsjPeSnapshot.get(meta.id),
+        indexYahooDailyMetricsBySymbol.get(meta.symbol) || []
+      );
       if (wsjLatest) {
         let appliedWsjSnapshot = false;
         const wsjEffectiveDate =
@@ -6911,7 +7108,23 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       // the entire already-published series, including the formerly mutable
       // post-cutover tail. Historical rewrites require an explicit operator
       // authorization and are additionally tracked by the history lock file.
-      points = preservePublishedIndexHistoryAppendOnly(previousPoints, points, meta.id);
+      const regeneratedPoints = points;
+      points = preservePublishedIndexHistoryAppendOnly(previousPoints, regeneratedPoints, meta.id);
+      points = repairPublishedPbOutliers(
+        points,
+        regeneratedPoints,
+        meta.id,
+        effectiveYahooSnapshots
+      );
+      // Point-in-time index metrics are often published after the trading day
+      // has already entered our daily series. Re-apply only traceable WSJ or
+      // fund-provider observations after the append-only merge so a provisional
+      // estimate cannot permanently mask the later authoritative value.
+      points = applyAuthoritativePublishedMetricCorrections(
+        points,
+        meta.id,
+        effectiveYahooSnapshots
+      );
       if (effectiveEnd > liveSourceCutoverDate) {
         const latestPointDate = points[points.length - 1]?.date || "";
         if (!latestPointDate || latestPointDate <= liveSourceCutoverDate) {
@@ -7130,6 +7343,21 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   );
 
   return dataset;
+}
+
+export async function loadAuthoritativePublishedMetricCorrections(): Promise<AuthoritativePublishedMetricCorrections> {
+  const snapshotsBySymbol = await loadIndexYahooDailyMetricSnapshotsBySymbol();
+  const result: AuthoritativePublishedMetricCorrections = new Map();
+
+  for (const meta of ALL_INDICES) {
+    const corrections = buildAuthoritativeMetricCorrections(
+      meta.id,
+      snapshotsBySymbol.get(meta.symbol) || []
+    );
+    if (corrections.size) result.set(meta.id, corrections);
+  }
+
+  return result;
 }
 
 export function validateDataset(dataset: ValuationDataset): void {
