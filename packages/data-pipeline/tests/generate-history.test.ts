@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  applyNasdaq100OfficialCloseRepairsForTest,
   applyAuthoritativePublishedMetricCorrectionsForTest,
   applyValidatedNasdaq100TtmHistoryForTest,
   applyValidatedRussell2000PeHistoryForTest,
@@ -319,6 +320,23 @@ test("parses the official Nasdaq-100 close series republished by FRED", () => {
   assert.deepEqual(parsed, [
     { date: "2024-12-30", close: 21197.09 },
     { date: "2024-12-31", close: 21012.17 },
+  ]);
+});
+
+test("repairs FRED's missing 2002-01-29 Nasdaq-100 close from Nasdaq's official history", () => {
+  const repaired = applyNasdaq100OfficialCloseRepairsForTest(
+    [
+      { date: "2002-01-28", close: 1564.86 },
+      { date: "2002-01-30", close: 1538.94 },
+    ],
+    "2002-01-28",
+    "2002-01-30"
+  );
+
+  assert.deepEqual(repaired, [
+    { date: "2002-01-28", close: 1564.86 },
+    { date: "2002-01-29", close: 1519.33 },
+    { date: "2002-01-30", close: 1538.94 },
   ]);
 });
 

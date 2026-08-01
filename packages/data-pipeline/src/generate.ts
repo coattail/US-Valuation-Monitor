@@ -576,6 +576,15 @@ const NASDAQ100_TTM_BUBBLE_FACTSET_BOOTSTRAP: Array<{ date: string; value: numbe
   { date: "2001-12-31", value: 208.3 },
 ];
 
+// FRED's Nasdaq-100 close series has a single missing observation on
+// 2002-01-29. Nasdaq's official index-history table reports 1,519.33 for that
+// date. Without this repair, the reconstructed valuation falls back to the
+// differently scaled QQQ proxy for one day and creates a false PE needle.
+// https://indexes.nasdaq.com/Index/History/NDX
+const NASDAQ100_OFFICIAL_CLOSE_REPAIRS: ClosePoint[] = [
+  { date: "2002-01-29", close: 1519.33 },
+];
+
 // Official Nasdaq year-end Price/Earnings observations. Nasdaq's August 2022
 // NDX presentation labels every EOY 2001-2021 value and cites Nasdaq, FactSet
 // and Bloomberg as its sources:
@@ -4585,6 +4594,27 @@ function parseFredIndexCloseSeries(
   return result.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function applyNasdaq100OfficialCloseRepairs(
+  points: ClosePoint[],
+  startDate: string,
+  endDate: string
+): ClosePoint[] {
+  const byDate = new Map(points.map((point) => [point.date, point]));
+  for (const repair of NASDAQ100_OFFICIAL_CLOSE_REPAIRS) {
+    if (repair.date < startDate || repair.date > endDate) continue;
+    byDate.set(repair.date, repair);
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function applyNasdaq100OfficialCloseRepairsForTest(
+  points: ClosePoint[],
+  startDate: string,
+  endDate: string
+): ClosePoint[] {
+  return applyNasdaq100OfficialCloseRepairs(points, startDate, endDate);
+}
+
 export function parseFredIndexCloseSeriesForTest(
   csvText: string,
   seriesId: string,
@@ -4602,7 +4632,7 @@ async function fetchNasdaq100IndexCloseSeries(startDate: string, endDate: string
   if (!points.length) {
     throw new Error("No usable NASDAQ100 close values from FRED");
   }
-  return points;
+  return applyNasdaq100OfficialCloseRepairs(points, startDate, endDate);
 }
 
 async function fetchRussell2000IndexCloseSeries(startDate: string, endDate: string): Promise<ClosePoint[]> {
