@@ -254,6 +254,10 @@ const FORWARD_PE_REBASE_MIN_VALUE = 4;
 // truth for the latest company Forward P/E.  The fundamentals timeseries is
 // retained for historical anchors only and must not overwrite that value.
 const YAHOO_PAGE_FORWARD_PE_MAX_AGE_DAYS = 10;
+// The Yahoo fundamentals endpoint occasionally returns today's ratio with a
+// months-old asOfDate.  The daily snapshot store is point-in-time history, so a
+// newly discovered anchor that far behind the latest close must not be backfilled.
+const YAHOO_DAILY_NEW_ANCHOR_MAX_LAG_DAYS = 14;
 const RECENT_PE_PULSE_LOOKBACK_DAYS = 180;
 const RECENT_PE_PULSE_MAX_CALENDAR_DAYS = 14;
 const RECENT_PE_PULSE_MAX_POINT_SPAN = 8;
@@ -3566,6 +3570,7 @@ function createYahooDailyMetricSnapshots(
   const isYahooQuoteLatestSource = hasAnyYahooSourceTag(source, [
     "yahoo-quote-api-latest",
     "yahoo-quote-summary-latest",
+    "yahoo-quote-page-latest",
   ]);
 
   for (const metric of metrics) {
@@ -3643,7 +3648,8 @@ function mergeCurrentYahooSnapshotsIntoHistory(
   historicalSnapshots: YahooDailyMetricSnapshot[],
   currentSnapshots: YahooDailyMetricSnapshot[],
   latestMetricDates: Partial<Record<RatioMetricKey, string>>,
-  metricAnchorDates: Partial<Record<RatioMetricKey, string[]>>
+  metricAnchorDates: Partial<Record<RatioMetricKey, string[]>>,
+  latestCloseDate = ""
 ): YahooDailyMetricSnapshot[] {
   const byDate = new Map<string, YahooDailyMetricSnapshot>();
   for (const item of historicalSnapshots || []) {
@@ -3659,7 +3665,16 @@ function mergeCurrentYahooSnapshotsIntoHistory(
     latestMetricDates,
     metricAnchorDates
   );
+  const latestCloseTs = /^\d{4}-\d{2}-\d{2}$/.test(latestCloseDate) ? toTs(latestCloseDate) : 0;
   for (const snapshot of alignedCurrent) {
+    const snapshotTs = toTs(snapshot.date);
+    const lagDays = latestCloseTs && snapshotTs ? (latestCloseTs - snapshotTs) / 86_400_000 : 0;
+    if (lagDays > YAHOO_DAILY_NEW_ANCHOR_MAX_LAG_DAYS) {
+      // Preserve an observation captured near its date, but never let a later
+      // Yahoo response invent or rewrite point-in-time history months earlier.
+      continue;
+    }
+
     const current = byDate.get(snapshot.date);
     byDate.set(snapshot.date, {
       date: snapshot.date,
@@ -7648,7 +7663,8 @@ async function main(): Promise<void> {
       historicalYahooDailySnapshots,
       currentYahooDailySnapshots,
       yahooFetchResult?.latestMetricDates || {},
-      yahooFetchResult?.metricAnchorDates || {}
+      yahooFetchResult?.metricAnchorDates || {},
+      lastCloseDate
     );
     yahooDailyMetricsBySymbol.set(company.symbol, yahooDailySnapshots);
     const effectiveYahooSnapshots = buildEffectiveYahooDailyMetricSnapshots(closePoints, yahooDailySnapshots);

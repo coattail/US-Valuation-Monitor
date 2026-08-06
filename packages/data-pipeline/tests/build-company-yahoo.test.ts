@@ -552,6 +552,23 @@ test("quote API TTM PE daily snapshot uses the latest close date even when times
   );
 });
 
+test("quote-page TTM PE uses the latest close instead of a stale timeseries date", () => {
+  const snapshots = createYahooDailyMetricSnapshots(
+    {
+      anchors: [],
+      latest: { pe_ttm: 17.9, pe_forward: null, pb: null, peg: null },
+      source: "yahoo-trailing-pe-timeseries+yahoo-quote-page-latest:uk.finance.yahoo.com",
+    },
+    "2026-08-04",
+    { pe_ttm: "2026-04-08" },
+    { pe_ttm: 17.9 }
+  );
+
+  assert.equal(snapshots.length, 1);
+  assert.equal(snapshots[0].date, "2026-08-04");
+  assert.equal(snapshots[0].pe_ttm, 17.9);
+});
+
 test("latest Yahoo TTM PE override prefers quote API over timeseries on the close date", () => {
   const override = selectLatestYahooRatioOverrideForTest(
     [
@@ -711,6 +728,41 @@ test("a later sparse Yahoo response cannot erase a previously recorded TTM ancho
 
   assert.equal(merged.find((item) => item.date === "2026-07-08")?.pe_ttm, 37.978074);
   assert.equal(merged.find((item) => item.date === "2026-07-09")?.pe_ttm, 37.976336);
+});
+
+test("a months-late Yahoo response cannot invent a historical daily anchor", () => {
+  const merged = mergeCurrentYahooSnapshotsIntoHistoryForTest(
+    [],
+    [
+      {
+        date: "2026-04-08",
+        pe_ttm: 17.9,
+        pe_forward: 17.39,
+        pb: 7.01,
+        peg: null,
+        source: "yahoo-trailing-pe-timeseries+yahoo-quote-page-latest:uk.finance.yahoo.com",
+        capturedAt: "2026-08-05T22:37:13.031Z",
+      },
+      {
+        date: "2026-08-04",
+        pe_ttm: 18.833417,
+        pe_forward: 16.29,
+        pb: 7.42,
+        peg: null,
+        source: "yahoo-quote-page-latest:uk.finance.yahoo.com",
+        capturedAt: "2026-08-05T22:37:13.031Z",
+      },
+    ],
+    { pe_ttm: "2026-08-04", pe_forward: "2026-08-04" },
+    {
+      pe_ttm: ["2026-04-08", "2026-08-04"],
+      pe_forward: ["2026-04-08", "2026-08-04"],
+    },
+    "2026-08-04"
+  );
+
+  assert.equal(merged.some((item) => item.date === "2026-04-08"), false);
+  assert.equal(merged.find((item) => item.date === "2026-08-04")?.pe_ttm, 18.833417);
 });
 
 test("a stale Yahoo TTM PE anchor is not carried beyond the short reporting delay window", () => {
