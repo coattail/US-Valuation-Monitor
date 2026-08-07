@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-07T01:07:26.302Z",
+  "generatedAt": "2026-08-07T22:05:35.549Z",
   "symbols": {
     "DIA": [
       {
@@ -601,6 +601,14 @@
         "pb": null,
         "source": "wsj-latest",
         "capturedAt": "2026-08-07T01:04:41.030Z"
+      },
+      {
+        "date": "2026-08-07",
+        "pe_ttm": 22.1,
+        "pe_forward": 20.73,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-08-07T22:02:51.245Z"
       }
     ],
     "DRAM": [
@@ -723,6 +731,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-08-07T01:07:25.820Z"
+      },
+      {
+        "date": "2026-08-07",
+        "pe_ttm": 28.76,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-08-07T22:05:35.001Z"
       }
     ],
     "IGV": [
@@ -837,6 +853,14 @@
         "pb": 7.17,
         "source": "ishares-official-latest",
         "capturedAt": "2026-08-07T01:07:18.186Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 36.42,
+        "pe_forward": null,
+        "pb": 7.09,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-08-07T22:05:27.687Z"
       }
     ],
     "IJH": [
@@ -1143,6 +1167,14 @@
         "pb": 2.92,
         "source": "ishares-official-latest",
         "capturedAt": "2026-08-07T01:05:12.762Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 24.19,
+        "pe_forward": null,
+        "pb": 2.91,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-08-07T22:03:19.984Z"
       }
     ],
     "IWM": [
@@ -1448,7 +1480,7 @@
         "pe_forward": 31.85,
         "pb": 2.16,
         "source": "wsj-latest",
-        "capturedAt": "2026-08-07T01:04:51.005Z"
+        "capturedAt": "2026-08-07T22:03:03.775Z"
       },
       {
         "date": "2026-08-03",
@@ -1473,6 +1505,14 @@
         "pb": 2.24,
         "source": "ishares-official-latest",
         "capturedAt": "2026-08-07T01:04:51.005Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": null,
+        "pe_forward": null,
+        "pb": 2.23,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-08-07T22:03:03.775Z"
       }
     ],
     "QQQ": [
@@ -1610,7 +1650,7 @@
         "pe_forward": 24.79,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-08-07T01:04:35.341Z"
+        "capturedAt": "2026-08-07T22:02:46.241Z"
       }
     ],
     "SMH": [
@@ -1733,6 +1773,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-08-07T01:07:23.809Z"
+      },
+      {
+        "date": "2026-08-07",
+        "pe_ttm": 44.71,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-08-07T22:05:32.907Z"
       }
     ],
     "SOXX": [
@@ -1847,6 +1895,14 @@
         "pb": 11.57,
         "source": "ishares-official-latest",
         "capturedAt": "2026-08-07T01:07:20.846Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 65.4,
+        "pe_forward": null,
+        "pb": 11.43,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-08-07T22:05:30.193Z"
       }
     ],
     "SPY": [
@@ -1984,7 +2040,7 @@
         "pe_forward": 21.01,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-08-07T01:04:17.889Z"
+        "capturedAt": "2026-08-07T22:02:30.384Z"
       }
     ],
     "VTI": [
@@ -2267,6 +2323,14 @@
         "pb": 5.13,
         "source": "ishares-official-latest",
         "capturedAt": "2026-08-07T01:05:32.289Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 29.66,
+        "pe_forward": null,
+        "pb": 5.11,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-08-07T22:03:37.805Z"
       }
     ],
     "XLB": [
@@ -2805,6 +2869,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:06:51.535Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 25.56,
+        "pe_forward": 17.97,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:05:01.275Z"
       }
     ],
     "XLC": [
@@ -3327,6 +3399,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:05:43.896Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 15.74,
+        "pe_forward": 12.9,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:03:50.935Z"
       }
     ],
     "XLE": [
@@ -3865,6 +3945,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:06:15.686Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 16.16,
+        "pe_forward": 12.05,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:04:16.762Z"
       }
     ],
     "XLF": [
@@ -4387,6 +4475,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:06:23.664Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 16.77,
+        "pe_forward": null,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:04:24.222Z"
       }
     ],
     "XLI": [
@@ -4925,6 +5021,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:06:42.232Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 30.85,
+        "pe_forward": 26.48,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:04:51.450Z"
       }
     ],
     "XLK": [
@@ -5463,6 +5567,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:07:06.521Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 35.45,
+        "pe_forward": 26.55,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:05:19.355Z"
       }
     ],
     "XLP": [
@@ -5993,6 +6105,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:06:04.260Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 25.48,
+        "pe_forward": 20.47,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:04:07.401Z"
       }
     ],
     "XLRE": [
@@ -6515,6 +6635,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:06:58.090Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 34.15,
+        "pe_forward": null,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:05:10.326Z"
       }
     ],
     "XLU": [
@@ -7045,6 +7173,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:07:16.363Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 19.54,
+        "pe_forward": 18.06,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:05:26.102Z"
       }
     ],
     "XLV": [
@@ -7583,6 +7719,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:06:35.993Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 30.3,
+        "pe_forward": 19.81,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:04:41.262Z"
       }
     ],
     "XLY": [
@@ -8113,6 +8257,14 @@
         "pb": null,
         "source": "ssga-official-latest",
         "capturedAt": "2026-08-07T01:05:56.354Z"
+      },
+      {
+        "date": "2026-08-06",
+        "pe_ttm": 27.8,
+        "pe_forward": 23.8,
+        "pb": null,
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-08-07T22:03:58.185Z"
       }
     ]
   }
