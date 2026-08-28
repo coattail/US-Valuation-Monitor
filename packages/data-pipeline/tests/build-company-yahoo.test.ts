@@ -252,6 +252,22 @@ test("Yahoo valuation parser keeps the Current column instead of a historical Fo
   assert.equal(payload?.anchors[0]?.pe_forward, 18.31);
 });
 
+test("Yahoo valuation parser ignores unhydrated loading labels instead of reading 5yr as PE", () => {
+  const payload = parseYahooValuationMeasuresFromHtml(`
+    <section data-testid="valuation-measures">
+      <div class="asofdate">As of 8/28/2026</div>
+      <ul>
+        <li><p>Trailing P/E</p><span class="loading">&nbsp;</span></li>
+        <li><p>Forward P/E</p><span class="loading">&nbsp;</span></li>
+        <li><p>PEG Ratio (5yr expected)</p><span class="loading">&nbsp;</span></li>
+        <li><p>Price/Book (mrq)</p><span class="loading">&nbsp;</span></li>
+      </ul>
+    </section>
+  `);
+
+  assert.equal(payload, null);
+});
+
 test("Yahoo page Current Forward P/E overrides the timeseries latest value when the page is fresh", () => {
   const override = buildYahooPageForwardPeOverrideForTest(
     {
@@ -285,7 +301,7 @@ test("stale Yahoo page Forward P/E cannot overwrite a newer fallback", () => {
 test("Yahoo valuation measures do not keep impossible future as-of dates", () => {
   const payload = parseYahooValuationMeasuresFromHtml(`
     <section data-testid="valuation-measures">
-      <div class="asofdate">As of 09/04/2026</div>
+      <div class="asofdate">As of 12/31/2099</div>
       <ul>
         <li><p>Forward P/E</p><p>25.00</p></li>
         <li><p>Price/Book (mrq)</p><p>61.81</p></li>
@@ -293,15 +309,13 @@ test("Yahoo valuation measures do not keep impossible future as-of dates", () =>
     </section>
   `);
 
-  assert.deepEqual(payload?.anchors, [
-    {
-      date: "2026-04-09",
-      pe_ttm: null,
-      pe_forward: 25,
-      pb: 61.81,
-      peg: null,
-    },
-  ]);
+  assert.deepEqual(payload?.anchors, []);
+  assert.deepEqual(payload?.latest, {
+    pe_ttm: null,
+    pe_forward: 25,
+    pb: 61.81,
+    peg: null,
+  });
 });
 
 test("Yahoo daily snapshots do not stamp stale dated table values onto the latest close date", () => {
@@ -728,6 +742,60 @@ test("a later sparse Yahoo response cannot erase a previously recorded TTM ancho
 
   assert.equal(merged.find((item) => item.date === "2026-07-08")?.pe_ttm, 37.978074);
   assert.equal(merged.find((item) => item.date === "2026-07-09")?.pe_ttm, 37.976336);
+});
+
+test("a direct latest Yahoo TTM quote survives a lagging timeseries date after earnings", () => {
+  const merged = mergeCurrentYahooSnapshotsIntoHistoryForTest(
+    [
+      {
+        date: "2026-08-26",
+        pe_ttm: 32.107198,
+        pe_forward: 24.27,
+        pb: 26.4,
+        peg: 0.5775,
+        source: "yahoo-trailing-pe-timeseries",
+        capturedAt: "2026-08-28T05:34:50.000Z",
+      },
+    ],
+    [
+      {
+        date: "2026-08-27",
+        pe_ttm: 28.24,
+        pe_forward: null,
+        pb: null,
+        peg: null,
+        source: "yahoo-trailing-pe-timeseries+yahoo-quote-page-latest:finance.yahoo.com",
+        capturedAt: "2026-08-28T05:34:50.000Z",
+      },
+    ],
+    { pe_ttm: "2026-08-26" },
+    { pe_ttm: ["2026-08-26"] },
+    "2026-08-27"
+  );
+
+  assert.equal(merged.find((item) => item.date === "2026-08-27")?.pe_ttm, 28.24);
+});
+
+test("legacy Yahoo loading-skeleton PE artifacts are removed from stored history", () => {
+  const merged = mergeCurrentYahooSnapshotsIntoHistoryForTest(
+    [
+      {
+        date: "2026-08-27",
+        pe_ttm: null,
+        pe_forward: 5,
+        pb: null,
+        peg: -1,
+        source: "yahoo-key-statistics-valuation-measures:finance.yahoo.com+yahoo-trailing-pe-timeseries",
+        capturedAt: "2026-08-28T05:37:32.826Z",
+      },
+    ],
+    [],
+    {},
+    {},
+    "2026-08-27"
+  );
+
+  assert.deepEqual(merged, []);
 });
 
 test("a months-late Yahoo response cannot invent a historical daily anchor", () => {

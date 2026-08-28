@@ -258,6 +258,11 @@ const YAHOO_PAGE_FORWARD_PE_MAX_AGE_DAYS = 10;
 // months-old asOfDate.  The daily snapshot store is point-in-time history, so a
 // newly discovered anchor that far behind the latest close must not be backfilled.
 const YAHOO_DAILY_NEW_ANCHOR_MAX_LAG_DAYS = 14;
+// A Yahoo loading-skeleton parser bug published the literal 5 from
+// "PEG Ratio (5yr expected)" as PE during the 2026-08-28 refresh. Keep the
+// cleanup bounded to snapshots created by the old parser so a legitimate
+// future Forward P/E of exactly 5 is not discarded.
+const YAHOO_LOADING_SKELETON_ARTIFACT_CUTOFF = "2026-08-28T12:00:00.000Z";
 const RECENT_PE_PULSE_LOOKBACK_DAYS = 180;
 const RECENT_PE_PULSE_MAX_CALENDAR_DAYS = 14;
 const RECENT_PE_PULSE_MAX_POINT_SPAN = 8;
@@ -277,8 +282,8 @@ const ADR_LATEST_PE_DIVISOR_BY_SYMBOL: Record<
   TSM: { pe_ttm: 5 },
 };
 const YAHOO_KEY_STATISTICS_HOSTS = [
-  "https://uk.finance.yahoo.com",
   "https://finance.yahoo.com",
+  "https://uk.finance.yahoo.com",
   "https://fr.finance.yahoo.com",
 ];
 const YCHARTS_CALC_PRICE = "price";
@@ -2153,12 +2158,11 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
     .replace(/\s+/g, " ")
     .trim();
 
-  const candidates = [
+  const htmlCandidates = [
     raw,
     raw.replace(/\\"/g, '"'),
     raw.replace(/\\\//g, "/"),
     raw.replace(/\\"/g, '"').replace(/\\\//g, "/"),
-    normalizedPlain,
   ].filter((item) => String(item || "").trim());
 
   const parseLabelMetric = (
@@ -2166,26 +2170,41 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
     minValue: number,
     maxValue: number
   ): number | null => {
-    for (const candidate of candidates) {
-      for (const label of labels) {
-        const escapedLabel = escapeForRegex(label);
+    const accept = (rawValue: unknown): number | null => {
+      const value = sanitizeSignedRatio(rawValue);
+      return value !== null && value >= minValue && value <= maxValue ? value : null;
+    };
+
+    for (const label of labels) {
+      const escapedLabel = escapeForRegex(label);
+
+      // Prefer structurally adjacent values. Yahoo now renders an empty
+      // loading skeleton before hydration; a loose "next number" match used
+      // to consume the 5 in "PEG Ratio (5yr expected)" and publish it as PE.
+      for (const candidate of htmlCandidates) {
         const patterns = [
-          new RegExp(`${escapedLabel}[^0-9\\-]{0,120}(-?\\d+(?:\\.\\d+)?)`, "gi"),
+          new RegExp(
+            `<(?:p|span|div|td)[^>]*>\\s*${escapedLabel}\\s*<\\/(?:p|span|div|td)>\\s*<(?:p|span|div|td)[^>]*>\\s*(-?\\d+(?:\\.\\d+)?)\\s*<`,
+            "gi"
+          ),
           new RegExp(`${escapedLabel}[\\s\\S]{0,220}?<td[^>]*>\\s*(-?\\d+(?:\\.\\d+)?)\\s*<`, "gi"),
           new RegExp(`"label"\\s*:\\s*"${escapedLabel}"[\\s\\S]{0,220}?"raw"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`, "gi"),
         ];
 
         for (const pattern of patterns) {
           for (const match of candidate.matchAll(pattern)) {
-            const value = sanitizeSignedRatio(match[1]);
-            if (value === null) continue;
-            if (value < minValue || value > maxValue) continue;
-            // Yahoo renders the Current value first, followed by quarterly or
-            // annual history.  Keeping the first match avoids silently using
-            // a historical-column value as the current Forward P/E.
-            return value;
+            const value = accept(match[1]);
+            if (value !== null) return value;
           }
         }
+      }
+
+      // Plain-text fallback is deliberately strict: the value must be the
+      // immediate next token after the complete label.
+      const plainPattern = new RegExp(`${escapedLabel}\\s*:?\\s*(-?\\d+(?:\\.\\d+)?)`, "gi");
+      for (const match of normalizedPlain.matchAll(plainPattern)) {
+        const value = accept(match[1]);
+        if (value !== null) return value;
       }
     }
 
@@ -2200,7 +2219,7 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
     ) || "";
   const peTtm = parseLabelMetric(["Trailing P/E"], 2, 400);
   const peForward = parseLabelMetric(["Forward P/E"], 2, 400);
-  const pb = parseLabelMetric(["Price/Book"], 0.01, 400);
+  const pb = parseLabelMetric(["Price/Book (mrq)", "Price/Book"], 0.01, 400);
   const peg = parseLabelMetric(
     [
       "PEG Ratio (5 yr expected)",
@@ -3498,10 +3517,25 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
   if (date > maxAcceptedDate) return null;
 
   const source = String(item.source || "").trim();
-  const peTtm = sanitizeYahooMetricValue("pe_ttm", item.pe_ttm, source);
-  const peForward = sanitizeYahooMetricValue("pe_forward", item.pe_forward, source);
+  let peTtm = sanitizeYahooMetricValue("pe_ttm", item.pe_ttm, source);
+  let peForward = sanitizeYahooMetricValue("pe_forward", item.pe_forward, source);
   const pb = sanitizeYahooMetricValue("pb", item.pb, source);
-  const peg = sanitizeYahooMetricValue("peg", item.peg, source);
+  let peg = sanitizeYahooMetricValue("peg", item.peg, source);
+  const capturedAt = String(item.capturedAt || "").trim();
+  const isLegacyLoadingSkeletonArtifact =
+    source.includes("yahoo-key-statistics-valuation-measures") &&
+    capturedAt !== "" &&
+    capturedAt <= YAHOO_LOADING_SKELETON_ARTIFACT_CUTOFF &&
+    peForward === 5 &&
+    pb === null &&
+    (peTtm === null || peTtm === 5) &&
+    (peg === null || peg === -1) &&
+    !source.includes("yahoo-forward-pe-timeseries");
+  if (isLegacyLoadingSkeletonArtifact) {
+    peTtm = null;
+    peForward = null;
+    peg = null;
+  }
   if (!peTtm && !peForward && !pb && !peg) return null;
 
   return {
@@ -3511,7 +3545,7 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
     pb,
     peg,
     source,
-    capturedAt: String(item.capturedAt || "").trim(),
+    capturedAt,
   };
 }
 
@@ -3608,7 +3642,8 @@ function createYahooDailyMetricSnapshots(
 function alignSnapshotMetricsToLatestDates(
   snapshots: YahooDailyMetricSnapshot[],
   latestMetricDates: Partial<Record<RatioMetricKey, string>>,
-  metricAnchorDates: Partial<Record<RatioMetricKey, string[]>>
+  metricAnchorDates: Partial<Record<RatioMetricKey, string[]>>,
+  latestCloseDate = ""
 ): YahooDailyMetricSnapshot[] {
   if (!Array.isArray(snapshots) || !snapshots.length) return [];
 
@@ -3626,11 +3661,21 @@ function alignSnapshotMetricsToLatestDates(
     .filter((item): item is YahooDailyMetricSnapshot => !!item)
     .map((item) => {
       const nextItem: YahooDailyMetricSnapshot = { ...item };
-      if (validLatestTtmDate && nextItem.date > validLatestTtmDate) {
-        nextItem.pe_ttm = null;
-      }
-      if (nextItem.pe_ttm !== null && validTtmDates.size && !validTtmDates.has(nextItem.date)) {
-        nextItem.pe_ttm = null;
+      const isDirectLatestQuoteTtm =
+        nextItem.pe_ttm !== null &&
+        nextItem.date === latestCloseDate &&
+        hasAnyYahooSourceTag(nextItem.source, [
+          "yahoo-quote-api-latest",
+          "yahoo-quote-summary-latest",
+          "yahoo-quote-page-latest",
+        ]);
+      if (!isDirectLatestQuoteTtm) {
+        if (validLatestTtmDate && nextItem.date > validLatestTtmDate) {
+          nextItem.pe_ttm = null;
+        }
+        if (nextItem.pe_ttm !== null && validTtmDates.size && !validTtmDates.has(nextItem.date)) {
+          nextItem.pe_ttm = null;
+        }
       }
       if (validLatestForwardDate && nextItem.date > validLatestForwardDate) {
         nextItem.pe_forward = null;
@@ -3663,7 +3708,8 @@ function mergeCurrentYahooSnapshotsIntoHistory(
   const alignedCurrent = alignSnapshotMetricsToLatestDates(
     currentSnapshots,
     latestMetricDates,
-    metricAnchorDates
+    metricAnchorDates,
+    latestCloseDate
   );
   const latestCloseTs = /^\d{4}-\d{2}-\d{2}$/.test(latestCloseDate) ? toTs(latestCloseDate) : 0;
   for (const snapshot of alignedCurrent) {
