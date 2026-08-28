@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import {
   applyNasdaq100OfficialCloseRepairsForTest,
@@ -18,6 +19,7 @@ import {
   parseFredIndexCloseSeriesForTest,
   parseHistoryOfMarketNdxForwardSeriesForTest,
   shouldFetchStockAnalysisLatestSnapshotForTest,
+  validateNasdaq100OfficialMonthlyTtmSeriesForTest,
 } from "../src/generate.ts";
 
 function point(date: string, peTtm: number) {
@@ -125,6 +127,53 @@ test("authoritative delayed snapshots correct only their exact published metrics
     { ...published[1], pe_ttm: 33.05, pe_forward: 25.12 },
     published[2],
   ]);
+});
+
+test("Nasdaq official-period TTM is not overwritten by a later provider snapshot", () => {
+  const published = [
+    {
+      date: "2026-05-29",
+      pe_ttm: 38.12,
+      pe_forward: 25.4,
+      pb: 8.1,
+      us10y_yield: 0.04,
+    },
+  ];
+
+  const corrected = applyAuthoritativePublishedMetricCorrectionsForTest(
+    published,
+    "nasdaq100",
+    [
+      {
+        date: "2026-05-29",
+        pe_ttm: 35.28,
+        pe_forward: 24.8,
+        pb: null,
+        source: "wsj-latest",
+      },
+    ]
+  );
+
+  assert.deepEqual(corrected, [{ ...published[0], pe_forward: 24.8 }]);
+});
+
+test("Nasdaq post-official TTM keeps the exact WSJ observation", () => {
+  const published = [point("2026-08-21", 36.6965)];
+  const corrected = applyAuthoritativePublishedMetricCorrectionsForTest(
+    published,
+    "nasdaq100",
+    [
+      {
+        date: "2026-08-21",
+        pe_ttm: 34.12,
+        pe_forward: 24.1,
+        pb: null,
+        source: "wsj-latest",
+      },
+    ]
+  );
+
+  assert.deepEqual(corrected, [{ ...published[0], pe_ttm: 34.12, pe_forward: 24.1 }]);
 });
 
 test("append-only assertion rejects a mutation anywhere in published history", () => {
@@ -303,6 +352,85 @@ test("pins Nasdaq-100 TTM history to Nasdaq's published year-end observations", 
   assert.equal(corrected[3].pe_ttm, 22.9);
 });
 
+test("does not join the incompatible 1999-2000 positive-earners PE series to headline TTM PE", () => {
+  const closes = [
+    { date: "2000-12-29", close: 100 },
+    { date: "2001-12-31", close: 120 },
+  ];
+  const corrected = applyValidatedNasdaq100TtmHistoryForTest(
+    closes.map(({ date }) => point(date, 80)),
+    closes
+  );
+
+  assert.equal(corrected[0].pe_ttm, null);
+  assert.equal(corrected[1].pe_ttm, 208.3);
+});
+
+test("official Nasdaq/Bloomberg monthly TTM anchors override annual interpolation", () => {
+  const closes = [
+    { date: "2009-08-31", close: 100 },
+    { date: "2009-09-30", close: 102 },
+    { date: "2009-10-30", close: 99 },
+  ];
+  const officialMonthly = [
+    { date: "2009-08-31", value: 27.78, ts: Date.parse("2009-08-31T00:00:00Z") },
+    { date: "2009-09-30", value: 29.62, ts: Date.parse("2009-09-30T00:00:00Z") },
+    { date: "2009-10-31", value: 28.67, ts: Date.parse("2009-10-31T00:00:00Z") },
+  ];
+  const corrected = applyValidatedNasdaq100TtmHistoryForTest(
+    closes.map(({ date }) => point(date, 22)),
+    closes,
+    undefined,
+    officialMonthly
+  );
+
+  assert.deepEqual(corrected.map((item) => item.pe_ttm), [27.78, 29.62, 28.67]);
+});
+
+test("keeps post-official WSJ TTM anchors on their published basis", () => {
+  const closes = [
+    { date: "2026-06-30", close: 100 },
+    { date: "2026-07-01", close: 99 },
+    { date: "2026-07-02", close: 98 },
+  ];
+  const raw = [point("2026-06-30", 35.49), point("2026-07-01", 35.1), point("2026-07-02", 35.22)];
+  const officialMonthly = [
+    { date: "2026-06-30", value: 38.17, ts: Date.parse("2026-06-30T00:00:00Z") },
+  ];
+
+  const corrected = applyValidatedNasdaq100TtmHistoryForTest(raw, closes, undefined, officialMonthly);
+  assert.equal(corrected[0].pe_ttm, 38.17);
+  assert.equal(corrected[2].pe_ttm, 35.22);
+});
+
+test("audited Nasdaq/Bloomberg monthly TTM bootstrap has complete contiguous coverage", async () => {
+  const csv = await readFile(
+    new URL("../../../data/bootstrap/nasdaq100-ttm-nasdaq-bloomberg-monthly.csv", import.meta.url),
+    "utf8"
+  );
+  const series = csv
+    .trim()
+    .split("\n")
+    .slice(1)
+    .map((line) => {
+      const [date, rawValue] = line.split(",");
+      return { date, value: Number(rawValue), ts: Date.parse(`${date}T00:00:00Z`) };
+    });
+
+  assert.equal(validateNasdaq100OfficialMonthlyTtmSeriesForTest(series), series);
+  assert.throws(
+    () => validateNasdaq100OfficialMonthlyTtmSeriesForTest(series.slice(1)),
+    /invalid Nasdaq-100 official monthly TTM coverage/
+  );
+  assert.throws(
+    () =>
+      validateNasdaq100OfficialMonthlyTtmSeriesForTest(
+        series.map((point, index) => (index === 100 ? { ...point, date: series[99].date } : point))
+      ),
+    /invalid Nasdaq-100 official monthly TTM point/
+  );
+});
+
 test("parses the official Nasdaq-100 close series republished by FRED", () => {
   const parsed = parseFredIndexCloseSeriesForTest(
     [
@@ -427,7 +555,7 @@ test("leaves Nasdaq-100 PE unavailable before the first verified observations", 
 
   assert.equal(corrected[0].pe_ttm, null);
   assert.equal(corrected[0].pe_forward, null);
-  assert.equal(corrected[1].pe_ttm, 104);
+  assert.equal(corrected[1].pe_ttm, null);
   assert.equal(corrected[2].pe_forward, null);
   assert.equal(corrected[3].pe_forward, 95.92);
 });

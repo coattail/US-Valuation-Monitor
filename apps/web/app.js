@@ -678,14 +678,14 @@ function normalizeSeriesPayload(payload, indexId = "") {
 }
 
 async function fetchIndexSeries(indexId) {
-  const versionTag = encodeURIComponent(String(state.dataset?.generatedAt || "latest"));
+  const versionTag = encodeURIComponent(`${String(state.dataset?.generatedAt || "latest")}-${Date.now()}`);
   let lastError = null;
 
   for (const basePath of SERIES_PATH_CANDIDATES) {
     const normalizedBase = basePath.endsWith("/") ? basePath.slice(0, -1) : basePath;
     const path = `${normalizedBase}/${encodeURIComponent(indexId)}.json?v=${versionTag}`;
     try {
-      const response = await fetch(path);
+      const response = await fetch(path, { cache: "no-store" });
       if (!response.ok) continue;
       const payload = await response.json();
       const normalized = normalizeSeriesPayload(payload, indexId);

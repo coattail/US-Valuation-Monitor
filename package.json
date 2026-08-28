@@ -16,6 +16,7 @@
     "build:site": "node scripts/build-static-site.mjs",
     "import:fmp-forward-pe": "node scripts/import-fmp-forward-pe.mjs",
     "refresh:data:local": "bash scripts/refresh-local-data.sh",
+    "repair:data:nasdaq100-ttm": "node scripts/repair-nasdaq100-ttm-history.mjs",
     "install:local-refresh": "bash scripts/install-local-refresh-launchd.sh",
     "start:api": "node cloudfunctions/server.ts",
     "start:web": "python3 -m http.server 9030",

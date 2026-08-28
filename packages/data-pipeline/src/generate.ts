@@ -31,6 +31,15 @@ const DEFAULT_VENDOR_INDEX_FORWARD_PE_FILE = path.join(
 );
 const VENDOR_INDEX_FORWARD_PE_FILE = process.env.INDEX_FORWARD_PE_HISTORY_FILE || DEFAULT_VENDOR_INDEX_FORWARD_PE_FILE;
 const HISTORY_OF_MARKET_NDX_FORWARD_PE_URL = "https://historyofmarket.com/api/ndx/forward-pe.json";
+const NASDAQ100_TTM_NASDAQ_BLOOMBERG_FILE = path.join(
+  DATA_PIPELINE_ROOT,
+  "data",
+  "bootstrap",
+  "nasdaq100-ttm-nasdaq-bloomberg-monthly.csv"
+);
+const NASDAQ100_TTM_OFFICIAL_MONTHLY_START_DATE = "2006-01-31";
+const NASDAQ100_TTM_OFFICIAL_MONTHLY_END_DATE = "2026-06-30";
+const NASDAQ100_TTM_OFFICIAL_MONTHLY_POINT_COUNT = 246;
 const SP500_PB_PREFIX_START_DATE = "1999-12-31";
 const SP500_PB_PREFIX_END_DATE = "2005-02-24";
 
@@ -566,16 +575,6 @@ const NASDAQ100_FORWARD_MM_BOOTSTRAP: Array<{ date: string; value: number }> = [
   { date: "2002-12-31", value: 34.12 },
 ];
 
-// Nasdaq research cites FactSet index-level year-end points of roughly 104x
-// for 1999 and 113x for 2000. We deliberately do not insert a guessed dot-com
-// peak; the official NDX close path between the published observations is what
-// determines the intervening valuation curve.
-const NASDAQ100_TTM_BUBBLE_FACTSET_BOOTSTRAP: Array<{ date: string; value: number }> = [
-  { date: "1999-12-31", value: 104.0 },
-  { date: "2000-12-31", value: 113.0 },
-  { date: "2001-12-31", value: 208.3 },
-];
-
 // FRED's Nasdaq-100 close series has a single missing observation on
 // 2002-01-29. Nasdaq's official index-history table reports 1,519.33 for that
 // date. Without this repair, the reconstructed valuation falls back to the
@@ -616,20 +615,6 @@ const NASDAQ100_TTM_VALIDATED_YEAR_END_BOOTSTRAP: Array<{ date: string; value: n
   { date: "2020-12-31", value: 37.7 },
   { date: "2021-12-31", value: 37.3 },
   { date: "2022-12-30", value: 20.68 },
-];
-
-// Public point-in-time Nasdaq-100 TTM observations from Siblis bridge the gap
-// between Nasdaq's annual history and the first retained WSJ weekly anchor.
-// https://siblisresearch.com/data/nasdaq-100-pe-ratio/
-const NASDAQ100_TTM_RECENT_SIBLIS_BOOTSTRAP: Array<{ date: string; value: number }> = [
-  { date: "2023-12-29", value: 30.25 },
-  { date: "2024-06-28", value: 31.82 },
-  { date: "2024-12-31", value: 32.36 },
-  { date: "2025-03-31", value: 28.73 },
-  { date: "2025-06-30", value: 32.24 },
-  { date: "2025-09-30", value: 32.98 },
-  { date: "2025-12-31", value: 32.32 },
-  { date: "2026-03-31", value: 30.67 },
 ];
 
 // Public Siblis point-in-time Russell 2000 observations. Its methodology
@@ -923,8 +908,19 @@ function applyAuthoritativePublishedMetricCorrections(
   if (!corrections.size) return points;
 
   return points.map((point) => {
-    const correction = corrections.get(point.date);
-    return correction ? { ...point, ...correction } : point;
+    const rawCorrection = corrections.get(point.date);
+    if (!rawCorrection) return point;
+    const correction = { ...rawCorrection };
+    if (indexId === "nasdaq100" && sanitizeSignedRatio(correction.pe_ttm) !== null) {
+      if (point.date <= NASDAQ100_TTM_OFFICIAL_MONTHLY_END_DATE) {
+        // The monthly Nasdaq/Bloomberg curve is the governing headline-TTM
+        // series in this range. Keep other exact-date metrics from the delayed
+        // snapshot, but do not let a different provider definition punch holes
+        // back into the audited curve after the append-only merge.
+        delete correction.pe_ttm;
+      }
+    }
+    return { ...point, ...correction };
   });
 }
 
@@ -2882,6 +2878,55 @@ async function loadLocalMetricSeriesFromCsv(
   } catch {
     return undefined;
   }
+}
+
+function validateNasdaq100OfficialMonthlyTtmSeries(series: MonthlyMetricPoint[] | undefined): MonthlyMetricPoint[] {
+  if (!series?.length) {
+    throw new ReliableSourceError("missing audited Nasdaq-100 official monthly TTM series");
+  }
+  const firstDate = series[0]?.date || "";
+  const lastDate = series[series.length - 1]?.date || "";
+  if (
+    series.length !== NASDAQ100_TTM_OFFICIAL_MONTHLY_POINT_COUNT ||
+    firstDate !== NASDAQ100_TTM_OFFICIAL_MONTHLY_START_DATE ||
+    lastDate !== NASDAQ100_TTM_OFFICIAL_MONTHLY_END_DATE
+  ) {
+    throw new ReliableSourceError(
+      `invalid Nasdaq-100 official monthly TTM coverage: ${series.length} points, ${firstDate}..${lastDate}`
+    );
+  }
+  const start = new Date(`${NASDAQ100_TTM_OFFICIAL_MONTHLY_START_DATE}T00:00:00Z`);
+  for (let index = 0; index < series.length; index += 1) {
+    const expectedDate = new Date(
+      Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + index + 1, 0)
+    )
+      .toISOString()
+      .slice(0, 10);
+    const point = series[index];
+    if (
+      point.date !== expectedDate ||
+      !Number.isFinite(point.value) ||
+      point.value < 2.4 ||
+      point.value > 240
+    ) {
+      throw new ReliableSourceError(
+        `invalid Nasdaq-100 official monthly TTM point at row ${index + 1}: ${point.date}, ${point.value}`
+      );
+    }
+  }
+  return series;
+}
+
+async function loadNasdaq100OfficialMonthlyTtmSeries(): Promise<MonthlyMetricPoint[]> {
+  return validateNasdaq100OfficialMonthlyTtmSeries(
+    await loadLocalMetricSeriesFromCsv(NASDAQ100_TTM_NASDAQ_BLOOMBERG_FILE, 2.4, 240)
+  );
+}
+
+export function validateNasdaq100OfficialMonthlyTtmSeriesForTest(
+  series: MonthlyMetricPoint[] | undefined
+): MonthlyMetricPoint[] {
+  return validateNasdaq100OfficialMonthlyTtmSeries(series);
 }
 
 async function loadVendorIndexForwardPeHistory(): Promise<Map<string, MonthlyMetricPoint[]>> {
@@ -5290,14 +5335,16 @@ function applyCloseAnchoredOverrides(
 function applyValidatedNasdaq100TtmHistory(
   points: RawValuationPoint[],
   closes: ClosePoint[],
-  validatedForwardSeries?: MonthlyMetricPoint[]
+  validatedForwardSeries?: MonthlyMetricPoint[],
+  officialMonthlyTtmSeries?: MonthlyMetricPoint[]
 ): RawValuationPoint[] {
-  const authoritativeAnchors = buildBootstrapSeries([
-    ...NASDAQ100_TTM_BUBBLE_FACTSET_BOOTSTRAP,
+  const annualAndLiveAnchors = buildBootstrapSeries([
     ...NASDAQ100_TTM_VALIDATED_YEAR_END_BOOTSTRAP,
-    ...NASDAQ100_TTM_RECENT_SIBLIS_BOOTSTRAP,
     ...(CURATED_WSJ_TTM_REFERENCES.nasdaq100 || []),
   ]);
+  const authoritativeAnchors = officialMonthlyTtmSeries?.length
+    ? mergeMonthlySeries(officialMonthlyTtmSeries, annualAndLiveAnchors)
+    : annualAndLiveAnchors;
   const authoritativeForwardAnchors = validatedForwardSeries?.length
     ? mergeMonthlySeries(
         validatedForwardSeries,
@@ -5319,7 +5366,11 @@ function applyValidatedNasdaq100TtmHistory(
     forwardMaxSegmentSpanDays: 400,
     forwardSegmentMode: "denom_progress",
   });
-  corrected = clearMetricBeforeDate(corrected, "pe_ttm", "1999-12-31");
+  // The 1999-2000 values previously published here mixed a positive-earners-only
+  // Nasdaq table with the headline aggregate series that begins at 2001 year-end.
+  // Keep the earlier period empty instead of presenting incompatible ratios as
+  // one continuous TTM history.
+  corrected = clearMetricBeforeDate(corrected, "pe_ttm", "2001-12-31");
   corrected = clearMetricBeforeDate(corrected, "pe_forward", "2000-01-31");
   return corrected;
 }
@@ -5327,9 +5378,10 @@ function applyValidatedNasdaq100TtmHistory(
 export function applyValidatedNasdaq100TtmHistoryForTest(
   points: RawValuationPoint[],
   closes: ClosePoint[],
-  validatedForwardSeries?: MonthlyMetricPoint[]
+  validatedForwardSeries?: MonthlyMetricPoint[],
+  officialMonthlyTtmSeries?: MonthlyMetricPoint[]
 ): RawValuationPoint[] {
-  return applyValidatedNasdaq100TtmHistory(points, closes, validatedForwardSeries);
+  return applyValidatedNasdaq100TtmHistory(points, closes, validatedForwardSeries, officialMonthlyTtmSeries);
 }
 
 function applyValidatedRussell2000PeHistory(
@@ -5935,7 +5987,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let stockMarketPeRatioTrailingCount = 0;
   let ndxForwardBootstrapCount = 0;
   let ndxBloombergForwardCount = 0;
-  let ndxTtmFactsetBootstrapCount = 0;
+  let ndxOfficialMonthlyTtmCount = 0;
   let ndxOfficialCloseCount = 0;
   let rutIndexCloseCount = 0;
   let multplTrailingCount = 0;
@@ -6040,6 +6092,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       let trailingSeries: MonthlyMetricPoint[] | undefined;
       let forwardSeries: MonthlyMetricPoint[] | undefined;
       let ndxBloombergForwardSeries: MonthlyMetricPoint[] | undefined;
+      let ndxOfficialMonthlyTtmSeries: MonthlyMetricPoint[] | undefined;
       let pbSeries: MonthlyMetricPoint[] | undefined;
       let siblisLatestTrailingSnapshot: number | undefined;
       let siblisLatestForwardSnapshot: number | undefined;
@@ -6305,11 +6358,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           // retain the committed vendor/bootstrap history when the public JSON is unavailable
         }
 
-        const bubbleTrailing = buildBootstrapSeries(NASDAQ100_TTM_BUBBLE_FACTSET_BOOTSTRAP);
-        if (bubbleTrailing.length) {
-          trailingSeries = trailingSeries?.length ? mergeMonthlySeries(bubbleTrailing, trailingSeries) : bubbleTrailing;
-          ndxTtmFactsetBootstrapCount += 1;
-        }
+        ndxOfficialMonthlyTtmSeries = await loadNasdaq100OfficialMonthlyTtmSeries();
+        trailingSeries = trailingSeries?.length
+          ? mergeMonthlySeries(ndxOfficialMonthlyTtmSeries, trailingSeries)
+          : ndxOfficialMonthlyTtmSeries;
+        ndxOfficialMonthlyTtmCount += 1;
 
         const bootstrapForward = buildBootstrapSeries(NASDAQ100_FORWARD_MM_BOOTSTRAP);
         if (bootstrapForward.length && (!forwardSeries?.length || forwardSeries[0].date > "2001-12-31")) {
@@ -7119,13 +7172,20 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       if (meta.id === "nasdaq100") {
         // Final authoritative historical overlay. It deliberately runs after
         // all mutable web feeds and source-specific repairs.
-        points = applyValidatedNasdaq100TtmHistory(points, valuationCloses, ndxBloombergForwardSeries);
-        points = preservePublishedMetricHistoryFromDate(
-          previousPoints,
+        points = applyValidatedNasdaq100TtmHistory(
           points,
-          "pe_ttm",
-          NASDAQ100_WSJ_TTM_HISTORY_START_DATE
+          valuationCloses,
+          ndxBloombergForwardSeries,
+          ndxOfficialMonthlyTtmSeries
         );
+        if (!isValidatedIndexHistoryRewriteAllowed(meta.id)) {
+          points = preservePublishedMetricHistoryFromDate(
+            previousPoints,
+            points,
+            "pe_ttm",
+            NASDAQ100_WSJ_TTM_HISTORY_START_DATE
+          );
+        }
       }
       if (meta.id === "russell2000") {
         points = applyValidatedRussell2000PeHistory(points, valuationCloses);
@@ -7324,8 +7384,8 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (ndxBloombergForwardCount > 0) {
     source += `+ndx-bloomberg-fpe-${ndxBloombergForwardCount}`;
   }
-  if (ndxTtmFactsetBootstrapCount > 0) {
-    source += `+ndx-ttm-factset-${ndxTtmFactsetBootstrapCount}`;
+  if (ndxOfficialMonthlyTtmCount > 0) {
+    source += `+ndx-official-ttm-monthly-${ndxOfficialMonthlyTtmCount}`;
   }
   if (ndxOfficialCloseCount > 0) {
     source += `+ndx-official-close-${ndxOfficialCloseCount}`;
