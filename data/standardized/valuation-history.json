@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T23:40:34.450Z",
+  "generatedAt": "2026-09-08T23:32:38.129Z",
   "source": "free-live-proxy-v6+stockanalysis-pe-2+stockmarketperatio-pe-1+multpl-pb-1+wsj-pe-4+stockanalysis-snap-2+curated-public-fpe-8+siblis-pe-2+siblis-fpe-2+vendor-index-fpe-2+ndx-bloomberg-fpe-1+ndx-official-ttm-monthly-1+ndx-official-close-1+rut-index-close-1+history-fpe-4+sp500-pb-prefix-1+sp500-wsj-carry-1+sp500-yardeni-refinitiv-fpe-prefix-1+fred10y",
   "indices": [
     {
@@ -46979,6 +46979,13 @@
           "pe_forward": 21.22,
           "pb": 5.209,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 23.4803,
+          "pe_forward": 21.1035,
+          "pb": 6.1,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -95394,6 +95401,13 @@
           "pe_forward": 25.25,
           "pb": 7.9446,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 34.2614,
+          "pe_forward": 25.2289,
+          "pb": 7.9252,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -145818,6 +145832,13 @@
           "pe_forward": 20.29,
           "pb": 4.6304,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 21.49,
+          "pe_forward": 20.29,
+          "pb": 4.5834,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -191020,6 +191041,13 @@
           "pe_forward": 33.9001,
           "pb": 2.18,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 37.8805,
+          "pe_forward": 33.7467,
+          "pb": 2.1701,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -228935,6 +228963,13 @@
           "pe_forward": 18.1047,
           "pb": 2.87,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 23.229,
+          "pe_forward": 18.1047,
+          "pb": 2.8515,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -266850,6 +266885,13 @@
           "pe_forward": 28.5748,
           "pb": 5.12,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 29.3644,
+          "pe_forward": 28.4145,
+          "pb": 5.0913,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -281315,6 +281357,13 @@
           "pe_forward": 12.8,
           "pb": 3.2441,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 15.3697,
+          "pe_forward": 12.7417,
+          "pb": 3.2088,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -319230,6 +319279,13 @@
           "pe_forward": 22.91,
           "pb": 6.7975,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 26.4168,
+          "pe_forward": 22.7266,
+          "pb": 6.7236,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -357145,6 +357201,13 @@
           "pe_forward": 19.95,
           "pb": 5.7492,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 24.9537,
+          "pe_forward": 19.8179,
+          "pb": 5.7119,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -405882,6 +405945,13 @@
           "pe_forward": 12.71,
           "pb": 2.3174,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 17.9265,
+          "pe_forward": 12.8509,
+          "pb": 2.3057,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -443797,6 +443867,13 @@
           "pe_forward": 16.5674,
           "pb": 1.9342,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 16.2038,
+          "pe_forward": 16.3393,
+          "pb": 1.9195,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -481712,6 +481789,13 @@
           "pe_forward": 20.41,
           "pb": 5.8496,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 30.3944,
+          "pe_forward": 19.8957,
+          "pb": 5.7915,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -519627,6 +519711,13 @@
           "pe_forward": 25.08,
           "pb": 4.8506,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 29.1181,
+          "pe_forward": 24.9584,
+          "pb": 4.8591,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -568364,6 +568455,13 @@
           "pe_forward": 18.04,
           "pb": 3.7239,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 24.9894,
+          "pe_forward": 17.868,
+          "pb": 3.7066,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -587547,6 +587645,13 @@
           "pe_forward": 28.4567,
           "pb": 2.9125,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 33.2073,
+          "pe_forward": 28.4567,
+          "pb": 2.8963,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -636284,6 +636389,13 @@
           "pe_forward": 26.11,
           "pb": 8.8568,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 34.1272,
+          "pe_forward": 26.1923,
+          "pb": 8.8914,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -674199,6 +674311,13 @@
           "pe_forward": 17.87,
           "pb": 2.2971,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 19.4557,
+          "pe_forward": 18.0235,
+          "pb": 2.2969,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -718463,6 +718582,13 @@
           "pe_forward": 25.3702,
           "pb": 7.28,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 37.3256,
+          "pe_forward": 24.9068,
+          "pb": 7.147,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -762741,6 +762867,13 @@
           "pe_forward": 23.0308,
           "pb": 10.79,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 63.11,
+          "pe_forward": 23.4092,
+          "pb": 10.9673,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -788637,6 +788770,13 @@
           "pe_forward": 24.647,
           "pb": 10.2847,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 42.4,
+          "pe_forward": 24.9391,
+          "pb": 10.2742,
+          "us10y_yield": 0.0478
         }
       ]
     },
@@ -789403,6 +789543,13 @@
           "pe_forward": 6.7651,
           "pb": 4.8548,
           "us10y_yield": 0.0477
+        },
+        {
+          "date": "2026-09-08",
+          "pe_ttm": 15.71,
+          "pe_forward": 6.9249,
+          "pb": 4.8489,
+          "us10y_yield": 0.0478
         }
       ]
     }
