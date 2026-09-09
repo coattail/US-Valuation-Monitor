@@ -18,6 +18,7 @@ const SERIES_PATH_CANDIDATES = [
 const ECHARTS_LOCAL_URL = new URL("./vendor/echarts.min.js", import.meta.url).href;
 
 const STORAGE_KEYS = {
+  overviewFilters: "usvm-overview-filters",
   watchlist: "usvm-watchlist",
   overviewGroup: "usvm-overview-group",
   compareRange: "usvm-compare-range",
@@ -90,6 +91,8 @@ function ensureEchartsLoaded() {
 
 const TRADING_DAYS_PER_YEAR = 252;
 
+const savedOverviewFilters = safeJsonParse(localStorage.getItem(STORAGE_KEYS.overviewFilters), {});
+
 const state = {
   dataset: null,
   metaRows: [],
@@ -97,9 +100,9 @@ const state = {
   watchlist: safeJsonParse(localStorage.getItem(STORAGE_KEYS.watchlist), []),
 
   overview: {
-    group: localStorage.getItem(STORAGE_KEYS.overviewGroup) || "all",
-    search: "",
-    sort: "attention",
+    group: savedOverviewFilters?.group || localStorage.getItem(STORAGE_KEYS.overviewGroup) || "all",
+    search: typeof savedOverviewFilters?.search === "string" ? savedOverviewFilters.search : "",
+    sort: savedOverviewFilters?.sort || "attention",
   },
 
   detail: {
@@ -717,7 +720,7 @@ function ensureWatchlistDefaults() {
   const validIds = new Set(state.metaRows.map((item) => item.id));
   const sanitized = (Array.isArray(state.watchlist) ? state.watchlist : []).filter((id) => validIds.has(id));
 
-  if (!sanitized.length) {
+  if (!sanitized.length && localStorage.getItem(STORAGE_KEYS.watchlist) === null) {
     state.watchlist = state.metaRows.slice(0, 6).map((item) => item.id);
   } else {
     state.watchlist = sanitized;
@@ -934,12 +937,12 @@ function renderSnapshotGrid(rows) {
         .toUpperCase()
         .replace(/[<>&"]/g, "");
       return `
-      <article class="snapshot-card" data-index-id="${row.indexId}" role="button" tabindex="0" aria-label="查看 ${row.displayName} 估值详情" style="${toneVars}">
+      <article class="snapshot-card" data-index-id="${row.indexId}" style="${toneVars}">
         <div class="card-logo-watermark card-logo-watermark--ticker" aria-hidden="true"><span>${tickerWatermark}</span></div>
         <div class="name-row">
           <div class="card-identity">
             <div class="symbol"><span class="ticker-label">${tickerWatermark}</span> ${groupLabel(row.group, true)}</div>
-            <div class="${nameClass}" title="${row.displayName}">${row.displayName}</div>
+            <button type="button" class="${nameClass} card-detail-link" data-card-action="detail" aria-label="查看 ${row.displayName} 估值详情" title="${row.displayName}">${row.displayName}</button>
           </div>
           ${snapshotBadge(row)}
         </div>
@@ -951,18 +954,39 @@ function renderSnapshotGrid(rows) {
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(peChange === null ? null : peChange * 100, 1, true)}</strong></div>
         <div class="line"><span>PE 分位 · 全历史</span><strong${hasTtm ? ` style="color:${percentileColor(row.percentile_full)}"` : ""}>${fmtPct(row.percentile_full, 1)}</strong></div>
         ${hasTtm ? `<div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>` : '<div class="percent-track-mini is-unavailable"></div>'}
-        <div class="card-foot"><span title="TTM 数据区间">${row.ttmPointCount > 0 ? `${row.ttmStartDate} — ${row.ttmEndDate}` : "暂无可靠 TTM 数据"}</span><span class="card-open" aria-hidden="true">↗</span></div>
+        <div class="card-foot"><span>${row.ttmPointCount > 0 ? `TTM ${row.ttmStartDate} — ${row.ttmEndDate}` : "暂无可靠 TTM 数据"}</span></div>
+        <div class="card-actions">
+          <button type="button" class="card-action" data-card-action="watch" aria-pressed="${state.watchlist.includes(row.indexId)}" aria-label="${state.watchlist.includes(row.indexId) ? '移出自选' : '加入自选'} ${row.displayName}"><span aria-hidden="true">${state.watchlist.includes(row.indexId) ? '★' : '☆'}</span> ${state.watchlist.includes(row.indexId) ? '已自选' : '自选'}</button>
+          <button type="button" class="card-action" data-card-action="compare" aria-pressed="${state.compare.indexIds.includes(row.indexId)}" aria-label="${state.compare.indexIds.includes(row.indexId) ? '移出对比' : '加入对比'} ${row.displayName}"><span aria-hidden="true">${state.compare.indexIds.includes(row.indexId) ? '✓' : '+'}</span> ${state.compare.indexIds.includes(row.indexId) ? '已选对比' : '加入对比'}</button>
+        </div>
       </article>`;
     })
     .join("") || '<div class="empty-state" role="status"><strong>没有找到匹配结果</strong><p>试试其他名称或代码，或调整当前筛选范围。</p></div>';
 
   for (const card of elements.snapshotGrid.querySelectorAll(".snapshot-card")) {
-    card.addEventListener("click", () => openDetailIndex(card.dataset.indexId));
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        openDetailIndex(card.dataset.indexId);
+    card.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-card-action]");
+      const action = actionButton?.dataset.cardAction || "detail";
+      const indexId = card.dataset.indexId;
+      if (action === "detail") {
+        openDetailIndex(indexId);
+        return;
       }
+      if (action === "watch") {
+        const wasSelected = state.watchlist.includes(indexId);
+        state.watchlist = wasSelected ? state.watchlist.filter((id) => id !== indexId) : [...state.watchlist, indexId];
+        localStorage.setItem(STORAGE_KEYS.watchlist, JSON.stringify(state.watchlist));
+        buildCompareIndexList();
+        renderSettings();
+        showToast(wasSelected ? "已移出自选" : "已加入自选");
+      } else if (action === "compare") {
+        toggleCompareSelection(indexId, !state.compare.indexIds.includes(indexId));
+      }
+      renderOverview();
+      // Re-rendering cards should not lose the keyboard user's place.
+      const replacement = [...elements.snapshotGrid.querySelectorAll(".snapshot-card")]
+        .find((item) => item.dataset.indexId === indexId);
+      (replacement?.querySelector(`[data-card-action="${action}"]`) || document.querySelector('.filter-chip[aria-pressed="true"]'))?.focus({ preventScroll: true });
     });
   }
 }
@@ -1103,6 +1127,7 @@ function bindDetailZoomSync() {
 }
 
 function renderOverview() {
+  syncOverviewControls();
   const rows = getOverviewFilteredRows();
   const resultCount = document.getElementById("result-count");
   if (resultCount) resultCount.textContent = `${rows.length}`;
@@ -1206,9 +1231,7 @@ function alignCompareSeriesToCommonRange(seriesList) {
 }
 
 function resolveCompareDateBounds() {
-  const indexIds = state.compare.indexIds.length
-    ? state.compare.indexIds
-    : state.watchlist.slice(0, 4);
+  const indexIds = state.compare.indexIds;
 
   let minDate = "";
   let maxDate = "";
@@ -1664,17 +1687,27 @@ function buildCompareIndexList() {
 }
 
 function collectCompareSelection() {
-  const checked = [...elements.compareIndexPicker.querySelectorAll("input[type=checkbox]")]
-    .filter((input) => input.checked)
-    .map((input) => input.dataset.indexId);
+  const validIds = new Set(state.metaRows.map((item) => item.id));
+  state.compare.indexIds = state.compare.indexIds.filter((id) => validIds.has(id)).slice(0, 8);
+}
 
-  state.compare.indexIds = checked.slice(0, 8);
+function toggleCompareSelection(indexId, checked) {
+  if (!indexId) return;
+  const nextSelected = state.compare.indexIds.filter((id) => id !== indexId);
+  if (checked) {
+    if (nextSelected.length >= 8) {
+      buildCompareIndexList();
+      showToast("最多同时选择 8 个指数");
+      return;
+    }
+    nextSelected.push(indexId);
+  }
+  state.compare.indexIds = nextSelected;
+  buildCompareIndexList();
 }
 
 function buildCompareRows() {
-  const indexIds = state.compare.indexIds.length
-    ? state.compare.indexIds
-    : state.watchlist.slice(0, 4);
+  const indexIds = state.compare.indexIds;
 
   const metric = state.compare.metric;
   const range = state.compare.range;
@@ -1921,7 +1954,7 @@ function resolveCompareYAxisRange(rows, metricCfg, startPercent, endPercent) {
 
 async function renderCompareCharts() {
   const renderToken = ++state.runtime.compareRenderToken;
-  const selectedIds = state.compare.indexIds.length ? state.compare.indexIds : state.watchlist.slice(0, 4);
+  const selectedIds = state.compare.indexIds;
   elements.compareTableBody.innerHTML = '<tr><td colspan="4" class="hint">正在加载对比数据...</td></tr>';
 
   try {
@@ -2181,11 +2214,12 @@ function saveSettings() {
     .filter((input) => input.checked)
     .map((input) => input.dataset.indexId);
 
-  state.watchlist = pickedWatchlist.length ? pickedWatchlist : state.metaRows.slice(0, 6).map((item) => item.id);
+  state.watchlist = pickedWatchlist;
   state.settings.defaultGroup = elements.settingsDefaultGroup.value;
   state.settings.defaultCompareRange = elements.settingsDefaultCompareRange.value;
 
   state.overview.group = state.settings.defaultGroup;
+  persistOverviewFilters();
   state.compare.range = state.settings.defaultCompareRange;
 
   localStorage.setItem(STORAGE_KEYS.watchlist, JSON.stringify(state.watchlist));
@@ -2208,7 +2242,7 @@ function saveSettings() {
 function resetSettings() {
   state.settings.defaultGroup = "all";
   state.settings.defaultCompareRange = "max";
-  state.overview.group = "all";
+  clearOverviewFilters();
   state.compare.range = "max";
   state.compare.startDate = "";
   state.compare.endDate = "";
@@ -2258,6 +2292,9 @@ function switchView(view) {
     panel.classList.toggle("is-active", panel.id === `view-${view}`);
   }
 
+  if (view === "overview") {
+    renderOverview();
+  }
   if (view === "detail") {
     renderDetail();
   }
@@ -2317,7 +2354,51 @@ function applyDataSourceBadge(sourceText = "") {
   elements.dataModeChip.textContent = "真实免费数据";
 }
 
+function persistOverviewFilters() {
+  const { group, sort, search } = state.overview;
+  localStorage.setItem(STORAGE_KEYS.overviewFilters, JSON.stringify({ group, sort, search }));
+}
+
+function syncOverviewControls() {
+  for (const button of document.querySelectorAll(".filter-chip")) {
+    button.setAttribute("aria-pressed", String(button.dataset.group === state.overview.group));
+  }
+  const compareOpen = document.getElementById("overview-compare-open");
+  if (compareOpen) {
+    compareOpen.textContent = `对比已选（${state.compare.indexIds.length}/8）`;
+    compareOpen.disabled = state.compare.indexIds.length === 0;
+  }
+}
+
+function clearOverviewFilters() {
+  state.overview.group = "all";
+  state.overview.search = "";
+  state.overview.sort = "attention";
+
+  elements.overviewGroupFilter.value = state.overview.group;
+  elements.overviewSortSelect.value = state.overview.sort;
+  elements.overviewSearch.value = "";
+  persistOverviewFilters();
+  renderOverview();
+}
+
 function bindEvents() {
+  document.querySelectorAll(".filter-chip").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.overview.group = button.dataset.group;
+
+      elements.overviewGroupFilter.value = state.overview.group;
+      persistOverviewFilters();
+      renderOverview();
+    });
+  });
+  document.getElementById("overview-clear")?.addEventListener("click", clearOverviewFilters);
+  document.getElementById("overview-compare-open")?.addEventListener("click", () => {
+    buildCompareIndexList();
+    switchView("compare");
+    elements.compareMetric.focus({ preventScroll: true });
+    document.getElementById("view-compare").scrollIntoView({ block: "start" });
+  });
   elements.tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
       switchView(button.dataset.view);
@@ -2326,16 +2407,19 @@ function bindEvents() {
 
   elements.overviewGroupFilter.addEventListener("change", (event) => {
     state.overview.group = event.target.value;
+    persistOverviewFilters();
     renderOverview();
   });
 
   elements.overviewSortSelect.addEventListener("change", (event) => {
     state.overview.sort = event.target.value;
+    persistOverviewFilters();
     renderOverview();
   });
 
   elements.overviewSearch.addEventListener("input", (event) => {
     state.overview.search = event.target.value;
+    persistOverviewFilters();
     renderOverview();
   });
 
@@ -2391,6 +2475,12 @@ function bindEvents() {
     buildCompareIndexList();
   });
 
+  elements.compareIndexPicker.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || target.type !== "checkbox") return;
+    toggleCompareSelection(target.dataset.indexId || "", target.checked);
+  });
+
   elements.compareApply.addEventListener("click", () => {
     setCompareDateRange(elements.compareStartDate?.value || "", elements.compareEndDate?.value || "");
     collectCompareSelection();
@@ -2403,6 +2493,9 @@ function bindEvents() {
 }
 
 function initSelections() {
+  if (![...elements.overviewGroupFilter.options].some((option) => option.value === state.overview.group)) {
+    state.overview.group = "all";
+  }
   if (!METRIC_CONFIG[state.detail.metric]) {
     state.detail.metric = "pe_ttm";
   }

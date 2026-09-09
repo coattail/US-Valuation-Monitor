@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>US Valuation Monitor</title>
-    <link rel="stylesheet" href="./styles.css?v=20260909-design-v1" />
+    <link rel="stylesheet" href="./styles.css?v=20260909-workspace-v2" />
   </head>
   <body data-theme="terminal">
     <a class="skip-link" href="#main-content">跳转到主要内容</a>
@@ -31,7 +31,6 @@
       <main id="main-content" tabindex="-1">
       <header class="app-header">
         <div class="hero-main">
-          <p class="eyebrow">MARKET VALUATIONS</p>
           <h1>美国股市估值监测台</h1>
           <p class="subtitle">核心市场、行业与主题 · 估值水平与历史位置</p>
         </div>
@@ -50,14 +49,21 @@
 
       <section id="view-overview" class="view-panel is-active">
         <article class="panel">
-          <div class="panel-title-row">
-            <h2>指数概览 <span id="result-count" class="result-count"></span></h2>
-            <span id="snapshot-date" class="hint"></span>
+          <div class="filter-row">
+            <h2>指数概览 <span id="result-count" class="result-count" aria-live="polite"></span></h2>
+            <div class="group-filters" role="group" aria-label="指数分组">
+              <button type="button" class="filter-chip" data-group="all" aria-pressed="true">全部</button>
+              <button type="button" class="filter-chip" data-group="core" aria-pressed="false">核心</button>
+              <button type="button" class="filter-chip" data-group="sector" aria-pressed="false">行业</button>
+              <button type="button" class="filter-chip" data-group="theme" aria-pressed="false">主题</button>
+              <button type="button" class="filter-chip" data-group="watchlist" aria-pressed="false">自选</button>
+            </div>
+            <button id="overview-compare-open" class="btn ghost compare-shortcut" type="button" disabled>对比已选（0/8）</button>
           </div>
           <div class="toolbar-grid">
-            <label>
+            <label hidden>
               组别
-              <select id="overview-group-filter">
+              <select id="overview-group-filter" tabindex="-1" aria-hidden="true">
                 <option value="all">全部</option>
                 <option value="core">核心指数</option>
                 <option value="sector">行业指数</option>
@@ -80,9 +86,10 @@
               搜索
               <input id="overview-search" type="text" placeholder="搜索指数名称或代码…" />
             </label>
+            <button id="overview-clear" class="btn ghost" type="button">清空筛选</button>
           </div>
           <div class="overview-context">
-            <span>PE 历史分位 · 全部可用历史</span>
+            <span>PE 历史分位 · 全部可用历史 <span id="snapshot-date" class="snapshot-date"></span></span>
             <div class="valuation-legend" aria-label="估值状态说明"><span class="low">低估 ≤15%</span><span class="neutral">中性</span><span class="high">高估 ≥85%</span></div>
           </div>
           <div id="snapshot-grid" class="snapshot-grid"><div class="empty-state" role="status"><strong>正在加载估值数据</strong><p>请稍候，市场快照即将呈现。</p></div></div>
@@ -266,6 +273,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./app.js?v=20260909-design-v1"></script>
+    <script type="module" src="./app.js?v=20260909-workspace-v2"></script>
   </body>
 </html>

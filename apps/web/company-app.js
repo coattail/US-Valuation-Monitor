@@ -24,6 +24,7 @@ const IS_LOCAL_RUNTIME =
   window.location.hostname === "localhost";
 
 const STORAGE_KEYS = {
+  overviewFilters: "usvm-company-overview-filters",
   watchlist: "usvm-company-watchlist",
   overviewGroup: "usvm-company-overview-group",
   overviewSort: "usvm-company-overview-sort",
@@ -111,6 +112,8 @@ function getCompanyLogoUrl(symbol) {
   return new URL(`${encodeURIComponent(normalizedSymbol)}.png`, COMPANY_LOGO_BASE_URL).href;
 }
 
+const savedOverviewFilters = safeJsonParse(localStorage.getItem(STORAGE_KEYS.overviewFilters), {});
+
 const state = {
   dataset: null,
   metaRows: [],
@@ -118,9 +121,9 @@ const state = {
   watchlist: safeJsonParse(localStorage.getItem(STORAGE_KEYS.watchlist), []),
 
   overview: {
-    group: localStorage.getItem(STORAGE_KEYS.overviewGroup) || "all",
-    search: "",
-    sort: localStorage.getItem(STORAGE_KEYS.overviewSort) || "market_cap_desc",
+    group: savedOverviewFilters?.group || localStorage.getItem(STORAGE_KEYS.overviewGroup) || "all",
+    search: typeof savedOverviewFilters?.search === "string" ? savedOverviewFilters.search : "",
+    sort: savedOverviewFilters?.sort || localStorage.getItem(STORAGE_KEYS.overviewSort) || "market_cap_desc",
     visibleCount: 20,
   },
 
@@ -886,7 +889,7 @@ function ensureWatchlistDefaults() {
   const validIds = new Set(state.metaRows.map((item) => item.id));
   const sanitized = (Array.isArray(state.watchlist) ? state.watchlist : []).filter((id) => validIds.has(id));
 
-  if (!sanitized.length) {
+  if (!sanitized.length && localStorage.getItem(STORAGE_KEYS.watchlist) === null) {
     state.watchlist = state.metaRows.slice(0, 6).map((item) => item.id);
   } else {
     state.watchlist = sanitized;
@@ -1114,14 +1117,14 @@ function renderSnapshotGrid(rows) {
       const nameClass = nameLength >= 28 ? "name name--tight" : nameLength >= 20 ? "name name--compact" : "name";
       const logoUrl = `${getCompanyLogoUrl(row.symbol)}?v=${logoVersion}`;
       return `
-      <article class="snapshot-card" data-index-id="${row.indexId}" role="button" tabindex="0" aria-label="查看 ${row.displayName} 估值详情" style="${toneVars}">
+      <article class="snapshot-card" data-index-id="${row.indexId}" style="${toneVars}">
         <div class="card-logo-watermark" aria-hidden="true">
           <img src="${logoUrl}" alt="" width="92" height="92" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${COMPANY_LOGO_FALLBACK_URL}'" />
         </div>
         <div class="name-row">
           <img class="company-logo" src="${logoUrl}" alt="" width="36" height="36" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${COMPANY_LOGO_FALLBACK_URL}'" />
           <div class="card-identity">
-            <div class="${nameClass}" title="${row.displayName}">${row.displayName}</div>
+            <button type="button" class="${nameClass} card-detail-link" data-card-action="detail" aria-label="查看 ${row.displayName} 估值详情" title="${row.displayName}">${row.displayName}</button>
             <div class="symbol">${row.symbol} · ${companyTypeLabel(row.symbol)}</div>
           </div>
           ${snapshotBadge(row)}
@@ -1132,22 +1135,42 @@ function renderSnapshotGrid(rows) {
           <div><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
           <div><span>PEG</span><strong>${fmt(row.peg, 2)}</strong></div>
         </div>
-        <div class="line"><span>市值</span><strong>${fmtMarketCap(row.marketCap)}</strong></div>
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(row.pe_ttm_change_1y * 100, 1, true)}</strong></div>
         <div class="line"><span>PE 分位 · 近十年</span><strong style="color:${percentileColor(row.percentile_10y)}">${fmtPct(row.percentile_10y, 1)}</strong></div>
         <div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>
-        <div class="card-foot"><span>快照 ${row.date || "--"}</span><span class="card-open">查看详情 <span aria-hidden="true">↗</span></span></div>
+        <div class="card-foot"><span>快照 ${row.date || "--"}</span><span>市值 ${fmtMarketCap(row.marketCap)}</span></div>
+        <div class="card-actions">
+          <button type="button" class="card-action" data-card-action="watch" aria-pressed="${state.watchlist.includes(row.indexId)}" aria-label="${state.watchlist.includes(row.indexId) ? '移出自选' : '加入自选'} ${row.displayName}"><span aria-hidden="true">${state.watchlist.includes(row.indexId) ? '★' : '☆'}</span> ${state.watchlist.includes(row.indexId) ? '已自选' : '自选'}</button>
+          <button type="button" class="card-action" data-card-action="compare" aria-pressed="${state.compare.indexIds.includes(row.indexId)}" aria-label="${state.compare.indexIds.includes(row.indexId) ? '移出对比' : '加入对比'} ${row.displayName}"><span aria-hidden="true">${state.compare.indexIds.includes(row.indexId) ? '✓' : '+'}</span> ${state.compare.indexIds.includes(row.indexId) ? '已选对比' : '加入对比'}</button>
+        </div>
       </article>`;
     })
     .join("") || '<div class="empty-state" role="status"><strong>没有找到匹配结果</strong><p>试试其他名称或代码，或调整当前筛选范围。</p></div>';
 
   for (const card of elements.snapshotGrid.querySelectorAll(".snapshot-card")) {
-    card.addEventListener("click", () => openDetailIndex(card.dataset.indexId));
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        openDetailIndex(card.dataset.indexId);
+    card.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("[data-card-action]");
+      const action = actionButton?.dataset.cardAction || "detail";
+      const indexId = card.dataset.indexId;
+      if (action === "detail") {
+        openDetailIndex(indexId);
+        return;
       }
+      if (action === "watch") {
+        const wasSelected = state.watchlist.includes(indexId);
+        state.watchlist = wasSelected ? state.watchlist.filter((id) => id !== indexId) : [...state.watchlist, indexId];
+        localStorage.setItem(STORAGE_KEYS.watchlist, JSON.stringify(state.watchlist));
+        buildCompareIndexList();
+        renderSettings();
+        showToast(wasSelected ? "已移出自选" : "已加入自选");
+      } else if (action === "compare") {
+        toggleCompareSelection(indexId, !state.compare.indexIds.includes(indexId));
+      }
+      renderOverview();
+      // Re-rendering cards should not lose the keyboard user's place.
+      const replacement = [...elements.snapshotGrid.querySelectorAll(".snapshot-card")]
+        .find((item) => item.dataset.indexId === indexId);
+      (replacement?.querySelector(`[data-card-action="${action}"]`) || document.querySelector('.filter-chip[aria-pressed="true"]'))?.focus({ preventScroll: true });
     });
   }
 }
@@ -1334,6 +1357,7 @@ function bindDetailZoomSync() {
 }
 
 function renderOverview() {
+  syncOverviewControls();
   const rows = getOverviewFilteredRows();
   const resultCount = document.getElementById("result-count");
   if (resultCount) resultCount.textContent = `${rows.length}`;
@@ -1464,9 +1488,7 @@ function recomputeRangeRollingStats(rows, metric) {
 }
 
 function resolveCompareDateBounds() {
-  const indexIds = state.compare.indexIds.length
-    ? state.compare.indexIds
-    : state.watchlist.slice(0, 4);
+  const indexIds = state.compare.indexIds;
 
   let minDate = "";
   let maxDate = "";
@@ -2062,9 +2084,7 @@ function toggleCompareSelection(indexId, checked) {
 }
 
 function buildCompareRows() {
-  const indexIds = state.compare.indexIds.length
-    ? state.compare.indexIds
-    : state.watchlist.slice(0, 4);
+  const indexIds = state.compare.indexIds;
 
   const metric = state.compare.metric;
   const range = state.compare.range;
@@ -2323,7 +2343,7 @@ function resolveCompareYAxisRange(rows, metricCfg, startPercent, endPercent) {
 
 async function renderCompareCharts() {
   const renderToken = ++state.runtime.compareRenderToken;
-  const selectedIds = state.compare.indexIds.length ? state.compare.indexIds : state.watchlist.slice(0, 4);
+  const selectedIds = state.compare.indexIds;
   elements.compareTableBody.innerHTML = '<tr><td colspan="4" class="hint">正在加载对比数据...</td></tr>';
 
   try {
@@ -2583,11 +2603,12 @@ function saveSettings() {
     .filter((input) => input.checked)
     .map((input) => input.dataset.indexId);
 
-  state.watchlist = pickedWatchlist.length ? pickedWatchlist : state.metaRows.slice(0, 6).map((item) => item.id);
+  state.watchlist = pickedWatchlist;
   state.settings.defaultGroup = elements.settingsDefaultGroup.value;
   state.settings.defaultCompareRange = elements.settingsDefaultCompareRange.value;
 
   state.overview.group = state.settings.defaultGroup;
+  persistOverviewFilters();
   state.compare.range = state.settings.defaultCompareRange;
 
   localStorage.setItem(STORAGE_KEYS.watchlist, JSON.stringify(state.watchlist));
@@ -2610,7 +2631,7 @@ function saveSettings() {
 function resetSettings() {
   state.settings.defaultGroup = "all";
   state.settings.defaultCompareRange = "max";
-  state.overview.group = "all";
+  clearOverviewFilters();
   state.compare.range = "max";
   state.compare.startDate = "";
   state.compare.endDate = "";
@@ -2660,6 +2681,9 @@ function switchView(view) {
     panel.classList.toggle("is-active", panel.id === `view-${view}`);
   }
 
+  if (view === "overview") {
+    renderOverview();
+  }
   if (view === "detail") {
     renderDetail();
   }
@@ -2725,7 +2749,51 @@ function applyDataSourceBadge(sourceText = "") {
   elements.dataModeChip.textContent = "真实免费数据";
 }
 
+function persistOverviewFilters() {
+  const { group, sort, search } = state.overview;
+  localStorage.setItem(STORAGE_KEYS.overviewFilters, JSON.stringify({ group, sort, search }));
+}
+
+function syncOverviewControls() {
+  for (const button of document.querySelectorAll(".filter-chip")) {
+    button.setAttribute("aria-pressed", String(button.dataset.group === state.overview.group));
+  }
+  const compareOpen = document.getElementById("overview-compare-open");
+  if (compareOpen) {
+    compareOpen.textContent = `对比已选（${state.compare.indexIds.length}/8）`;
+    compareOpen.disabled = state.compare.indexIds.length === 0;
+  }
+}
+
+function clearOverviewFilters() {
+  state.overview.group = "all";
+  state.overview.search = "";
+  state.overview.sort = "market_cap_desc";
+  state.overview.visibleCount = 20;
+  elements.overviewGroupFilter.value = state.overview.group;
+  elements.overviewSortSelect.value = state.overview.sort;
+  elements.overviewSearch.value = "";
+  persistOverviewFilters();
+  renderOverview();
+}
+
 function bindEvents() {
+  document.querySelectorAll(".filter-chip").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.overview.group = button.dataset.group;
+      state.overview.visibleCount = 20;
+      elements.overviewGroupFilter.value = state.overview.group;
+      persistOverviewFilters();
+      renderOverview();
+    });
+  });
+  document.getElementById("overview-clear")?.addEventListener("click", clearOverviewFilters);
+  document.getElementById("overview-compare-open")?.addEventListener("click", () => {
+    buildCompareIndexList();
+    switchView("compare");
+    elements.compareMetric.focus({ preventScroll: true });
+    document.getElementById("view-compare").scrollIntoView({ block: "start" });
+  });
   elements.hotRefreshBtn?.addEventListener("click", () => {
     void hotRefreshData();
   });
@@ -2738,12 +2806,14 @@ function bindEvents() {
 
   elements.overviewGroupFilter.addEventListener("change", (event) => {
     state.overview.group = event.target.value;
+    persistOverviewFilters();
     state.overview.visibleCount = 20;
     renderOverview();
   });
 
   elements.overviewSortSelect.addEventListener("change", (event) => {
     state.overview.sort = event.target.value;
+    persistOverviewFilters();
     state.overview.visibleCount = 20;
     localStorage.setItem(STORAGE_KEYS.overviewSort, state.overview.sort);
     renderOverview();
@@ -2751,6 +2821,7 @@ function bindEvents() {
 
   elements.overviewSearch.addEventListener("input", (event) => {
     state.overview.search = event.target.value;
+    persistOverviewFilters();
     state.overview.visibleCount = 20;
     renderOverview();
   });
@@ -2835,6 +2906,9 @@ function bindEvents() {
 }
 
 function initSelections() {
+  if (![...elements.overviewGroupFilter.options].some((option) => option.value === state.overview.group)) {
+    state.overview.group = "all";
+  }
   if (!METRIC_CONFIG[state.detail.metric]) {
     state.detail.metric = "pe_ttm";
   }
