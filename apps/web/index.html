@@ -7,46 +7,51 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>US Valuation Monitor</title>
-    <link rel="stylesheet" href="./styles.css?v=20260717-compare-spacing-v27" />
+    <link rel="stylesheet" href="./styles.css?v=20260909-design-v1" />
   </head>
   <body data-theme="terminal">
-    <div class="site-bg"></div>
-    <div class="noise-layer"></div>
-    <div class="bg-layer"></div>
+    <a class="skip-link" href="#main-content">跳转到主要内容</a>
     <div class="app-shell">
-      <header class="app-header panel hero-panel">
+      <header class="masthead">
+        <a class="brand" href="./index.html" aria-label="US Valuation Monitor 首页">
+          <span class="brand-mark" aria-hidden="true">V<span>／</span></span>
+          <span>US VALUATION <span class="brand-secondary">MONITOR</span></span>
+        </a>
+        <nav class="board-tabs" aria-label="估值模块">
+          <a class="board-tab is-active" href="./index.html" aria-current="page">
+            <span class="board-tab-title">指数估值</span>
+            <span class="board-tab-desc">INDICES</span>
+          </a>
+          <a class="board-tab" href="./companies.html">
+            <span class="board-tab-title">企业估值</span>
+            <span class="board-tab-desc">TOP 100</span>
+          </a>
+        </nav>
+      </header>
+      <main id="main-content" tabindex="-1">
+      <header class="app-header">
         <div class="hero-main">
-          <p class="eyebrow">US VALUATION INTELLIGENCE</p>
+          <p class="eyebrow">MARKET VALUATIONS</p>
           <h1>美国股市估值监测台</h1>
-          <p class="subtitle">直接查看各指数估值卡片，点击后进入详情页查看深度分析。</p>
+          <p class="subtitle">核心市场、行业与主题 · 估值水平与历史位置</p>
         </div>
-        <div class="header-actions hero-actions">
-          <div id="updated-chip" class="status-chip subtle">--</div>
+        <div class="header-actions">
+
+          <div class="update-status"><span class="update-label">最近数据更新</span><div id="updated-chip" class="status-chip">正在读取数据…</div></div>
         </div>
       </header>
 
-      <nav class="board-tabs panel" aria-label="估值模块">
-        <a class="board-tab is-active" href="./index.html" aria-current="page">
-          <span class="board-tab-title">指数估值</span>
-          <span class="board-tab-desc">21 个市场、行业与主题指数</span>
-        </a>
-        <a class="board-tab" href="./companies.html">
-          <span class="board-tab-title">企业估值</span>
-          <span class="board-tab-desc">美股市值 Top 100 公司</span>
-        </a>
-      </nav>
-
-      <nav class="view-tabs panel">
-        <button class="tab is-active" data-view="overview" type="button">总览</button>
-        <button class="tab" data-view="detail" type="button">指数详情</button>
-        <button class="tab" data-view="compare" type="button">对比分析</button>
-        <button class="tab" data-view="settings" type="button">偏好设置</button>
+      <nav class="view-tabs" aria-label="分析视图">
+        <button class="tab is-active" data-view="overview" aria-pressed="true" aria-controls="view-overview" type="button">总览</button>
+        <button class="tab" data-view="detail" aria-pressed="false" aria-controls="view-detail" type="button">指数详情</button>
+        <button class="tab" data-view="compare" aria-pressed="false" aria-controls="view-compare" type="button">对比分析</button>
+        <button class="tab" data-view="settings" aria-pressed="false" aria-controls="view-settings" type="button">偏好设置</button>
       </nav>
 
       <section id="view-overview" class="view-panel is-active">
         <article class="panel">
           <div class="panel-title-row">
-            <h2>指数估值卡片</h2>
+            <h2>指数概览 <span id="result-count" class="result-count"></span></h2>
             <span id="snapshot-date" class="hint"></span>
           </div>
           <div class="toolbar-grid">
@@ -73,10 +78,15 @@
             </label>
             <label>
               搜索
-              <input id="overview-search" type="text" placeholder="指数名称 / 代码" />
+              <input id="overview-search" type="text" placeholder="搜索指数名称或代码…" />
             </label>
           </div>
-          <div id="snapshot-grid" class="snapshot-grid"></div>
+          <div class="overview-context">
+            <span>PE 历史分位 · 全部可用历史</span>
+            <div class="valuation-legend" aria-label="估值状态说明"><span class="low">低估 ≤15%</span><span class="neutral">中性</span><span class="high">高估 ≥85%</span></div>
+          </div>
+          <div id="snapshot-grid" class="snapshot-grid"><div class="empty-state" role="status"><strong>正在加载估值数据</strong><p>请稍候，市场快照即将呈现。</p></div></div>
+          <noscript><p class="empty-state">请启用 JavaScript 以查看估值数据和交互图表。</p></noscript>
         </article>
       </section>
 
@@ -219,7 +229,7 @@
 
           <div class="settings-grid">
             <div class="panel soft">
-              <h3>显示偏好（固定深色专业风）</h3>
+              <h3>默认显示</h3>
               <label>
                 总览默认分组
                 <select id="settings-default-group">
@@ -244,16 +254,18 @@
             </div>
 
             <div class="panel soft">
-              <h3>自选指数池（用于总览筛选与对比快速选择）</h3>
+              <h3>自选指数池</h3>
               <div id="watchlist-box" class="watchlist-box"></div>
             </div>
           </div>
         </article>
       </section>
+      </main>
+      <footer class="site-footer"><span>US VALUATION MONITOR</span><span>估值分位反映历史相对位置，仅供研究参考。</span></footer>
     </div>
 
-    <div id="toast" class="toast"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./app.js?v=20260828-ndx-wsj-v25"></script>
+    <script type="module" src="./app.js?v=20260909-design-v1"></script>
   </body>
 </html>

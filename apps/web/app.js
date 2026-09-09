@@ -285,9 +285,9 @@ function median(values) {
 }
 
 function percentileColor(percentile) {
+  if (percentile === null || percentile === undefined || !Number.isFinite(Number(percentile))) return "#96a2b3";
   const p = clamp(Number(percentile), 0, 1);
-  const hue = (1 - p) * 130;
-  return `hsl(${hue}, 68%, 44%)`;
+  return p >= 0.85 ? "#f28b94" : p <= 0.15 ? "#62d5b0" : "#ddc086";
 }
 
 function parseDate(dateText) {
@@ -424,27 +424,7 @@ function getDefaultCompareSelection() {
 }
 
 function snapshotToneVars(percentile) {
-  const p = clamp(Number(percentile), 0, 1);
-  const centerDist = Math.abs(p - 0.5);
-  const hue = 236 + (p - 0.5) * 4;
-  const deepHue = 225 + (p - 0.5) * 3;
-  const edgeAlpha = 0.39 + centerDist * 0.05;
-  const glowAlpha = 0.095 + (0.5 - centerDist) * 0.025;
-  const topLight = 39.5 + (0.5 - centerDist) * 1.8;
-  const bottomLight = 22.5 + (0.5 - centerDist) * 1.3;
-  const sweepDelay = (-p * 4.2).toFixed(2);
-
-  const edge = `hsla(${hue.toFixed(1)}, 56%, 73%, ${edgeAlpha.toFixed(3)})`;
-  const glow = `hsla(${(205 + p * 7).toFixed(1)}, 72%, 68%, ${glowAlpha.toFixed(3)})`;
-  const top = `hsla(${hue.toFixed(1)}, 47%, ${topLight.toFixed(2)}%, 0.885)`;
-  const bottom = `hsla(${deepHue.toFixed(1)}, 45%, ${bottomLight.toFixed(2)}%, 0.965)`;
-  const flare = `hsla(${(212 + p * 6).toFixed(1)}, 82%, 88%, 0.11)`;
-  const glass = `hsla(${(228 + p * 4).toFixed(1)}, 52%, 79%, 0.072)`;
-  const pin = `hsl(${(194 + p * 8).toFixed(1)}, 84%, 66%)`;
-  const textGlow = `hsla(${(210 + p * 6).toFixed(1)}, 92%, 86%, 0.145)`;
-  const sweep = `hsla(${(198 + p * 8).toFixed(1)}, 95%, 87%, 0.11)`;
-
-  return `--card-edge:${edge};--card-glow:${glow};--card-top:${top};--card-bottom:${bottom};--card-flare:${flare};--card-glass:${glass};--card-pin:${pin};--card-text-glow:${textGlow};--card-sweep:${sweep};--card-sweep-delay:${sweepDelay}s;`;
+  return `--card-pin:${percentileColor(percentile)};`;
 }
 
 function regimeFromPercentile(percentile) {
@@ -919,6 +899,8 @@ function openDetailIndex(indexId) {
   state.detail.indexId = indexId;
   syncDetailSelectors();
   switchView("detail");
+  elements.detailIndex.focus({ preventScroll: true });
+  document.getElementById("view-detail").scrollIntoView({ block: "start" });
   renderDetail();
 }
 
@@ -937,7 +919,6 @@ function snapshotBadge(row) {
 
 function renderSnapshotGrid(rows) {
   elements.snapshotDate.textContent = rows[0]?.date ? `更新到 ${rows[0].date}` : "--";
-  const isSearching = state.overview.search.trim().length > 0;
 
   elements.snapshotGrid.innerHTML = rows
     .map((row) => {
@@ -947,37 +928,42 @@ function renderSnapshotGrid(rows) {
       const peChange = toFiniteNumber(row.pe_ttm_change_1y);
       const peChangeTone = peChange === null ? "" : peChange >= 0 ? "up" : "down";
       const toneVars = snapshotToneVars(hasTtm ? row.percentile_full : 0.5);
-      const searchCardLayoutStyle = isSearching ? "max-width:320px;width:100%;justify-self:start;" : "";
       const nameLength = String(row.displayName || "").length;
       const nameClass = nameLength >= 28 ? "name name--tight" : nameLength >= 20 ? "name name--compact" : "name";
       const tickerWatermark = String(row.symbol || "")
         .toUpperCase()
         .replace(/[<>&"]/g, "");
       return `
-      <article class="snapshot-card" data-index-id="${row.indexId}" style="${toneVars}${searchCardLayoutStyle}">
-        <div class="card-logo-watermark card-logo-watermark--ticker" aria-hidden="true">
-          <span>${tickerWatermark}</span>
-        </div>
+      <article class="snapshot-card" data-index-id="${row.indexId}" role="button" tabindex="0" aria-label="查看 ${row.displayName} 估值详情" style="${toneVars}">
+        <div class="card-logo-watermark card-logo-watermark--ticker" aria-hidden="true"><span>${tickerWatermark}</span></div>
         <div class="name-row">
-          <div>
+          <div class="card-identity">
+            <div class="symbol"><span class="ticker-label">${tickerWatermark}</span> ${groupLabel(row.group, true)}</div>
             <div class="${nameClass}" title="${row.displayName}">${row.displayName}</div>
-            <div class="symbol">${row.symbol} · ${groupLabel(row.group, true)}</div>
           </div>
           ${snapshotBadge(row)}
         </div>
-        <div class="line"><span>PE(TTM)</span><strong>${fmt(row.pe_ttm, 2)}</strong></div>
-        <div class="line"><span>PE(FWD)</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
-        <div class="line"><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
+        <div class="primary-metric"><span>PE <span class="metric-period">TTM</span></span><strong>${fmt(row.pe_ttm, 2)}<small>${toFiniteNumber(row.pe_ttm) === null ? "" : "×"}</small></strong></div>
+        <div class="secondary-metrics">
+          <div><span>PE · FWD</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
+          <div><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
+        </div>
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(peChange === null ? null : peChange * 100, 1, true)}</strong></div>
-        <div class="line"><span>百分位</span><strong${hasTtm ? ` style="color:${percentileColor(row.percentile_full)}"` : ""}>${fmtPct(row.percentile_full, 1)}</strong></div>
-        <div class="line line-muted"><span>TTM 数据区间</span><strong>${row.ttmPointCount > 0 ? `${row.ttmStartDate} ~ ${row.ttmEndDate}` : "暂无可靠数据"}</strong></div>
-        ${hasTtm ? `<div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>` : '<div class="percent-track-mini"></div>'}
+        <div class="line"><span>PE 分位 · 全历史</span><strong${hasTtm ? ` style="color:${percentileColor(row.percentile_full)}"` : ""}>${fmtPct(row.percentile_full, 1)}</strong></div>
+        ${hasTtm ? `<div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>` : '<div class="percent-track-mini is-unavailable"></div>'}
+        <div class="card-foot"><span title="TTM 数据区间">${row.ttmPointCount > 0 ? `${row.ttmStartDate} — ${row.ttmEndDate}` : "暂无可靠 TTM 数据"}</span><span class="card-open" aria-hidden="true">↗</span></div>
       </article>`;
     })
-    .join("");
+    .join("") || '<div class="empty-state" role="status"><strong>没有找到匹配结果</strong><p>试试其他名称或代码，或调整当前筛选范围。</p></div>';
 
   for (const card of elements.snapshotGrid.querySelectorAll(".snapshot-card")) {
     card.addEventListener("click", () => openDetailIndex(card.dataset.indexId));
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openDetailIndex(card.dataset.indexId);
+      }
+    });
   }
 }
 
@@ -1118,6 +1104,8 @@ function bindDetailZoomSync() {
 
 function renderOverview() {
   const rows = getOverviewFilteredRows();
+  const resultCount = document.getElementById("result-count");
+  if (resultCount) resultCount.textContent = `${rows.length}`;
   const isSearching = state.overview.search.trim().length > 0;
   elements.snapshotGrid.classList.toggle("is-searching", isSearching);
   renderSnapshotGrid(rows);
@@ -1443,7 +1431,7 @@ function renderDetailChart(indexMeta, rows) {
           type: "line",
           smooth: false,
           showSymbol: false,
-          lineStyle: { width: 2.2, color: "#1ba596" },
+          lineStyle: { width: 2.2, color: "#70dfc2" },
           areaStyle: {
             color: {
               type: "linear",
@@ -1464,7 +1452,7 @@ function renderDetailChart(indexMeta, rows) {
             formatter(params) {
               return metricFormatter(params.value?.[1]);
             },
-            color: "#1ba596",
+            color: "#70dfc2",
             fontSize: detailLabelFontSize,
             fontWeight: 900,
             padding: 0,
@@ -2263,6 +2251,7 @@ function showToast(message) {
 function switchView(view) {
   for (const button of elements.tabButtons) {
     button.classList.toggle("is-active", button.dataset.view === view);
+    button.setAttribute("aria-pressed", String(button.dataset.view === view));
   }
 
   for (const panel of elements.viewPanels) {
@@ -2458,15 +2447,15 @@ async function bootstrap() {
     renderSettings();
 
     applyDataSourceBadge(state.dataset.source);
-    elements.updatedChip.textContent = `数据更新: ${state.dataset.generatedAt?.slice(0, 19).replace("T", " ") || "--"}`;
+    elements.updatedChip.textContent = `${state.dataset.generatedAt?.slice(0, 19).replace("T", " ") || "--"}`;
   } catch (error) {
     console.error(error);
     if (elements.dataModeChip) {
       elements.dataModeChip.textContent = "数据加载失败";
       elements.dataModeChip.style.background = "rgba(193,79,98,0.2)";
     }
-    elements.updatedChip.textContent = "请先执行 npm run build:data";
-    elements.snapshotGrid.innerHTML = `<div class="hint">${error.message}</div>`;
+    elements.updatedChip.textContent = "数据暂时无法加载";
+    elements.snapshotGrid.innerHTML = '<div class="empty-state" role="alert"><strong>暂时无法加载估值数据</strong><p>请检查网络连接后刷新页面重试。</p></div>';
   }
 }
 
