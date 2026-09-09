@@ -1,3 +1,5 @@
+import { initAnalysisUI, formatAxisTick, createSeriesColors } from "./analysis-ui.js";
+let analysisUI;
 const SNAPSHOT_PATH_CANDIDATES = [
   "/data/standardized/valuation-snapshot.json",
   "../../data/standardized/valuation-snapshot.json",
@@ -43,6 +45,7 @@ const COMPARE_LINE_COLORS = [
   "#5fd2b8",
   "#f5a5c8",
 ];
+const compareColor = createSeriesColors(COMPARE_LINE_COLORS);
 
 const CORE_ATTENTION_ORDER = ["sp500", "nasdaq100", "dow30", "russell2000", "us_total_market", "sp400"];
 const SECTOR_ATTENTION_ORDER = [
@@ -164,7 +167,6 @@ const elements = {
   compareEndDate: document.getElementById("compare-end-date"),
   compareResetDate: document.getElementById("compare-reset-date"),
   compareWatchlistOnly: document.getElementById("compare-watchlist-only"),
-  compareApply: document.getElementById("compare-apply"),
   compareIndexPicker: document.getElementById("compare-index-picker"),
   compareSummary: document.getElementById("compare-summary"),
   compareChart: document.getElementById("compare-chart"),
@@ -1297,6 +1299,7 @@ function setCompareDateRange(startDate = "", endDate = "", shouldPersist = true)
 }
 
 function syncDetailSelectors() {
+  analysisUI?.syncDetail();
   elements.detailIndex.value = state.detail.indexId;
   elements.detailMetric.value = state.detail.metric;
   for (const chip of elements.detailRangeChips) {
@@ -1335,7 +1338,7 @@ function renderDetailStats(fullRows, viewRows) {
     ? fmtSigned(latest.value * 100, metricCfg.digits, true)
     : fmt(latest.value, metricCfg.digits);
 
-  elements.detailStats.innerHTML = [
+  const stats = [
     ["当前值", valueText],
     ["百分位(当前区间)", fmtPct(latest.percentile_full, 1)],
     ["百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
@@ -1346,15 +1349,12 @@ function renderDetailStats(fullRows, viewRows) {
     ["区间最高", metricCfg.percentage ? fmtSigned(max * 100, metricCfg.digits, true) : fmt(max, metricCfg.digits)],
     ["估值状态", regimeLabel(latest.regime)],
     ["数据区间", `${viewRows[0].date} ~ ${viewRows[viewRows.length - 1].date}`],
-  ]
-    .map(
-      ([k, v]) => `
-      <div class="stat-pill">
-        <div class="k">${k}</div>
-        <div class="v">${v}</div>
-      </div>`
-    )
-    .join("");
+  ];
+  const pill = ([k, v], primary = false) => `<div class="stat-pill ${primary ? "primary-stat" : ""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  elements.detailStats.innerHTML = [0, 1, 8, 5].map((i) => pill(stats[i], true)).join("");
+  elements.detailStats.children[1].style.setProperty("--stat-color", percentileColor(latest.percentile_full));
+  elements.detailStats.children[2].style.setProperty("--stat-color", percentileColor(latest.percentile_full));
+  document.getElementById("detail-secondary-stats").innerHTML = [2, 3, 4, 6, 7, 9].map((i) => pill(stats[i])).join("");
 
   renderDetailPercentileTrack(latest);
 }
@@ -1379,11 +1379,8 @@ function renderDetailChart(indexMeta, rows) {
   chart.setOption(
     {
       animationDuration: 500,
-      legend: {
-        top: 4,
-        textStyle: { color: "#88a4b8" },
-      },
-      grid: { left: mobileDetailChart ? 46 : 58, right: detailRightPadding, top: 46, bottom: 94 },
+      legend: { show: false },
+      grid: { containLabel: true, left: 12, right: detailRightPadding, top: 24, bottom: 76 },
       tooltip: {
         trigger: "axis",
         formatter(params) {
@@ -1443,7 +1440,7 @@ function renderDetailChart(indexMeta, rows) {
         axisLabel: {
           color: "#8aa5b8",
           formatter(value) {
-            return metricCfg.percentage ? `${value}%` : value;
+            return formatAxisTick(value, metricCfg.percentage);
           },
         },
         splitLine: { lineStyle: { color: "rgba(120,150,170,0.16)" } },
@@ -1513,7 +1510,7 @@ function renderDetailPercentileChart(rows) {
   chart.setOption(
     {
       animationDuration: 420,
-      grid: { left: mobilePercentileChart ? 42 : 48, right: percentileRightPadding, top: 24, bottom: 88 },
+      grid: { containLabel: true, left: 12, right: percentileRightPadding, top: 24, bottom: 76 },
       tooltip: {
         trigger: "axis",
         formatter(params) {
@@ -1616,6 +1613,12 @@ function renderDetailPercentileChart(rows) {
 }
 
 async function renderDetail() {
+  analysisUI?.syncDetail();
+  document.getElementById("detail-secondary-stats").innerHTML = "";
+  elements.detailPercentileTrack.innerHTML = "";
+  elements.detailRange.textContent = "正在加载数据区间…";
+  charts.detail?.clear();
+  charts.detailPercentile?.clear();
   const indexId = state.detail.indexId;
   const metric = state.detail.metric;
   const renderToken = ++state.runtime.detailRenderToken;
@@ -1670,20 +1673,22 @@ function populateDetailOptions() {
 }
 
 function buildCompareIndexList() {
+  analysisUI?.syncSelection();
   const list = state.compare.watchlistOnly
     ? state.metaRows.filter((item) => state.watchlist.includes(item.id))
     : state.metaRows;
 
-  elements.compareIndexPicker.innerHTML = list
+  const keyword = (document.getElementById("compare-search").value || "").trim().toLowerCase();
+  elements.compareIndexPicker.innerHTML = list.filter((item) => `${item.displayName} ${item.symbol}`.toLowerCase().includes(keyword))
     .map((item) => {
       const checked = state.compare.indexIds.includes(item.id) ? "checked" : "";
       return `
-      <label class="compare-item">
+      <label class="compare-item ${checked ? "is-selected" : ""}">
         <input type="checkbox" data-index-id="${item.id}" ${checked} />
-        <span>${item.displayName}</span>
+        <span class="compare-item-main"><span class="compare-item-name">${item.displayName}</span><span class="compare-item-meta">${item.symbol || item.id}</span></span>
       </label>`;
     })
-    .join("");
+    .join("") || '<div class="compare-picker-empty hint">没有匹配指数，请调整搜索或自选筛选</div>';
 }
 
 function collectCompareSelection() {
@@ -1704,6 +1709,7 @@ function toggleCompareSelection(indexId, checked) {
   }
   state.compare.indexIds = nextSelected;
   buildCompareIndexList();
+  analysisUI?.scheduleCompare();
 }
 
 function buildCompareRows() {
@@ -1769,6 +1775,7 @@ function buildCompareCrossSection(rows, targetDate = "") {
         indexId: item.indexId,
         name: meta?.displayName || item.indexId,
         latest: point,
+        percentileStart: item.percentileStart || item.rows[0]?.date,
       };
     })
     .filter(Boolean)
@@ -1864,11 +1871,11 @@ function renderCompareLatestViews(latestRows, metricCfg, lineColorByIndexId) {
         : fmt(item.latest.value, metricCfg.digits);
       const lineColor = lineColorByIndexId?.get(item.indexId) || "#9bb6ff";
       return `
-      <tr>
+      <tr data-series-id="${item.indexId}" tabindex="0" aria-label="突出显示 ${item.name}">
         <td class="compare-name-cell" style="color:${lineColor}">
           <div class="compare-name-content">
             <span class="line-dot" style="background:${lineColor}"></span>
-            <span class="compare-name-text" title="${item.name}">${item.name}</span>
+            <span class="compare-name-text" title="${item.name} · 数据日期 ${item.latest.date}">${item.name}<small class="series-date">${item.latest.date}</small></span>
           </div>
         </td>
         <td>${valueText}</td>
@@ -1953,8 +1960,13 @@ function resolveCompareYAxisRange(rows, metricCfg, startPercent, endPercent) {
 }
 
 async function renderCompareCharts() {
+  analysisUI?.syncSelection();
+  analysisUI?.syncControls();
+  document.getElementById("compare-context").textContent = "等待对比数据";
+  document.getElementById("compare-basis").textContent = "暂无数据";
+  elements.compareChart.removeAttribute("data-empty");
   const renderToken = ++state.runtime.compareRenderToken;
-  const selectedIds = state.compare.indexIds;
+  const selectedIds = [...state.compare.indexIds];
   elements.compareTableBody.innerHTML = '<tr><td colspan="4" class="hint">正在加载对比数据...</td></tr>';
 
   try {
@@ -1994,10 +2006,11 @@ async function renderCompareCharts() {
     );
 
     if (!rows.length) {
-      const noDataMessage =
-        state.compare.startDate || state.compare.endDate
-          ? "当前日期范围样本不足（每条曲线至少需要 2 个点）"
-          : "请至少选择一个有效指数";
+      const noDataMessage = !selectedIds.length
+        ? "添加对象，开始估值对比"
+        : "所选指标在当前区间样本不足，请调整对象或区间";
+      elements.compareChart.dataset.empty = noDataMessage;
+      document.getElementById("compare-context").textContent = "暂无可用对比数据";
       elements.compareTableBody.innerHTML = `<tr><td colspan="4" class="hint">${noDataMessage}</td></tr>`;
       renderCompareSummary([], metricCfg);
       chart?.clear();
@@ -2012,7 +2025,7 @@ async function renderCompareCharts() {
       const meta = state.metaRows.find((m) => m.id === item.indexId);
       if (!meta) continue;
       legend.push(meta.displayName);
-      const lineColor = COMPARE_LINE_COLORS[seriesIndex % COMPARE_LINE_COLORS.length];
+      const lineColor = compareColor(item.indexId, state.compare.indexIds);
       lineColorByIndexId.set(item.indexId, lineColor);
 
       const data = item.rows.map((row) => {
@@ -2021,6 +2034,8 @@ async function renderCompareCharts() {
       });
 
       lineSeries.push({
+        id: item.indexId,
+        emphasis: { focus: "series", lineStyle: { width: 4 } },
         name: meta.displayName,
         type: "line",
         smooth: false,
@@ -2059,11 +2074,14 @@ async function renderCompareCharts() {
         {
           animationDuration: 500,
           legend: {
+            type: "scroll",
+            pageTextStyle: { color: "#9caabd" },
+            pageIconColor: "#70dfc2",
             data: legend,
             top: 4,
             textStyle: { color: "#88a4b8" },
           },
-          grid: { left: compareChartWidth > 0 && compareChartWidth < 560 ? 46 : 60, right: compareRightPadding, top: 46, bottom: 94 },
+          grid: { containLabel: true, left: 12, right: compareRightPadding, top: 46, bottom: 76 },
           tooltip: {
             trigger: "axis",
           },
@@ -2114,7 +2132,7 @@ async function renderCompareCharts() {
             axisLabel: {
               color: "#8aa5b8",
               formatter(value) {
-                return metricCfg.percentage ? `${fmt(value, metricCfg.digits)}%` : fmt(value, metricCfg.digits);
+                return formatAxisTick(value, metricCfg.percentage);
               },
             },
             splitLine: { lineStyle: { color: "rgba(120,150,170,0.16)" } },
@@ -2154,6 +2172,12 @@ async function renderCompareCharts() {
       const crossSectionRows = buildCompareCrossSection(rows, finalDate);
       renderCompareSummary(rows, metricCfg, crossSectionRows);
       renderCompareLatestViews(crossSectionRows, metricCfg, lineColorByIndexId);
+      document.getElementById("compare-context").textContent = `查看日期 ${finalDate} · 各对象按当日可用数据展示`;
+      document.getElementById("compare-basis").replaceChildren(...crossSectionRows.map((item) => {
+        const line = document.createElement("div");
+        line.textContent = `${item.name}：${item.percentileStart} 至 ${item.latest.date}`;
+        return line;
+      }));
     };
 
     syncCrossSection(defaultFocusDate);
@@ -2383,6 +2407,7 @@ function clearOverviewFilters() {
 }
 
 function bindEvents() {
+  analysisUI = initAnalysisUI({ state, charts, compareColor, renderCompareCharts, toggleCompareSelection, setCompareDateRange });
   document.querySelectorAll(".filter-chip").forEach((button) => {
     button.addEventListener("click", () => {
       state.overview.group = button.dataset.group;
@@ -2459,6 +2484,9 @@ function bindEvents() {
   });
 
   const handleCompareDateInput = () => {
+    state.compare.range = "max";
+    elements.compareRange.value = "max";
+    localStorage.setItem(STORAGE_KEYS.compareRange, "max");
     setCompareDateRange(elements.compareStartDate?.value || "", elements.compareEndDate?.value || "");
     renderCompareCharts();
   };
@@ -2475,18 +2503,14 @@ function bindEvents() {
     buildCompareIndexList();
   });
 
+  document.getElementById("compare-search").addEventListener("input", buildCompareIndexList);
+
   elements.compareIndexPicker.addEventListener("change", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement) || target.type !== "checkbox") return;
     toggleCompareSelection(target.dataset.indexId || "", target.checked);
   });
 
-  elements.compareApply.addEventListener("click", () => {
-    setCompareDateRange(elements.compareStartDate?.value || "", elements.compareEndDate?.value || "");
-    collectCompareSelection();
-    renderCompareCharts();
-    showToast("对比配置已应用");
-  });
 
   elements.settingsSave.addEventListener("click", saveSettings);
   elements.settingsReset.addEventListener("click", resetSettings);

@@ -100,49 +100,45 @@
 
       <section id="view-detail" class="view-panel">
         <article class="panel">
-          <div class="panel-title-row">
-            <h2>公司估值时序</h2>
-            <span id="detail-range" class="hint"></span>
+          <div class="panel-title-row detail-heading">
+            <div id="detail-identity" class="detail-identity"><span class="identity-mark">V</span><div><span class="eyebrow">估值详情</span><h2>选择公司</h2></div></div>
+            <details class="object-switcher" id="detail-switcher">
+              <summary>切换公司</summary>
+              <div class="object-switcher-body">
+                <label>搜索公司<input id="detail-search" type="search" placeholder="名称或代码…" autocomplete="off" /></label>
+                <label>选择公司<select id="detail-index" size="6"></select></label>
+                <span id="detail-search-status" class="hint" role="status"></span>
+              </div>
+            </details>
           </div>
-
-          <div class="detail-controls">
-            <label>
-              公司
-              <select id="detail-index"></select>
-            </label>
-            <label>
-              指标
-              <select id="detail-metric">
-                <option value="pe_ttm">PE (TTM)</option>
-                <option value="pe_forward">PE (Forward · Yahoo Current)</option>
-                <option value="pb">PB</option>
-              </select>
-            </label>
+          <span id="detail-range" class="hint detail-date"></span>
+          <div class="detail-controls analysis-controls">
+            <label class="native-control">指标<select id="detail-metric"><option value="pe_ttm">PE (TTM)</option><option value="pe_forward">PE (Forward)</option><option value="pb">PB</option></select></label>
+            <div class="segmented" data-select="detail-metric" aria-label="详情估值指标"></div>
             <div class="range-chip-group" id="detail-range-chips">
-              <button class="chip is-active" data-range="max" type="button">MAX</button>
-              <button class="chip" data-range="20y" type="button">20Y</button>
-              <button class="chip" data-range="10y" type="button">10Y</button>
-              <button class="chip" data-range="5y" type="button">5Y</button>
-              <button class="chip" data-range="3y" type="button">3Y</button>
-              <button class="chip" data-range="1y" type="button">1Y</button>
+              <button class="chip" data-range="max" type="button">MAX</button><button class="chip" data-range="20y" type="button">20Y</button><button class="chip" data-range="10y" type="button">10Y</button><button class="chip" data-range="5y" type="button">5Y</button><button class="chip" data-range="3y" type="button">3Y</button><button class="chip" data-range="1y" type="button">1Y</button>
             </div>
-            <button id="detail-refresh" class="btn" type="button">刷新图表</button>
+            <button id="detail-refresh" class="btn ghost compact-refresh" type="button" title="重新绘制当前图表">↻ 刷新</button>
           </div>
-
-          <div class="detail-visual-grid">
-            <div class="detail-visual-main">
+          <div id="detail-stats" class="detail-stats" aria-live="polite"></div>
+          <div class="mobile-chart-tabs segmented" role="group" aria-label="详情图表">
+            <button type="button" data-chart="value" aria-pressed="true" class="is-active">估值走势</button>
+            <button type="button" data-chart="percentile" aria-pressed="false">历史分位</button>
+          </div>
+          <div class="detail-visual-grid" data-active-chart="value">
+            <div class="detail-visual-main"><div class="panel-title-row compact"><h3>估值走势</h3><span class="hint">拖动底部滑块调整区间</span></div>
               <div id="detail-chart" class="chart-large"></div>
             </div>
             <div class="detail-visual-side">
               <div class="panel-title-row compact">
-                <h3>百分位走势</h3>
+                <h3>历史分位</h3>
                 <span class="hint">当前区间滚动百分位</span>
               </div>
               <div id="detail-percentile-chart" class="chart-medium"></div>
               <div id="detail-percentile-track" class="percentile-track"></div>
             </div>
           </div>
-          <div id="detail-stats" class="detail-stats"></div>
+          <details class="secondary-stats"><summary>更多区间数据 <span class="hint">历史分位 · 极值 · 数据范围</span></summary><div id="detail-secondary-stats" class="detail-stats"></div></details>
         </article>
       </section>
 
@@ -153,56 +149,29 @@
             <span class="hint">同区间对齐展示原始估值走势</span>
           </div>
 
-          <div class="compare-controls">
-            <label>
-              指标
-              <select id="compare-metric">
-                <option value="pe_ttm">PE (TTM)</option>
-                <option value="pe_forward">PE (Forward · Yahoo Current)</option>
-                <option value="pb">PB</option>
-              </select>
-            </label>
-            <label>
-              区间
-              <select id="compare-range">
-                <option value="max">MAX</option>
-                <option value="20y">20Y</option>
-                <option value="10y">10Y</option>
-                <option value="5y">5Y</option>
-                <option value="3y">3Y</option>
-                <option value="1y">1Y</option>
-              </select>
-            </label>
-            <div class="compare-date-range">
-              <label>
-                起始时间
-                <input id="compare-start-date" type="date" />
-              </label>
-              <label>
-                结束时间
-                <input id="compare-end-date" type="date" />
-              </label>
-              <button id="compare-reset-date" class="btn ghost compare-date-reset" type="button">清空日期</button>
-            </div>
-            <label class="inline-check">
-              <input id="compare-watchlist-only" type="checkbox" />
-              仅展示自选池
-            </label>
-            <button id="compare-apply" class="btn" type="button">应用对比</button>
+          <div class="compare-selection-bar">
+            <div id="compare-selected" class="selected-chips" aria-label="已选公司"></div>
+            <button id="compare-picker-toggle" class="btn ghost" type="button" aria-expanded="false" aria-controls="compare-selector">＋ 添加公司</button>
           </div>
-
-          <div class="compare-selector">
+          <div class="compare-selector" id="compare-selector" hidden>
             <div class="compare-selector-toolbar">
-              <div class="compare-selector-heading">
-                <h3>选择公司</h3>
-                <span id="compare-picker-count" class="hint">已选 0 / 8</span>
-              </div>
-              <label class="compare-search-field">
-                搜索
-                <input id="compare-search" type="text" placeholder="搜索公司名称或股票代码…" />
-              </label>
+              <div class="compare-selector-heading"><h3>选择公司</h3><span id="compare-picker-count" class="hint"></span></div>
+              <label class="compare-search-field">搜索<input id="compare-search" type="search" placeholder="搜索名称或代码…" /></label>
+              <label class="inline-check"><input id="compare-watchlist-only" type="checkbox" />仅展示自选池</label>
             </div>
             <div id="compare-index-picker" class="compare-picker"></div>
+          </div>
+          <div class="compare-controls analysis-controls">
+            <label class="native-control">指标<select id="compare-metric"><option value="pe_ttm">PE (TTM)</option><option value="pe_forward">PE (Forward)</option><option value="pb">PB</option></select></label>
+            <div class="segmented" data-select="compare-metric" aria-label="对比估值指标"></div>
+            <label class="native-control">区间<select id="compare-range"><option value="max">MAX</option><option value="20y">20Y</option><option value="10y">10Y</option><option value="5y">5Y</option><option value="3y">3Y</option><option value="1y">1Y</option></select></label>
+            <div class="range-chip-group" data-select="compare-range" aria-label="对比区间"></div>
+            <details class="custom-dates" id="compare-custom-dates"><summary>自定义区间</summary><div class="compare-date-range">
+              <label>起始时间<input id="compare-start-date" type="date" /></label>
+              <label>结束时间<input id="compare-end-date" type="date" /></label>
+              <button id="compare-reset-date" class="btn ghost" type="button">清空日期</button>
+            </div></details>
+            <span class="hint auto-update-note">更改后自动更新</span>
           </div>
           <div id="compare-summary" class="compare-summary"></div>
 
@@ -216,9 +185,10 @@
             </div>
             <div class="compare-side-panel panel soft">
               <div class="panel-title-row compact">
-                <h3>当前横截面</h3>
-                <span class="hint">名称颜色与折线颜色一致</span>
+                <h3>估值对比</h3>
+                <span id="compare-context" class="hint">悬停曲线查看对应日期</span>
               </div>
+              <details class="compare-basis"><summary>查看分位计算区间</summary><div id="compare-basis" class="hint"></div></details>
               <div class="table-wrap compare-table-wrap">
                 <table class="compare-table compare-cross-table">
                   <thead>
