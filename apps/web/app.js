@@ -927,7 +927,6 @@ function renderSnapshotGrid(rows) {
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(peChange === null ? null : peChange * 100, 1, true)}</strong></div>
         <div class="line"><span>PE 分位 · 近十年</span><strong${hasTtm ? ` style="color:${percentileColor(percentile)}"` : ""}>${fmtPct(percentile, 1)}</strong></div>
         ${hasTtm ? `<div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>` : '<div class="percent-track-mini is-unavailable"></div>'}
-        <div class="card-foot"><span>${row.ttmPointCount > 0 ? `TTM ${row.ttmStartDate} — ${row.ttmEndDate}` : "暂无可靠 TTM 数据"}</span></div>
         <div class="card-actions">
           <button type="button" class="card-action" data-card-action="watch" aria-pressed="${state.watchlist.includes(row.indexId)}" aria-label="${state.watchlist.includes(row.indexId) ? '移出自选' : '加入自选'} ${row.displayName}"><span aria-hidden="true">${state.watchlist.includes(row.indexId) ? '★' : '☆'}</span> ${state.watchlist.includes(row.indexId) ? '已自选' : '自选'}</button>
           <button type="button" class="card-action" data-card-action="compare" aria-pressed="${state.compare.indexIds.includes(row.indexId)}" aria-label="${state.compare.indexIds.includes(row.indexId) ? '移出对比' : '加入对比'} ${row.displayName}"><span aria-hidden="true">${state.compare.indexIds.includes(row.indexId) ? '✓' : '+'}</span> ${state.compare.indexIds.includes(row.indexId) ? '已选对比' : '加入对比'}</button>

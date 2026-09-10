@@ -130,7 +130,10 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .percent-track-mini { position: relative; margin: 12px 3px 0; height: 4px; border-radius: 3px; background: linear-gradient(90deg, #387f6b 0% 20%, #86754f 20% 80%, #9a515a 80% 100%); }
 .percent-track-mini.is-unavailable { background: var(--border-strong); }
 .percent-track-mini .pin { position: absolute; top: -3px; width: 5px; height: 10px; transform: translateX(-50%); border-radius: 2px; background: var(--card-pin, var(--text)); box-shadow: 0 0 0 2px var(--surface); }
-.card-foot { display: flex; justify-content: space-between; gap: 6px; margin-top: 10px; color: #91a0b4; font-size: .6875rem; font-variant-numeric: tabular-nums; }
+.card-market-cap { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.card-market-cap > span { color: var(--subtle); font-size: .8125rem; }
+.card-market-cap small { margin-left: 4px; color: #8292a8; font-size: .625rem; letter-spacing: .04em; }
+.card-market-cap strong { color: var(--text); font-family: var(--font-numeric); font-size: 1.1875rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.025em; white-space: nowrap; }
 .card-open { flex-shrink: 0; color: var(--subtle); }
 .card-open > span, .card-foot > .card-open[aria-hidden] { font-size: 1rem; line-height: 1; }
 .snapshot-card:hover .card-open { color: var(--accent); }
@@ -220,6 +223,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .company-logo + .card-identity .symbol { margin: 4px 0 0; }
 .name-row { height: 60px; }
 .card-actions { display: flex; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+.percent-track-mini + .card-actions { margin-top: 18px; }
 .card-action { display: inline-flex; gap: 5px; align-items: center; justify-content: center; min-height: 32px; flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--subtle); font-size: .75rem; }
 .card-action:hover { background: #ffffff05; border-color: var(--border-strong); color: var(--text); }
 .card-action[aria-pressed="true"] { color: var(--accent); background: #70dfc209; border-color: #70dfc22e; }
@@ -274,7 +278,6 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
   .snapshot-card { padding: 16px; }
   .name-row { min-height: 45px; }
   .primary-metric { margin-top: 10px; }
-  .card-foot { font-size: .6875rem; }
   .detail-controls, .compare-controls { padding: 14px; gap: 12px; }
   .detail-controls > label, .detail-controls > label:first-child { flex: 1 1 100%; }
   .detail-controls > .btn { margin-left: 0; }

@@ -1120,7 +1120,7 @@ function renderSnapshotGrid(rows) {
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${hasPe && row.pe_ttm_change_1y !== null ? fmtSigned(row.pe_ttm_change_1y * 100, 1, true) : "--"}</strong></div>
         <div class="line"><span>PE 分位 · 近十年</span><strong style="color:${percentileColor(percentile)}">${hasPercentile ? fmtPct(percentile, 1) : "--"}</strong></div>
         <div class="percent-track-mini ${hasPercentile ? "" : "is-unavailable"}">${hasPercentile ? `<span class="pin" style="left:${pinLeft.toFixed(2)}%"></span>` : ""}</div>
-        <div class="card-foot"><span>快照 ${row.date || "--"}</span><span>市值 ${fmtMarketCap(row.marketCap)}</span></div>
+        <div class="card-market-cap"><span>市值 <small>USD</small></span><strong title="以美元计价；T = 万亿，B = 十亿，M = 百万">${fmtMarketCap(row.marketCap)}</strong></div>
         <div class="card-actions">
           <button type="button" class="card-action" data-card-action="watch" aria-pressed="${state.watchlist.includes(row.indexId)}" aria-label="${state.watchlist.includes(row.indexId) ? '移出自选' : '加入自选'} ${row.displayName}"><span aria-hidden="true">${state.watchlist.includes(row.indexId) ? '★' : '☆'}</span> ${state.watchlist.includes(row.indexId) ? '已自选' : '自选'}</button>
           <button type="button" class="card-action" data-card-action="compare" aria-pressed="${state.compare.indexIds.includes(row.indexId)}" aria-label="${state.compare.indexIds.includes(row.indexId) ? '移出对比' : '加入对比'} ${row.displayName}"><span aria-hidden="true">${state.compare.indexIds.includes(row.indexId) ? '✓' : '+'}</span> ${state.compare.indexIds.includes(row.indexId) ? '已选对比' : '加入对比'}</button>
