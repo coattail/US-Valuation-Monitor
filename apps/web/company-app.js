@@ -14,6 +14,9 @@ const SERIES_PATH_CANDIDATES = [
 const ECHARTS_LOCAL_URL = new URL("./vendor/echarts.min.js", import.meta.url).href;
 const COMPANY_LOGO_BASE_URL = new URL("./assets/company-logos/64/", import.meta.url);
 const COMPANY_LOGO_FALLBACK_URL = new URL("./assets/company-logos/64/_default.svg", import.meta.url).href;
+// Solid-background marks need their internal lettering preserved in watermarks.
+const WIDE_COMPANY_LOGOS = new Set(["BRK-B", "JPM", "V", "ASML", "JNJ", "INTC", "UNH", "DELL", "ARM", "PANW", "SNDK", "BHP", "IBM", "LIN", "CRWD", "MRVL", "TTE", "STX", "WDC", "WELL", "UBS", "SMFG"]);
+const SOLID_LOGO_BACKGROUNDS = new Set(["SPCX", "HD", "WFC", "KLAC", "AXP", "TMUS", "SCHW", "ADI", "RIO"]);
 
 const COMPANY_REFRESH_API_CANDIDATES = [
   "/api/jobs/company-refresh",
@@ -112,7 +115,7 @@ function ensureEchartsLoaded() {
 function getCompanyLogoUrl(symbol) {
   const normalizedSymbol = String(symbol || "").trim().toUpperCase();
   if (!normalizedSymbol) return COMPANY_LOGO_FALLBACK_URL;
-  return new URL(`${encodeURIComponent(normalizedSymbol)}.png`, COMPANY_LOGO_BASE_URL).href;
+  return new URL(`${encodeURIComponent(normalizedSymbol)}.${normalizedSymbol === "SPCX" ? "ico" : "png"}`, COMPANY_LOGO_BASE_URL).href;
 }
 
 const savedOverviewFilters = safeJsonParse(localStorage.getItem(STORAGE_KEYS.overviewFilters), {});
@@ -259,14 +262,14 @@ function fmt(value, digits = 2) {
 }
 
 function fmtSigned(value, digits = 2, asPct = false) {
-  if (!Number.isFinite(Number(value))) return "--";
+  if (toFiniteNumber(value) === null) return "--";
   const n = Number(value);
   const text = `${n >= 0 ? "+" : ""}${n.toFixed(digits)}`;
   return asPct ? `${text}%` : text;
 }
 
 function fmtPct(value, digits = 1) {
-  if (!Number.isFinite(Number(value))) return "--";
+  if (toFiniteNumber(value) === null) return "--";
   const precision = Math.max(0, Number(digits) || 0);
   const displayStep = 1 / 10 ** precision;
   let percentage = clamp(Number(value) * 100, 0, 100);
@@ -653,17 +656,17 @@ function normalizeSnapshotDataset(payload) {
         pe_forward: toFiniteNumber(item.pe_forward),
         pb: toFiniteNumber(item.pb),
         peg: resolveLatestPointPeg(lastPoint, item.peg),
-        percentile_5y: Number.isFinite(Number(item.percentile_5y))
+        percentile_5y: Number.isFinite(toFiniteNumber(item.percentile_5y))
           ? clamp(Number(item.percentile_5y), 0, 1)
           : null,
-        percentile_10y: Number.isFinite(Number(item.percentile_10y))
+        percentile_10y: Number.isFinite(toFiniteNumber(item.percentile_10y))
           ? clamp(Number(item.percentile_10y), 0, 1)
           : null,
-        percentile_full: Number.isFinite(Number(item.percentile_full))
+        percentile_full: Number.isFinite(toFiniteNumber(item.percentile_full))
           ? clamp(Number(item.percentile_full), 0, 1)
           : null,
         z_score_3y: Number.isFinite(Number(item.z_score_3y)) ? Number(item.z_score_3y) : null,
-        pe_ttm_change_1y: Number.isFinite(Number(item.pe_ttm_change_1y))
+        pe_ttm_change_1y: Number.isFinite(toFiniteNumber(item.pe_ttm_change_1y))
           ? Number(item.pe_ttm_change_1y)
           : null,
         regime: String(item.regime || ""),
@@ -998,9 +1001,9 @@ function buildSnapshotRows() {
   state.snapshotRows = state.dataset.indices.map((indexData) => {
     const points = Array.isArray(indexData.points) ? indexData.points : [];
     const hasSnapshotStats =
-      Number.isFinite(Number(indexData.percentile_10y)) &&
-      Number.isFinite(Number(indexData.percentile_full)) &&
-      Number.isFinite(Number(indexData.pe_ttm_change_1y));
+      Number.isFinite(toFiniteNumber(indexData.percentile_10y)) &&
+      Number.isFinite(toFiniteNumber(indexData.percentile_full)) &&
+      Number.isFinite(toFiniteNumber(indexData.pe_ttm_change_1y));
     const latestRaw = points[points.length - 1] || {};
     const latestPe = hasSnapshotStats
       ? {
@@ -1021,8 +1024,8 @@ function buildSnapshotRows() {
       rank: Number(indexData.rank || 9999),
       marketCap: Number(indexData.marketCap || 0),
       date: String(indexData.date || latestRaw.date || indexData.endDate || ""),
-      pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm) ?? 0,
-      pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward) ?? 0,
+      pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm),
+      pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward),
       pb: toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb) ?? 0,
       peg: resolveLatestPointPeg(latestRaw, indexData.peg),
       percentile_5y: latestPe.percentile_5y,
@@ -1091,6 +1094,7 @@ function openDetailIndex(indexId) {
 }
 
 function snapshotBadge(row) {
+  if (row.pe_ttm === null) return '<span class="badge neutral">PE 不适用</span>';
   if (row.regime === "high") {
     return '<span class="badge high">高估</span>';
   }
@@ -1111,7 +1115,8 @@ function renderSnapshotGrid(rows) {
 
   elements.snapshotGrid.innerHTML = rows
     .map((row) => {
-      const rawPct = clamp(row.percentile_10y * 100, 0, 100);
+      const hasPe = row.pe_ttm !== null;
+      const rawPct = hasPe ? clamp(row.percentile_10y * 100, 0, 100) : 50;
       const pinLeft = rawPct;
       const peChangeTone = row.pe_ttm_change_1y >= 0 ? "up" : "down";
       const toneVars = snapshotToneVars(row.percentile_10y);
@@ -1120,8 +1125,9 @@ function renderSnapshotGrid(rows) {
       const logoUrl = `${getCompanyLogoUrl(row.symbol)}?v=${logoVersion}`;
       return `
       <article class="snapshot-card" data-index-id="${row.indexId}" style="${toneVars}">
-        <div class="card-logo-watermark" aria-hidden="true">
-          <img src="${logoUrl}" alt="" width="92" height="92" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${COMPANY_LOGO_FALLBACK_URL}'" />
+        <div class="card-logo-watermark ${SOLID_LOGO_BACKGROUNDS.has(row.symbol) ? "card-logo-watermark--solid" : ""} ${WIDE_COMPANY_LOGOS.has(row.symbol) ? "card-logo-watermark--wide" : ""}" aria-hidden="true">
+          <img src="${logoUrl}" alt="" width="92" height="92" loading="lazy" decoding="async" onerror="this.onerror=null;this.hidden=true;this.parentElement.classList.add('card-logo-watermark--ticker')" />
+          <span class="watermark-fallback">${row.symbol}</span>
         </div>
         <div class="name-row">
           <img class="company-logo" src="${logoUrl}" alt="" width="36" height="36" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${COMPANY_LOGO_FALLBACK_URL}'" />
@@ -1131,15 +1137,15 @@ function renderSnapshotGrid(rows) {
           </div>
           ${snapshotBadge(row)}
         </div>
-        <div class="primary-metric"><span>PE <span class="metric-period">TTM</span></span><strong>${fmt(row.pe_ttm, 2)}<small>×</small></strong></div>
+        <div class="primary-metric"><span>PE <span class="metric-period">TTM</span></span><strong>${hasPe ? `${fmt(row.pe_ttm, 2)}<small>×</small>` : "不适用"}</strong></div>
         <div class="secondary-metrics">
           <div><span title="Yahoo Finance Current">PE · FWD</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
           <div><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
           <div><span>PEG</span><strong>${fmt(row.peg, 2)}</strong></div>
         </div>
-        <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${fmtSigned(row.pe_ttm_change_1y * 100, 1, true)}</strong></div>
-        <div class="line"><span>PE 分位 · 近十年</span><strong style="color:${percentileColor(row.percentile_10y)}">${fmtPct(row.percentile_10y, 1)}</strong></div>
-        <div class="percent-track-mini"><span class="pin" style="left:${pinLeft.toFixed(2)}%"></span></div>
+        <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${hasPe && row.pe_ttm_change_1y !== null ? fmtSigned(row.pe_ttm_change_1y * 100, 1, true) : "--"}</strong></div>
+        <div class="line"><span>PE 分位 · 近十年</span><strong style="color:${percentileColor(row.percentile_10y)}">${hasPe ? fmtPct(row.percentile_10y, 1) : "--"}</strong></div>
+        <div class="percent-track-mini ${hasPe ? "" : "is-unavailable"}">${hasPe ? `<span class="pin" style="left:${pinLeft.toFixed(2)}%"></span>` : ""}</div>
         <div class="card-foot"><span>快照 ${row.date || "--"}</span><span>市值 ${fmtMarketCap(row.marketCap)}</span></div>
         <div class="card-actions">
           <button type="button" class="card-action" data-card-action="watch" aria-pressed="${state.watchlist.includes(row.indexId)}" aria-label="${state.watchlist.includes(row.indexId) ? '移出自选' : '加入自选'} ${row.displayName}"><span aria-hidden="true">${state.watchlist.includes(row.indexId) ? '★' : '☆'}</span> ${state.watchlist.includes(row.indexId) ? '已自选' : '自选'}</button>
@@ -1970,7 +1976,8 @@ async function renderDetail() {
 
     const indexMeta = state.metaRows.find((item) => item.id === indexId);
     if (!indexMeta || !viewRows.length) {
-      elements.detailStats.innerHTML = '<div class="hint">该公司暂无可用时序数据</div>';
+      elements.detailStats.innerHTML = '<div class="hint">当前指标不适用或暂无可靠数据；可切换 Forward PE 或 PB 查看。</div>';
+      elements.detailRange.textContent = `${indexMeta?.displayName || ""} · 当前指标暂无可用历史`;
       return;
     }
 

@@ -1,3 +1,4 @@
+import { repairCompanyMetricHistory } from "./company-data-corrections.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
@@ -50,12 +51,12 @@ interface CompanySnapshotIndex {
   pe_forward: number | null;
   pb: number | null;
   peg: number | null;
-  percentile_5y: number;
-  percentile_10y: number;
-  percentile_full: number;
-  z_score_3y: number;
-  pe_ttm_change_1y: number;
-  regime: "high" | "low" | "neutral";
+  percentile_5y: number | null;
+  percentile_10y: number | null;
+  percentile_full: number | null;
+  z_score_3y: number | null;
+  pe_ttm_change_1y: number | null;
+  regime: "high" | "low" | "neutral" | "unavailable";
 }
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
@@ -115,12 +116,12 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
   if (!validRows.length) {
     return {
       latestDate: "",
-      percentile_5y: 0.5,
-      percentile_10y: 0.5,
-      percentile_full: 0.5,
-      z_score_3y: 0,
-      pe_ttm_change_1y: 0,
-      regime: "neutral" as const,
+      percentile_5y: null,
+      percentile_10y: null,
+      percentile_full: null,
+      z_score_3y: null,
+      pe_ttm_change_1y: null,
+      regime: "unavailable" as const,
     };
   }
 
@@ -258,7 +259,7 @@ async function main(): Promise<void> {
   const indicesRaw = Array.isArray(dataset.indices) ? dataset.indices : [];
   const usTradingDates = await loadUsTradingDates();
 
-  const indices = indicesRaw
+  const indices = indicesRaw.map((item) => ({ ...item, points: repairCompanyMetricHistory(item.symbol, item.points || []) }))
     .filter((item) => item && typeof item === "object")
     .map((item) => ({
       ...item,

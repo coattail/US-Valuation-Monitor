@@ -1,3 +1,4 @@
+import { repairCompanyMetricHistory, preserveSpcxUnavailableMetrics } from "./company-data-corrections.mjs";
 import path from "node:path";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -2177,6 +2178,8 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
 
     for (const label of labels) {
       const escapedLabel = escapeForRegex(label);
+      const missing = new RegExp(`${escapedLabel}\\s*:?\\s*(?:--|—|N/A|N\\/A|\\bnull\\b)(?:\\s|$)`, "i");
+      if (missing.test(normalizedPlain)) return null;
 
       // Prefer structurally adjacent values. Yahoo now renders an empty
       // loading skeleton before hydration; a loose "next number" match used
@@ -2187,8 +2190,6 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
             `<(?:p|span|div|td)[^>]*>\\s*${escapedLabel}\\s*<\\/(?:p|span|div|td)>\\s*<(?:p|span|div|td)[^>]*>\\s*(-?\\d+(?:\\.\\d+)?)\\s*<`,
             "gi"
           ),
-          new RegExp(`${escapedLabel}[\\s\\S]{0,220}?<td[^>]*>\\s*(-?\\d+(?:\\.\\d+)?)\\s*<`, "gi"),
-          new RegExp(`"label"\\s*:\\s*"${escapedLabel}"[\\s\\S]{0,220}?"raw"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`, "gi"),
         ];
 
         for (const pattern of patterns) {
@@ -7398,7 +7399,7 @@ async function loadYahooDailyMetricSnapshotsBySymbol(): Promise<Map<string, Yaho
       if (!symbol || !Array.isArray(rawRows)) continue;
 
       const byDate = new Map<string, YahooDailyMetricSnapshot>();
-      for (const row of rawRows) {
+      for (const row of repairCompanyMetricHistory(symbol, rawRows)) {
         const normalized = normalizeYahooDailyMetricSnapshot(row);
         if (!normalized) continue;
         byDate.set(normalized.date, normalized);
@@ -7948,7 +7949,7 @@ async function main(): Promise<void> {
     ? `symbol-filter-target-${symbolFilter.join("_").toLowerCase()}`
     : "symbol-filter-target-all";
 
-  const serializedIndices = indices.map((item) => ({
+  const serializedIndices = indices.map((item) => preserveSpcxUnavailableMetrics(item, yahooDailyMetricsBySymbol.get(item.symbol) || [])).map((item) => ({
     id: item.id,
     symbol: item.symbol,
     displayName: item.displayName,

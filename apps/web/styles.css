@@ -388,3 +388,9 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 
 .compare-chart-large[data-empty]{position:relative}
 .compare-chart-large[data-empty]::after{content:attr(data-empty);position:absolute;inset:0;display:grid;place-items:center;padding:32px;color:var(--subtle);font-size:14px;text-align:center}
+
+.card-logo-watermark--solid img{filter:grayscale(1) brightness(.6) contrast(5);mix-blend-mode:screen;opacity:.13}
+.card-logo-watermark .watermark-fallback{display:none}
+.card-logo-watermark--ticker .watermark-fallback{display:block}
+
+.card-logo-watermark--wide img{width:128px;height:128px;max-width:none;opacity:.12}

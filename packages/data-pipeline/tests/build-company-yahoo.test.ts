@@ -918,3 +918,14 @@ test("missing TTM PE is carried from the preserved previous TTM PE by close", ()
   assert.equal(carried[0].pe_ttm, 34.22);
   assert.equal(carried[1].pe_ttm, 34.9044);
 });
+
+test("Yahoo unavailable current ratios never borrow the next row or a historical value", () => {
+  const payload = parseYahooValuationMeasuresFromHtml(`<table>
+    <tr><td>Trailing P/E</td><td>--</td><td>196.08</td></tr>
+    <tr><td>Forward P/E</td><td>200.00</td></tr>
+    <tr><td>PEG Ratio (5yr expected)</td><td>--</td></tr>
+    <tr><td>Price/Sales (ttm)</td><td>68.30</td></tr>
+    <tr><td>Price/Book (mrq)</td><td>15.33</td></tr>
+  </table>`);
+  assert.deepEqual(payload?.latest, { pe_ttm: null, pe_forward: 200, pb: 15.33, peg: null });
+});
