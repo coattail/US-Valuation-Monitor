@@ -1,3 +1,4 @@
+import { percentileColor, regimeFromPercentile, regimeLabel, snapshotPercentile, snapshotBadge } from "./valuation-policy.js";
 import { initAnalysisUI, formatAxisTick, createSeriesColors } from "./analysis-ui.js";
 let analysisUI;
 const SNAPSHOT_PATH_CANDIDATES = [
@@ -343,12 +344,6 @@ function median(values) {
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
-function percentileColor(percentile) {
-  if (percentile === null || percentile === undefined || !Number.isFinite(Number(percentile))) return "#96a2b3";
-  const p = clamp(Number(percentile), 0, 1);
-  return p >= 0.85 ? "#f28b94" : p <= 0.15 ? "#62d5b0" : "#ddc086";
-}
-
 function parseDate(dateText) {
   return new Date(`${dateText}T00:00:00Z`);
 }
@@ -499,12 +494,6 @@ function snapshotToneVars(percentile) {
   return `--card-pin:${percentileColor(percentile)};`;
 }
 
-function regimeFromPercentile(percentile) {
-  if (percentile >= 0.85) return "high";
-  if (percentile <= 0.15) return "low";
-  return "neutral";
-}
-
 function computeLatestPeStats(points) {
   if (!Array.isArray(points) || !points.length) {
     return {
@@ -596,12 +585,6 @@ function computeLatestPeStats(points) {
     regime: regimeFromPercentile(pct10),
     pe_ttm_change_1y: peChange1y,
   };
-}
-
-function regimeLabel(regime) {
-  if (regime === "high") return "高估";
-  if (regime === "low") return "低估";
-  return "中性";
 }
 
 function metricValueFromRaw(point, metric) {
@@ -1061,7 +1044,7 @@ function getOverviewFilteredRows() {
       case "attention":
         return compareByAttention(a, b);
       case "percentile_asc":
-        return a.percentile_10y - b.percentile_10y;
+        return (snapshotPercentile(a) ?? Infinity) - (snapshotPercentile(b) ?? Infinity);
       case "pe_desc":
         return b.pe_ttm - a.pe_ttm;
       case "pe_asc":
@@ -1076,7 +1059,7 @@ function getOverviewFilteredRows() {
         return a.displayName.localeCompare(b.displayName, "en");
       case "percentile_desc":
       default:
-        return b.percentile_10y - a.percentile_10y;
+        return (snapshotPercentile(b) ?? -Infinity) - (snapshotPercentile(a) ?? -Infinity);
     }
   });
 
@@ -1093,17 +1076,6 @@ function openDetailIndex(indexId) {
   renderDetail();
 }
 
-function snapshotBadge(row) {
-  if (row.pe_ttm === null) return '<span class="badge neutral">PE 不适用</span>';
-  if (row.regime === "high") {
-    return '<span class="badge high">高估</span>';
-  }
-  if (row.regime === "low") {
-    return '<span class="badge low">低估</span>';
-  }
-  return '<span class="badge neutral">中性</span>';
-}
-
 function companyTypeLabel(symbol) {
   const normalized = String(symbol || "").trim().toUpperCase();
   return ADR_SYMBOLS.has(normalized) ? "ADR" : "美股公司";
@@ -1115,11 +1087,13 @@ function renderSnapshotGrid(rows) {
 
   elements.snapshotGrid.innerHTML = rows
     .map((row) => {
-      const hasPe = row.pe_ttm !== null;
-      const rawPct = hasPe ? clamp(row.percentile_10y * 100, 0, 100) : 50;
+      const hasPe = toFiniteNumber(row.pe_ttm) !== null;
+      const percentile = snapshotPercentile(row);
+      const hasPercentile = percentile !== null;
+      const rawPct = hasPercentile ? clamp(percentile * 100, 0, 100) : 50;
       const pinLeft = rawPct;
       const peChangeTone = row.pe_ttm_change_1y >= 0 ? "up" : "down";
-      const toneVars = snapshotToneVars(row.percentile_10y);
+      const toneVars = snapshotToneVars(percentile);
       const nameLength = String(row.displayName || "").length;
       const nameClass = nameLength >= 28 ? "name name--tight" : nameLength >= 20 ? "name name--compact" : "name";
       const logoUrl = `${getCompanyLogoUrl(row.symbol)}?v=${logoVersion}`;
@@ -1144,8 +1118,8 @@ function renderSnapshotGrid(rows) {
           <div><span>PEG</span><strong>${fmt(row.peg, 2)}</strong></div>
         </div>
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${hasPe && row.pe_ttm_change_1y !== null ? fmtSigned(row.pe_ttm_change_1y * 100, 1, true) : "--"}</strong></div>
-        <div class="line"><span>PE 分位 · 近十年</span><strong style="color:${percentileColor(row.percentile_10y)}">${hasPe ? fmtPct(row.percentile_10y, 1) : "--"}</strong></div>
-        <div class="percent-track-mini ${hasPe ? "" : "is-unavailable"}">${hasPe ? `<span class="pin" style="left:${pinLeft.toFixed(2)}%"></span>` : ""}</div>
+        <div class="line"><span>PE 分位 · 近十年</span><strong style="color:${percentileColor(percentile)}">${hasPercentile ? fmtPct(percentile, 1) : "--"}</strong></div>
+        <div class="percent-track-mini ${hasPercentile ? "" : "is-unavailable"}">${hasPercentile ? `<span class="pin" style="left:${pinLeft.toFixed(2)}%"></span>` : ""}</div>
         <div class="card-foot"><span>快照 ${row.date || "--"}</span><span>市值 ${fmtMarketCap(row.marketCap)}</span></div>
         <div class="card-actions">
           <button type="button" class="card-action" data-card-action="watch" aria-pressed="${state.watchlist.includes(row.indexId)}" aria-label="${state.watchlist.includes(row.indexId) ? '移出自选' : '加入自选'} ${row.displayName}"><span aria-hidden="true">${state.watchlist.includes(row.indexId) ? '★' : '☆'}</span> ${state.watchlist.includes(row.indexId) ? '已自选' : '自选'}</button>
@@ -1579,9 +1553,9 @@ function renderDetailPercentileTrack(latest) {
     <div class="bar"><span class="pin" style="left:${left}"></span></div>
     <div class="labels">
       <span>0% 低估</span>
-      <span>15%</span>
+      <span>20%</span>
       <span>50%</span>
-      <span>85%</span>
+      <span>80%</span>
       <span>100% 高估</span>
     </div>
   `;
@@ -1664,13 +1638,13 @@ function renderDetailStats(fullRows, viewRows) {
     ["区间变动", fmtSigned(change, 2, true)],
     ["区间最低", metricCfg.percentage ? fmtSigned(min * 100, metricCfg.digits, true) : fmt(min, metricCfg.digits)],
     ["区间最高", metricCfg.percentage ? fmtSigned(max * 100, metricCfg.digits, true) : fmt(max, metricCfg.digits)],
-    ["估值状态", regimeLabel(latest.regime)],
+    ["估值状态 · 当前区间", regimeLabel(latest.value > 0 ? regimeFromPercentile(latest.percentile_full) : "unavailable")],
     ["数据区间", `${viewRows[0].date} ~ ${viewRows[viewRows.length - 1].date}`],
   ];
   const pill = ([k, v], primary = false) => `<div class="stat-pill ${primary ? "primary-stat" : ""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
   elements.detailStats.innerHTML = [0, 1, 8, 5].map((i) => pill(stats[i], true)).join("");
   elements.detailStats.children[1].style.setProperty("--stat-color", percentileColor(latest.percentile_full));
-  elements.detailStats.children[2].style.setProperty("--stat-color", percentileColor(latest.percentile_full));
+  elements.detailStats.children[2].style.setProperty("--stat-color", percentileColor(latest.value > 0 ? latest.percentile_full : null));
   document.getElementById("detail-secondary-stats").innerHTML = [2, 3, 4, 6, 7, 9].map((i) => pill(stats[i])).join("");
 
   renderDetailPercentileTrack(latest);
@@ -2261,7 +2235,7 @@ function renderCompareLatestViews(latestRows, metricCfg, lineColorByIndexId) {
 
   elements.compareTableBody.innerHTML = latestRows
     .map((item) => {
-      const regime = regimeLabel(item.latest.regime);
+      const regime = regimeLabel(item.latest.value > 0 ? regimeFromPercentile(item.latest.percentile_full) : "unavailable");
       const valueText = metricCfg.percentage
         ? `${fmt(item.latest.value * 100, metricCfg.digits)}%`
         : fmt(item.latest.value, metricCfg.digits);

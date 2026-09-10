@@ -112,6 +112,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .badge.high { color: var(--high); background: #f28b9412; }
 .badge.low { color: var(--low); background: #62d5b014; }
 .badge.neutral { color: var(--neutral); background: #ddc08612; }
+.badge.unavailable { color: var(--subtle); background: #96a2b312; }
 .primary-metric { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 10px 0 12px; }
 .primary-metric > span { color: var(--subtle); font-size: .75rem; letter-spacing: .02em; }
 .metric-period { font-size: .6875rem; border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 4px; margin-left: 3px; }
@@ -126,7 +127,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .line strong { font-family: var(--font-numeric); font-variant-numeric: tabular-nums; font-weight: 500; }
 .up { color: var(--high); }
 .down { color: var(--low); }
-.percent-track-mini { position: relative; margin: 12px 3px 0; height: 4px; border-radius: 3px; background: linear-gradient(90deg, #387f6b 0% 15%, #86754f 15% 85%, #9a515a 85% 100%); }
+.percent-track-mini { position: relative; margin: 12px 3px 0; height: 4px; border-radius: 3px; background: linear-gradient(90deg, #387f6b 0% 20%, #86754f 20% 80%, #9a515a 80% 100%); }
 .percent-track-mini.is-unavailable { background: var(--border-strong); }
 .percent-track-mini .pin { position: absolute; top: -3px; width: 5px; height: 10px; transform: translateX(-50%); border-radius: 2px; background: var(--card-pin, var(--text)); box-shadow: 0 0 0 2px var(--surface); }
 .card-foot { display: flex; justify-content: space-between; gap: 6px; margin-top: 10px; color: #91a0b4; font-size: .6875rem; font-variant-numeric: tabular-nums; }
@@ -159,7 +160,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .stat-pill .v, .summary-pill .v { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 7px; overflow-wrap: anywhere; }
 .percentile-track { padding: 16px 12px 8px; border-top: 1px solid var(--border); }
 .percentile-track .title { color: var(--subtle); font-size: .8125rem; margin-bottom: 14px; }
-.percentile-track .bar { position: relative; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #387f6b 0% 15%, #86754f 15% 85%, #9a515a 85% 100%); }
+.percentile-track .bar { position: relative; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #387f6b 0% 20%, #86754f 20% 80%, #9a515a 80% 100%); }
 .percentile-track .pin { position: absolute; width: 6px; height: 14px; top: -4px; border-radius: 2px; background: var(--text); transform: translateX(-50%); box-shadow: 0 0 0 2px var(--surface); }
 .percentile-track .labels { display: flex; justify-content: space-between; margin-top: 10px; color: var(--subtle); font-size: .75rem; }
 .compare-date-range { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; }
@@ -394,3 +395,12 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .card-logo-watermark--ticker .watermark-fallback{display:block}
 
 .card-logo-watermark--wide img{width:128px;height:128px;max-width:none;opacity:.12}
+
+.valuation-method { margin: 0 0 16px; color: var(--subtle); font-size: .75rem; }
+.valuation-method summary { width: fit-content; cursor: pointer; padding: 4px 0; }
+.valuation-method summary span { margin-left: 8px; color: #8292a8; }
+.valuation-method-body { margin-top: 8px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); line-height: 1.8; }
+.valuation-method-body p { margin: 0; }
+.valuation-method-body p + p { margin-top: 6px; }
+.valuation-method-body strong { color: var(--text); font-weight: 500; }
+.valuation-method-body a { color: var(--accent); }

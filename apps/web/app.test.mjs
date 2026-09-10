@@ -162,3 +162,14 @@ test("chart dates shorten progressively for phone and tablet widths", () => {
   assert.equal(formatAxisDateForWidthForTest(date, 820), "2026-07");
   assert.equal(formatAxisDateForWidthForTest(date, 1200), "2026-07-16");
 });
+
+test("index overview uses ten-year percentile even when full-history regime differs", () => {
+  const row = buildSnapshotRowForTest({
+    id: "sp500", symbol: "SPY", displayName: "S&P 500", group: "core",
+    pe_ttm: 20, percentile_10y: 0.18, percentile_full: 0.95, regime: "high",
+    points: [],
+  });
+  assert.equal(row.percentile_10y, 0.18);
+  assert.equal(row.percentile_full, 0.95);
+  assert.equal(row.regime, "low");
+});

@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>US Valuation Monitor</title>
-    <link rel="stylesheet" href="./styles.css?v=20260910-company-quality-v3" />
+    <link rel="stylesheet" href="./styles.css?v=20260910-valuation-policy-v1" />
   </head>
   <body data-theme="terminal">
     <a class="skip-link" href="#main-content">跳转到主要内容</a>
@@ -75,8 +75,8 @@
               排序
               <select id="overview-sort-select">
                 <option value="attention">市场热度（核心→行业→主题）</option>
-                <option value="percentile_desc">分位从高到低</option>
-                <option value="percentile_asc">分位从低到高</option>
+                <option value="percentile_desc">十年分位从高到低</option>
+                <option value="percentile_asc">十年分位从低到高</option>
                 <option value="pe_desc">PE 从高到低</option>
                 <option value="pb_desc">PB 从高到低</option>
                 <option value="name">名称 A-Z</option>
@@ -89,9 +89,17 @@
             <button id="overview-clear" class="btn ghost" type="button">清空筛选</button>
           </div>
           <div class="overview-context">
-            <span>PE 历史分位 · 全部可用历史 <span id="snapshot-date" class="snapshot-date"></span></span>
-            <div class="valuation-legend" aria-label="估值状态说明"><span class="low">低估 ≤15%</span><span class="neutral">中性</span><span class="high">高估 ≥85%</span></div>
+            <span>PE 历史分位 · 近十年 <span id="snapshot-date" class="snapshot-date"></span></span>
+            <div class="valuation-legend" aria-label="估值状态说明"><span class="low">低估 ≤20%</span><span class="neutral">合理 20%–80%</span><span class="high">高估 ≥80%</span></div>
           </div>
+          <details class="valuation-method">
+            <summary>估值判断规则 <span>历史相对位置</span></summary>
+            <div class="valuation-method-body">
+              <p><strong>低估：≤20%</strong>，位于历史较低区间；<strong>合理：&gt;20% 且 &lt;80%</strong>，位于历史常态区间；<strong>高估：≥80%</strong>，位于历史较高区间。边界值按未四舍五入的百分位判定。</p>
+              <p>概览以 PE（TTM）的近十年百分位判断，窗口约 2,520 个交易日；不足十年时使用可用历史。详情和对比使用所选指标、所选区间的百分位。缺失或非正估值倍数不参与状态判断。</p>
+              <p>这是本项目的相对估值分档。“合理”表示历史常态，不代表内在价值已被验证；盈利增长、周期与利率仍需结合分析。<a href="https://www.morningstar.com/stocks/how-determine-what-stock-is-worth" target="_blank" rel="noopener noreferrer">了解估值倍数的局限 ↗</a></p>
+            </div>
+          </details>
           <div id="snapshot-grid" class="snapshot-grid"><div class="empty-state" role="status"><strong>正在加载估值数据</strong><p>请稍候，市场快照即将呈现。</p></div></div>
           <noscript><p class="empty-state">请启用 JavaScript 以查看估值数据和交互图表。</p></noscript>
         </article>
@@ -195,7 +203,7 @@
                       <th>指数</th>
                       <th>当前值</th>
                       <th>百分位</th>
-                      <th>状态</th>
+                      <th title="按所选指标与当前对比区间判断：≤20% 低估，≥80% 高估，其余合理">状态</th>
                     </tr>
                   </thead>
                   <tbody id="compare-table-body"></tbody>
@@ -255,6 +263,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./app.js?v=20260910-company-quality-v3"></script>
+    <script type="module" src="./app.js?v=20260910-valuation-policy-v1"></script>
   </body>
 </html>
