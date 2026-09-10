@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>US Company Valuation Monitor</title>
-    <link rel="stylesheet" href="./styles.css?v=20260910-card-layout-v1" />
+    <link rel="stylesheet" href="./styles.css?v=20260910-detail-layout-v1" />
   </head>
   <body data-theme="terminal">
     <a class="skip-link" href="#main-content">跳转到主要内容</a>
@@ -109,7 +109,10 @@
       <section id="view-detail" class="view-panel">
         <article class="panel">
           <div class="panel-title-row detail-heading">
-            <div id="detail-identity" class="detail-identity"><span class="identity-mark">V</span><div><span class="eyebrow">估值详情</span><h2>选择公司</h2></div></div>
+            <div class="detail-heading-main">
+              <div id="detail-identity" class="detail-identity"><span class="identity-mark">V</span><div><span class="eyebrow">估值详情</span><h2>选择公司</h2></div></div>
+              <span id="detail-range" class="hint detail-date"></span>
+            </div>
             <details class="object-switcher" id="detail-switcher">
               <summary>切换公司</summary>
               <div class="object-switcher-body">
@@ -119,12 +122,11 @@
               </div>
             </details>
           </div>
-          <span id="detail-range" class="hint detail-date"></span>
           <div class="detail-controls analysis-controls">
             <label class="native-control">指标<select id="detail-metric"><option value="pe_ttm">PE (TTM)</option><option value="pe_forward">PE (Forward)</option><option value="pb">PB</option></select></label>
             <div class="segmented" data-select="detail-metric" aria-label="详情估值指标"></div>
             <div class="range-chip-group" id="detail-range-chips">
-              <button class="chip" data-range="max" type="button">MAX</button><button class="chip" data-range="20y" type="button">20Y</button><button class="chip" data-range="10y" type="button">10Y</button><button class="chip" data-range="5y" type="button">5Y</button><button class="chip" data-range="3y" type="button">3Y</button><button class="chip" data-range="1y" type="button">1Y</button>
+              <button class="chip" data-range="max" type="button">全部</button><button class="chip" data-range="20y" type="button">20Y</button><button class="chip" data-range="10y" type="button" aria-pressed="true">10Y</button><button class="chip" data-range="5y" type="button">5Y</button><button class="chip" data-range="3y" type="button">3Y</button><button class="chip" data-range="1y" type="button">1Y</button>
             </div>
             <button id="detail-refresh" class="btn ghost compact-refresh" type="button" title="重新绘制当前图表">↻ 刷新</button>
           </div>
@@ -261,6 +263,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./company-app.js?v=20260910-card-layout-v1"></script>
+    <script type="module" src="./company-app.js?v=20260910-detail-layout-v1"></script>
   </body>
 </html>

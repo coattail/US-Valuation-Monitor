@@ -407,3 +407,49 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .valuation-method-body p + p { margin-top: 6px; }
 .valuation-method-body strong { color: var(--text); font-weight: 500; }
 .valuation-method-body a { color: var(--accent); }
+
+/* Detail pages keep controls compact and let the primary chart fill its panel. */
+#view-detail { scroll-margin-top: 64px; }
+.detail-heading-main { min-width: 0; }
+.detail-heading { margin-bottom: 12px; }
+.detail-identity { gap: 12px; }
+.detail-identity h2 { font-size: 24px; margin-top: 1px; }
+.detail-identity .identity-mark { width: 44px; height: 44px; border-radius: 10px; }
+.detail-date { margin: 4px 0 0 56px; font-size: 11px; line-height: 1.6; }
+.detail-controls.analysis-controls { padding: 8px 0 12px; margin-bottom: 14px; gap: 12px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
+.detail-controls .range-chip-group { padding-bottom: 0; }
+#detail-stats { gap: 10px; margin-bottom: 16px; }
+#detail-stats .primary-stat { padding: 12px 16px; }
+#detail-stats .primary-stat .k { font-size: 11px; }
+#detail-stats .primary-stat .v { margin-top: 4px; font-size: 26px; line-height: 1.2; }
+.detail-visual-grid { gap: 12px; }
+.detail-visual-main, .detail-visual-side { padding: 14px; }
+.detail-visual-main { display: flex; flex-direction: column; }
+.detail-visual-main .chart-large { flex: 1; height: 360px; min-height: 320px; }
+.detail-visual-side { gap: 0; }
+.detail-visual-side .chart-medium { flex: none; height: 300px; }
+.detail-visual-grid .panel-title-row { margin-bottom: 4px; }
+.detail-visual-grid h3 { font-size: 14px; }
+.detail-visual-grid .hint { font-size: 11px; }
+#detail-percentile-track { margin-top: 8px; padding-top: 10px; }
+#detail-percentile-track .title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-size: 11px; }
+#detail-percentile-track .title strong { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+#detail-percentile-track .labels { margin-top: 7px; font-size: 10px; }
+.secondary-stats { margin-top: 14px; padding-top: 12px; }
+@media (min-width: 761px) and (max-width: 1199px) {
+  .detail-visual-grid { grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr); }
+}
+@media (max-width: 760px) {
+  .detail-identity h2 { font-size: 20px; }
+  .detail-heading { align-items: flex-start; }
+  .detail-date { margin-left: 0; font-size: 10px; }
+  .object-switcher summary { padding: 9px 10px; font-size: 12px; }
+  #detail-stats { gap: 8px; margin-bottom: 12px; }
+  #detail-stats .primary-stat { padding: 10px 12px; }
+  #detail-stats .primary-stat .v { font-size: 24px; }
+  .detail-controls.analysis-controls { gap: 8px; padding-top: 4px; }
+  .detail-visual-grid, .detail-visual-main, .detail-visual-side { min-height: 0; }
+  .detail-visual-main, .detail-visual-side { padding: 12px; }
+  .detail-visual-main .chart-large { flex: none; height: 330px; min-height: 0; }
+  .detail-visual-side .chart-medium { height: 270px; }
+}

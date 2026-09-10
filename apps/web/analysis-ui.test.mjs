@@ -18,3 +18,20 @@ test('removing or reordering a selected series preserves the remaining colors', 
   assert.equal(color('D', ['C','B','D']), 'red');
   assert.equal(new Set(['C','B','D'].map(id=>color(id,['C','B','D']))).size,3);
 });
+
+test('details default to ten years and use all available history for newer objects', async () => {
+  const { resolveDetailRange, detailRangeCaption } = await import('./analysis-ui.js');
+  const history = [{date:'2001-01-01'}, {date:'2026-09-09'}];
+  assert.equal(resolveDetailRange(history), '10y');
+  assert.equal(resolveDetailRange([{date:'2016-09-09'}, history[1]]), '10y');
+  assert.equal(resolveDetailRange([{date:'2016-09-10'}, history[1]]), 'max');
+  assert.equal(resolveDetailRange([{date:'2026-06-12'}, history[1]]), 'max');
+  assert.equal(resolveDetailRange([history[1]]), 'max');
+  assert.equal(resolveDetailRange([]), '10y');
+  assert.equal(detailRangeCaption('10y', 'max'), '全部可用历史（不足十年）');
+  // Explicit selections remain in force; a short object's automatic fallback
+  // does not replace the requested range when the user switches objects.
+  assert.equal(resolveDetailRange(history, 'max'), 'max');
+  assert.equal(resolveDetailRange(history, '5y'), '5y');
+  assert.equal(resolveDetailRange(history, '10y'), '10y');
+});

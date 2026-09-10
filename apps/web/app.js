@@ -1,5 +1,5 @@
 import { percentileColor, regimeFromPercentile, regimeLabel, snapshotPercentile, snapshotBadge } from "./valuation-policy.js";
-import { initAnalysisUI, formatAxisTick, createSeriesColors } from "./analysis-ui.js";
+import { initAnalysisUI, formatAxisTick, createSeriesColors, resolveDetailRange, detailRangeCaption } from "./analysis-ui.js?v=20260910-detail-layout-v1";
 let analysisUI;
 const SNAPSHOT_PATH_CANDIDATES = [
   "/data/standardized/valuation-snapshot.json",
@@ -112,7 +112,8 @@ const state = {
   detail: {
     indexId: "",
     metric: "pe_ttm",
-    range: "max",
+    range: "10y",
+    effectiveRange: "10y",
   },
 
   compare: {
@@ -1273,7 +1274,7 @@ function syncDetailSelectors() {
   elements.detailIndex.value = state.detail.indexId;
   elements.detailMetric.value = state.detail.metric;
   for (const chip of elements.detailRangeChips) {
-    chip.classList.toggle("is-active", chip.dataset.range === state.detail.range);
+    chip.classList.toggle("is-active", chip.dataset.range === (state.detail.effectiveRange || state.detail.range));
   }
 }
 
@@ -1282,7 +1283,7 @@ function renderDetailPercentileTrack(latest) {
   const left = `${(full * 100).toFixed(1)}%`;
 
   elements.detailPercentileTrack.innerHTML = `
-    <div class="title">当前百分位位置（当前区间）</div>
+    <div class="title">当前区间位置 <strong>${fmtPct(latest.percentile_full, 1)}</strong></div>
     <div class="bar"><span class="pin" style="left:${left}"></span></div>
     <div class="labels">
       <span>0% 低估</span>
@@ -1309,7 +1310,7 @@ function renderDetailStats(fullRows, viewRows) {
     : fmt(latest.value, metricCfg.digits);
 
   const stats = [
-    ["当前值", valueText],
+    [metricCfg.label, valueText],
     ["百分位(当前区间)", fmtPct(latest.percentile_full, 1)],
     ["百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
     ["滚动百分位(5Y)", fmtPct(latest.percentile_5y, 1)],
@@ -1350,9 +1351,14 @@ function renderDetailChart(indexMeta, rows) {
     {
       animationDuration: 500,
       legend: { show: false },
-      grid: { containLabel: true, left: 12, right: detailRightPadding, top: 24, bottom: 76 },
+      grid: { containLabel: true, left: 12, right: detailRightPadding, top: 16, bottom: 54 },
       tooltip: {
         trigger: "axis",
+        backgroundColor: "#17212d",
+        borderColor: "#394956",
+        textStyle: { color: "#e7edf5", fontSize: 12 },
+        padding: [8, 12],
+        confine: true,
         formatter(params) {
           const price = params.find((item) => item.seriesName === metricCfg.label);
           const axisDate = formatAxisDate(price?.axisValue ?? params?.[0]?.axisValue);
@@ -1382,8 +1388,8 @@ function renderDetailChart(indexMeta, rows) {
           type: "slider",
           xAxisIndex: 0,
           filterMode: "none",
-          height: 24,
-          bottom: 12,
+          height: 20,
+          bottom: 4,
           brushSelect: false,
           showDetail: false,
           borderColor: "rgba(159, 184, 236, 0.4)",
@@ -1461,7 +1467,7 @@ function renderDetailChart(indexMeta, rows) {
 
   const start = rows[0]?.date || "--";
   const end = rows[rows.length - 1]?.date || "--";
-  elements.detailRange.textContent = `${indexMeta.displayName} · ${start} ~ ${end}`;
+  elements.detailRange.textContent = `${detailRangeCaption(state.detail.range, state.detail.effectiveRange)} · ${start} — ${end}`;
 }
 
 function renderDetailPercentileChart(rows) {
@@ -1480,9 +1486,14 @@ function renderDetailPercentileChart(rows) {
   chart.setOption(
     {
       animationDuration: 420,
-      grid: { containLabel: true, left: 12, right: percentileRightPadding, top: 24, bottom: 76 },
+      grid: { containLabel: true, left: 12, right: percentileRightPadding, top: 16, bottom: 54 },
       tooltip: {
         trigger: "axis",
+        backgroundColor: "#17212d",
+        borderColor: "#394956",
+        textStyle: { color: "#e7edf5", fontSize: 12 },
+        padding: [8, 12],
+        confine: true,
         formatter(params) {
           const point = params?.[0];
           if (!point) return "--";
@@ -1508,8 +1519,8 @@ function renderDetailPercentileChart(rows) {
           type: "slider",
           xAxisIndex: 0,
           filterMode: "none",
-          height: 22,
-          bottom: 10,
+          height: 20,
+          bottom: 4,
           brushSelect: false,
           showDetail: false,
           borderColor: "rgba(163, 186, 233, 0.38)",
@@ -1583,6 +1594,7 @@ function renderDetailPercentileChart(rows) {
 }
 
 async function renderDetail() {
+  state.detail.effectiveRange = state.detail.range;
   analysisUI?.syncDetail();
   document.getElementById("detail-secondary-stats").innerHTML = "";
   elements.detailPercentileTrack.innerHTML = "";
@@ -1611,7 +1623,9 @@ async function renderDetail() {
     if (renderToken !== state.runtime.detailRenderToken) return;
 
     const fullRows = getMetricSeries(indexId, metric);
-    const rangedRows = filterRowsByRange(fullRows, state.detail.range);
+    state.detail.effectiveRange = resolveDetailRange(fullRows, state.detail.range);
+    syncDetailSelectors();
+    const rangedRows = filterRowsByRange(fullRows, state.detail.effectiveRange);
     const viewRows = recomputeRangeRollingStats(rangedRows);
 
     const indexMeta = state.metaRows.find((item) => item.id === indexId);
@@ -1624,6 +1638,8 @@ async function renderDetail() {
     renderDetailPercentileChart(viewRows);
     bindDetailZoomSync();
     renderDetailStats(fullRows, viewRows);
+    charts.detail?.resize();
+    charts.detailPercentile?.resize();
   } catch (error) {
     const message = error instanceof Error ? error.message : "渲染失败";
     elements.detailStats.innerHTML = `<div class="hint">详情渲染失败：${message}</div>`;

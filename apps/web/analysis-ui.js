@@ -1,4 +1,16 @@
 // Shared presentation behavior for index and company analysis pages.
+export function resolveDetailRange(rows, requestedRange = "10y") {
+  if (requestedRange !== "10y" || !rows.length) return requestedRange;
+  const end = new Date(`${rows.at(-1).date}T00:00:00Z`);
+  end.setUTCFullYear(end.getUTCFullYear() - 10);
+  return rows[0].date > end.toISOString().slice(0, 10) ? "max" : "10y";
+}
+
+export function detailRangeCaption(requestedRange, effectiveRange) {
+  if (requestedRange === "10y" && effectiveRange === "max") return "全部可用历史（不足十年）";
+  return effectiveRange === "max" ? "全部历史" : `近 ${parseInt(effectiveRange, 10)} 年`;
+}
+
 export function formatAxisTick(value, percentage = false) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
@@ -48,7 +60,11 @@ export function initAnalysisUI({ state, charts, compareColor, renderCompareChart
         button.setAttribute("aria-pressed", String(active));
       });
     }
-    document.querySelectorAll("#detail-range-chips button").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.range === state.detail.range)));
+    document.querySelectorAll("#detail-range-chips button").forEach((button) => {
+      const active = button.dataset.range === (state.detail.effectiveRange || state.detail.range);
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
     const custom = byId("compare-custom-dates");
     const hasDates = Boolean(state.compare.startDate || state.compare.endDate);
     custom.classList.toggle("has-dates", hasDates);
