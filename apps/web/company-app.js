@@ -16,7 +16,7 @@ const COMPANY_LOGO_BASE_URL = new URL("./assets/company-logos/64/", import.meta.
 const COMPANY_LOGO_FALLBACK_URL = new URL("./assets/company-logos/64/_default.svg", import.meta.url).href;
 // Solid-background marks need their internal lettering preserved in watermarks.
 const WIDE_COMPANY_LOGOS = new Set(["BRK-B", "JPM", "V", "ASML", "JNJ", "INTC", "UNH", "DELL", "ARM", "PANW", "SNDK", "BHP", "IBM", "LIN", "CRWD", "MRVL", "TTE", "STX", "WDC", "WELL", "UBS", "SMFG"]);
-const SOLID_LOGO_BACKGROUNDS = new Set(["SPCX", "HD", "WFC", "KLAC", "AXP", "TMUS", "SCHW", "ADI", "RIO"]);
+const SOLID_LOGO_BACKGROUNDS = new Set(["SPCX", "HD", "WFC", "KLAC", "AXP", "TMUS", "SCHW", "ADI", "RIO", "GE", "SAP", "TD", "UNP"]);
 
 const COMPANY_REFRESH_API_CANDIDATES = [
   "/api/jobs/company-refresh",

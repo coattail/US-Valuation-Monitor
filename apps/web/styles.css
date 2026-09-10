@@ -99,7 +99,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .snapshot-card:focus-visible { border-color: var(--accent); }
 .snapshot-card > :not(.card-logo-watermark) { position: relative; z-index: 1; }
 .card-logo-watermark { position: absolute; z-index: 0; right: 16px; top: 98px; width: 130px; height: 110px; display: flex; align-items: center; justify-content: center; pointer-events: none; user-select: none; overflow: hidden; }
-.card-logo-watermark img { width: 92px; height: 92px; object-fit: contain; opacity: .09; filter: grayscale(1) brightness(0) invert(1); }
+.card-logo-watermark img { width: 92px; height: 92px; object-fit: contain; opacity: .15; filter: grayscale(1) invert(1) brightness(1.4) contrast(1.2); mix-blend-mode: screen; }
 .card-logo-watermark--ticker span { font: 750 3.4rem/1 var(--font-numeric); letter-spacing: -.04em; color: #bdd3ec; opacity: .075; }
 .name-row { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; }
 .card-identity { flex: 1; min-width: 0; }
