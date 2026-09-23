@@ -50,3 +50,11 @@ test("current history needs no extra request; unavailable source preserves the a
   const result = await refreshNasdaqPriceTail(history, "NVDA", "2026-09-22", "stocks", async () => { throw new Error("429"); });
   assert.equal(result.at(-1)?.date, "2026-09-21");
 });
+
+test("Nasdaq share-class symbols use dots for Yahoo-style dash tickers", async () => {
+  const result = await refreshNasdaqPriceTail(history, "BRK-B", "2026-09-22", "stocks", async (url) => {
+    assert.equal(new URL(url).pathname, "/api/quote/BRK.B/historical");
+    return response([{ date: "09/22/2026", close: "$503.49" }]);
+  });
+  assert.equal(result.at(-1)?.close, 503.49);
+});

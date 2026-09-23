@@ -46,7 +46,8 @@ export async function refreshNasdaqPriceTail(
     Date.parse(`${latestDate}T00:00:00Z`),
     Date.parse(`${endDate}T00:00:00Z`) - 14 * 86400000
   )).toISOString().slice(0, 10);
-  const url = `https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/historical` +
+  const nasdaqSymbol = symbol.replace(/-/g, ".");
+  const url = `https://api.nasdaq.com/api/quote/${encodeURIComponent(nasdaqSymbol)}/historical` +
     `?assetclass=${assetClass}&fromdate=${fromDate}&todate=${endDate}&limit=100`;
   try {
     const updated = appendRecentCloses(original, await request(url), endDate);
