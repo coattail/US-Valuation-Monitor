@@ -32,7 +32,8 @@ test("stale history uses the correct instrument and a completed, dated window", 
     });
     const url = new URL(requested);
     assert.equal(url.searchParams.get("assetclass"), assetClass);
-    assert.equal(url.searchParams.get("fromdate"), "2026-09-22");
+    assert.equal(url.searchParams.get("fromdate"), "2026-09-21");
+    assert.ok(url.searchParams.get("fromdate")! < url.searchParams.get("todate")!);
     assert.equal(url.searchParams.get("todate"), "2026-09-22");
     assert.equal(result.at(-1)?.date, "2026-09-22");
   }
@@ -42,7 +43,7 @@ test("current history needs no extra request; unavailable source preserves the a
   await refreshNasdaqPriceTail(history, "NVDA", "2026-09-21", "stocks", async () => {
     assert.fail("unnecessary request");
   });
-  for (const raw of ["invalid JSON", response([])]) {
+  for (const raw of ["invalid JSON", response([]), JSON.stringify({ status: { rCode: 400, bCodeMessage: [{ errorMessage: "Symbol not exists." }] } })]) {
     const result = await refreshNasdaqPriceTail(history, "NVDA", "2026-09-22", "stocks", async () => raw);
     assert.equal(result.at(-1)?.date, "2026-09-21");
   }
