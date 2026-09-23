@@ -1,6 +1,7 @@
 import { repairCompanyMetricHistory, preserveSpcxUnavailableMetrics } from "./company-data-corrections.mjs";
 import path from "node:path";
 import { createTextFetcher, isRejectedPayload } from "./fetch-text.ts";
+import { refreshNasdaqPriceTail } from "./recent-close.ts";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
@@ -1785,7 +1786,10 @@ async function fetchCloseHistory(symbol: string, slug: string): Promise<ClosePoi
     return [];
   }
 
-  return densifyCloseSeriesWithRecentDailyVol(selected);
+  const completedDate = getLastCompletedUsMarketDate();
+  const completedCloses = capCloseSeriesByDate(selected, completedDate);
+  const refreshed = await refreshNasdaqPriceTail(completedCloses, symbol, completedDate, "stocks");
+  return densifyCloseSeriesWithRecentDailyVol(refreshed);
 }
 
 async function fetchYahooMarketLatestDate(): Promise<string | null> {

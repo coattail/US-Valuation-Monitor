@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { refreshNasdaqPriceTail } from "./recent-close.ts";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -4607,10 +4608,11 @@ async function fetchYahooCloseSeries(symbol: string, startDate: string, endDate:
 async function fetchIndexCloseSeries(symbol: string, startDate: string, endDate: string): Promise<ClosePoint[]> {
   const yahooPoints = await fetchYahooCloseSeries(symbol, startDate, endDate);
   if (yahooPoints.length) {
-    return yahooPoints;
+    return refreshNasdaqPriceTail(yahooPoints, symbol, endDate, "etf");
   }
 
-  return fetchStooqCloseSeries(symbol, startDate, endDate);
+  const stooqPoints = await fetchStooqCloseSeries(symbol, startDate, endDate);
+  return refreshNasdaqPriceTail(stooqPoints, symbol, endDate, "etf");
 }
 
 function parseFredIndexCloseSeries(
