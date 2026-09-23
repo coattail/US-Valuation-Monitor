@@ -1,5 +1,6 @@
 import { repairCompanyMetricHistory, preserveSpcxUnavailableMetrics } from "./company-data-corrections.mjs";
 import path from "node:path";
+import { createTextFetcher, isRejectedPayload } from "./fetch-text.ts";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
@@ -134,10 +135,6 @@ interface BuiltCompanySeries {
   quarterlyNetIncome: QuarterlyNetIncomePoint[];
 }
 
-interface FetchTextOptions {
-  headers?: string[];
-}
-
 interface StockAnalysisDataRatioPayloadResult {
   payload: RatioPayload | null;
   selectedSource: string;
@@ -223,7 +220,6 @@ const TOP_COMPANY_URLS = [
 
 const HISTORY_START_DATE = "2000-01-01";
 const CONCURRENCY = 2;
-const REQUEST_TIMEOUT_MS = 12000;
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 " +
@@ -740,75 +736,10 @@ function isLikelyCoarseSeries(points: MetricPoint[]): boolean {
   return med >= 120;
 }
 
-function isRejectedPayload(text: string): boolean {
-  const raw = String(text || "").trim().toLowerCase();
-  if (!raw) return true;
-  if (raw.includes("exceeded the daily hits limit")) return true;
-  if (raw.includes("too many requests")) return true;
-  if (raw.includes("sad-panda-201402200631.png")) return true;
-  if (raw.includes("no longer be accessible from mainland china")) return true;
-  if (raw.includes("enable javascript and cookies to continue")) return true;
-  if (raw.includes("<title>just a moment")) return true;
-  if (raw.includes("just a moment") && raw.includes("cf-chl")) return true;
-  return false;
-}
-
-async function fetchText(
-  url: string,
-  retries = 1,
-  timeoutMs = REQUEST_TIMEOUT_MS,
-  directFirst = false,
-  options: FetchTextOptions = {}
-): Promise<string> {
-  let lastError: unknown;
-  const extraHeaders = (options.headers || []).flatMap((header) => ["-H", header]);
-
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      const maxTimeSec = String(Math.max(6, Math.ceil(timeoutMs / 1000)));
-      const baseArgs = [
-        "-4",
-        "-sSL",
-        "--max-time",
-        maxTimeSec,
-        "-A",
-        USER_AGENT,
-        "-H",
-        "accept-language: en-US,en;q=0.9",
-        ...extraHeaders,
-        url,
-      ];
-
-      const proxyCmd = baseArgs;
-      const directCmd = ["--noproxy", "*", ...baseArgs];
-      const commandCandidates: string[][] = ENABLE_DIRECT_FETCH_FALLBACK
-        ? directFirst
-          ? [directCmd, proxyCmd]
-          : [proxyCmd, directCmd]
-        : [proxyCmd];
-
-      for (const args of commandCandidates) {
-        try {
-          const { stdout } = await execFileAsync("curl", args, { maxBuffer: 24 * 1024 * 1024 });
-          const text = String(stdout || "").trim();
-          if (!isRejectedPayload(text)) return text;
-        } catch (error) {
-          const partial = String((error as { stdout?: string })?.stdout || "").trim();
-          if (!isRejectedPayload(partial)) return partial;
-        }
-      }
-
-      throw new Error(`Empty response for ${url}`);
-    } catch (error) {
-      lastError = error;
-      if (attempt < retries) {
-        await sleep(280 * (attempt + 1));
-      }
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error(`Failed to fetch: ${url}`);
-}
+const fetchText = createTextFetcher({
+  userAgent: USER_AGENT,
+  directFallback: ENABLE_DIRECT_FETCH_FALLBACK,
+});
 
 async function mapLimit<T, R>(
   items: readonly T[],
@@ -2574,25 +2505,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
 
   const fetchYahooPayloadText = async (url: string): Promise<string | null> => {
     try {
-      const { stdout } = await execFileAsync(
-        "curl",
-        [
-          "-4",
-          "-sSL",
-          "--compressed",
-          "--max-time",
-          "25",
-          "-A",
-          "Mozilla/5.0",
-          "-H",
-          "accept-language: en-US,en;q=0.9",
-          url,
-        ],
-        { maxBuffer: 24 * 1024 * 1024 }
-      );
-      const text = String(stdout || "").trim();
-      if (!text || isRejectedPayload(text)) return null;
-      return text;
+      return await fetchText(url, 0, 15000, false, { userAgent: "Mozilla/5.0" });
     } catch {
       return null;
     }
@@ -2678,26 +2591,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
       for (const url of urls) {
         for (let attempt = 0; attempt < 2; attempt += 1) {
           try {
-            const { stdout } = await execFileAsync(
-              "curl",
-              [
-                "-4",
-                "-sSL",
-                "--compressed",
-                "--max-time",
-                "25",
-                "-A",
-                "Mozilla/5.0",
-                "-H",
-                "accept-language: en-US,en;q=0.9",
-                url,
-              ],
-              { maxBuffer: 24 * 1024 * 1024 }
-            );
-            const html = String(stdout || "").trim();
-            if (!html || isRejectedPayload(html)) {
-              continue;
-            }
+            const html = await fetchText(url, 0, 15000, false, { userAgent: "Mozilla/5.0" });
 
             const quotePageRatioPayload = parseYahooQuotePageRatioPayload(html);
             if (!quotePagePayload && quotePageRatioPayload) {
@@ -7478,6 +7372,16 @@ export function stripGrowthOnlyFieldsFromSnapshotPointsForTest(
   return stripGrowthOnlyFieldsFromSnapshotPoints(points);
 }
 
+async function observeSource<T>(symbol: string, source: string, task: Promise<T>): Promise<T> {
+  const started = Date.now();
+  try {
+    return await task;
+  } finally {
+    const elapsed = Date.now() - started;
+    if (elapsed >= 5000) console.warn(`[company] slow source ${symbol} ${source}: ${elapsed}ms`);
+  }
+}
+
 async function main(): Promise<void> {
   const previousSeriesBySymbol = await loadPreviousSeriesBySymbol();
   const yahooDailyMetricsBySymbol = await loadYahooDailyMetricSnapshotsBySymbol();
@@ -7581,13 +7485,13 @@ async function main(): Promise<void> {
       longPbSeries,
       ychartsSeries,
     ] = await Promise.all([
-      fetchCloseHistory(company.symbol, company.slug),
-      fetchQuarterlyRatioPayload(company.symbol),
-      fetchStockAnalysisStatisticsRatioPayload(company.symbol),
-      fetchYahooKeyStatisticsRatioPayload(company.symbol),
-      fetchCompaniesMarketCapMetricSeries(company.slug, "pe-ratio"),
-      fetchCompaniesMarketCapMetricSeries(company.slug, "pb-ratio"),
-      fetchYchartsSeriesBundle(company.symbol),
+      observeSource(company.symbol, "prices", fetchCloseHistory(company.symbol, company.slug)),
+      observeSource(company.symbol, "stockanalysis-ratios", fetchQuarterlyRatioPayload(company.symbol)),
+      observeSource(company.symbol, "stockanalysis-statistics", fetchStockAnalysisStatisticsRatioPayload(company.symbol)),
+      observeSource(company.symbol, "yahoo-valuations", fetchYahooKeyStatisticsRatioPayload(company.symbol)),
+      observeSource(company.symbol, "companiesmarketcap-pe", fetchCompaniesMarketCapMetricSeries(company.slug, "pe-ratio")),
+      observeSource(company.symbol, "companiesmarketcap-pb", fetchCompaniesMarketCapMetricSeries(company.slug, "pb-ratio")),
+      observeSource(company.symbol, "ycharts", fetchYchartsSeriesBundle(company.symbol)),
     ]);
     const yahooLatestPayload = yahooFetchResult?.payload || null;
     const yahooQuoteLatestPayload = yahooFetchResult?.quoteLatestPayload || null;
@@ -7756,7 +7660,9 @@ async function main(): Promise<void> {
       }
     }
 
-    const quarterlyFinancialSeries = await fetchQuarterlyFinancialSeries(company.symbol, lastCloseDate);
+    const quarterlyFinancialSeries = await observeSource(
+      company.symbol, "quarterly-financials", fetchQuarterlyFinancialSeries(company.symbol, lastCloseDate)
+    );
     const quarterlyEpsRaw = normalizeQuarterlyEpsRows(quarterlyFinancialSeries.quarterlyEps);
     const quarterlyNetIncome = normalizeQuarterlyNetIncomeRows(
       quarterlyFinancialSeries.quarterlyNetIncome

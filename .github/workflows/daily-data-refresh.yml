@@ -42,8 +42,11 @@ jobs:
         with:
           node-version: 25
 
-      - name: Build latest dataset
-        run: npm run build:data
+      - name: Build latest index dataset
+        run: npm run build:data:index
+
+      - name: Build latest company dataset
+        run: npm run build:data:company
 
       - name: Validate company history
         run: npm run validate:data:company
