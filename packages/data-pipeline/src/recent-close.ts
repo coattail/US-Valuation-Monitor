@@ -10,6 +10,9 @@ export function appendRecentCloses(
   const original = history.map((point) => ({ ...point, ts: Date.parse(`${point.date}T00:00:00Z`) }));
   const latestDate = original.reduce((latest, point) => point.date > latest ? point.date : latest, "");
   const payload = JSON.parse(raw);
+  if (Number(payload?.status?.rCode) >= 400) {
+    throw new Error(`Nasdaq response: ${JSON.stringify(payload.status.bCodeMessage || payload.status.rCode)}`);
+  }
   const rows = payload?.data?.tradesTable?.rows;
   if (!Array.isArray(rows)) return original;
   const extra = new Map<string, DailyClose>();
@@ -38,10 +41,13 @@ export async function refreshNasdaqPriceTail(
   // Query a dated, small window independently of the long-history response.
   // The latter can omit a recent session even when Nasdaq already publishes it.
   const fromDate = new Date(Math.max(
-    Date.parse(`${latestDate}T00:00:00Z`) + 86400000,
+    // Nasdaq rejects equal from/to dates. Include the preceding observation;
+    // appendRecentCloses discards the overlap without altering history.
+    Date.parse(`${latestDate}T00:00:00Z`),
     Date.parse(`${endDate}T00:00:00Z`) - 14 * 86400000
   )).toISOString().slice(0, 10);
-  const url = `https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/historical` +
+  const nasdaqSymbol = symbol.replace(/-/g, ".");
+  const url = `https://api.nasdaq.com/api/quote/${encodeURIComponent(nasdaqSymbol)}/historical` +
     `?assetclass=${assetClass}&fromdate=${fromDate}&todate=${endDate}&limit=100`;
   try {
     const updated = appendRecentCloses(original, await request(url), endDate);
@@ -49,8 +55,9 @@ export async function refreshNasdaqPriceTail(
       console.log(`[prices] ${symbol}: appended ${updated.length - original.length} Nasdaq close(s), latest=${updated.at(-1)?.date}`);
     }
     return updated;
-  } catch {
+  } catch (error) {
     // Preserve source dates when no verified newer observation is available.
+    console.warn(`[prices] ${symbol}: recent close unavailable: ${String(error)}`);
     return original;
   }
 }
