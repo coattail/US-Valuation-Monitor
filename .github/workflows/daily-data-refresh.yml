@@ -2,9 +2,9 @@ name: Daily Data Refresh
 
 on:
   schedule:
-    # Run each US trading day shortly after market close.
-    # 21:30 UTC = 16:30 EST / 17:30 EDT, so it stays after the close year-round.
+    # After every regular US close, plus a later independent recovery attempt.
     - cron: "30 21 * * 1-5"
+    - cron: "30 1 * * 2-6"
   workflow_dispatch:
 
 env:
@@ -12,87 +12,88 @@ env:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: daily-data-refresh
   cancel-in-progress: false
 
 jobs:
-  refresh-data:
+  build:
+    name: Refresh ${{ matrix.dataset }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dataset: [index, company]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
           ref: ${{ github.event.repository.default_branch }}
-          # Use a repo secret-backed token so the refresh commit emits a normal push
-          # event that downstream integrations like Cloudflare Pages can observe.
-          token: ${{ secrets.REPO_PUSH_TOKEN }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 25
-
-      - name: Build latest index dataset
-        run: npm run build:data:index
-
-      - name: Build latest company dataset
-        run: npm run build:data:company
-
+      - name: Build and repair dataset
+        timeout-minutes: 20
+        run: npm run build:data:${{ matrix.dataset }}
       - name: Validate company history
+        if: matrix.dataset == 'company'
         run: npm run validate:data:company
+      - name: Stage validated files
+        run: node scripts/stage-refresh-artifact.mjs ${{ matrix.dataset }}
+      # Upload before freshness checks: valid progress must be published even
+      # when one symbol remains unavailable. Missing dates still fail the run.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dataset-${{ matrix.dataset }}
+          path: refresh-artifact/
+          retention-days: 7
+          if-no-files-found: error
+      - name: Require all completed sessions
+        run: node scripts/validate-data-freshness.mjs ${{ matrix.dataset }}
 
-      - name: Commit and push changes
-        id: commit_changes
+  publish:
+    name: Publish available datasets
+    needs: build
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          # A normal push triggers both production deployment workflows.
+          token: ${{ secrets.REPO_PUSH_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dataset-*
+          path: refresh-artifact
+          merge-multiple: true
+      - name: Commit and push available progress
         shell: bash
         run: |
           set -euo pipefail
-
-          if git diff --quiet -- data/standardized/valuation-history.json data/standardized/valuation-snapshot.json data/standardized/index-series data/standardized/index-history-lock.json data/standardized/index-yahoo-daily-metrics.json data/standardized/company-valuation-snapshot.json data/standardized/company-series data/standardized/company-yahoo-daily-metrics.json; then
+          node scripts/apply-refresh-artifacts.mjs
+          git add -A data/standardized
+          if git diff --cached --quiet; then
             echo "No dataset changes detected."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add -A data/standardized/valuation-history.json data/standardized/valuation-snapshot.json data/standardized/index-series data/standardized/index-history-lock.json data/standardized/index-yahoo-daily-metrics.json data/standardized/company-valuation-snapshot.json data/standardized/company-series data/standardized/company-yahoo-daily-metrics.json
-
-          if git diff --cached --quiet; then
-            echo "No staged dataset changes detected after git add."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          git commit -m "chore: daily data refresh"
-          git push origin "HEAD:${{ github.event.repository.default_branch }}"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Pages
-        if: steps.commit_changes.outputs.changed == 'true'
-        uses: actions/configure-pages@v5
-
-      - name: Assemble static site
-        if: steps.commit_changes.outputs.changed == 'true'
-        run: npm run build:site
-
-      - name: Upload Pages artifact
-        if: steps.commit_changes.outputs.changed == 'true'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .pages
-
-      - name: Deploy to GitHub Pages
-        if: steps.commit_changes.outputs.changed == 'true'
-        id: deployment
-        uses: actions/deploy-pages@v4
+          git commit -m "chore(data): refresh available datasets"
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${{ github.event.repository.default_branch }}"; then
+              exit 0
+            fi
+            git fetch origin "${{ github.event.repository.default_branch }}"
+            git rebase "origin/${{ github.event.repository.default_branch }}"
+          done
+          exit 1
+      - name: Explain incomplete recovery
+        if: always() && needs.build.result != 'success'
+        run: |
+          echo '::error::At least one dataset failed to build or has missing trading dates. Available validated data was published; inspect the failed build job. The next scheduled run retries recovery.'
+          echo '## Incomplete refresh' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Available validated datasets are published independently. Check the build logs for missing symbols/dates. The later recovery schedule will retry.' >> "$GITHUB_STEP_SUMMARY"
+          exit 1

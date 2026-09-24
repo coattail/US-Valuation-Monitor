@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "repairs": {
+    "TCEHY": [
+      {
+        "date": "2026-09-21",
+        "anchorDate": "2026-09-18",
+        "anchorClose": {
+          "date": "2026-09-18",
+          "close": 53.900001525878906,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1788739200&period2=1790208000&interval=1d"
+        },
+        "close": {
+          "date": "2026-09-21",
+          "close": 55.849998474121094,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1788739200&period2=1790208000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-09-21",
+          "pe_ttm": 14.72409,
+          "pe_forward": 13.488759,
+          "pb": 3.228316,
+          "peg": 1.345477,
+          "us10y_yield": 0,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-18",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1788739200&period2=1790208000&interval=1d",
+            "estimated": true
+          }
+        }
+      },
+      {
+        "date": "2026-09-22",
+        "anchorDate": "2026-09-18",
+        "anchorClose": {
+          "date": "2026-09-18",
+          "close": 53.900001525878906,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1788739200&period2=1790208000&interval=1d"
+        },
+        "close": {
+          "date": "2026-09-22",
+          "close": 57.91,
+          "source": "https://chartexchange.com/symbol/otc-tcehy/historical/"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-09-22",
+          "pe_ttm": 15.267181,
+          "pe_forward": 13.986285,
+          "pb": 3.347391,
+          "peg": 1.395105,
+          "us10y_yield": 0,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-18",
+            "priceSource": "https://chartexchange.com/symbol/otc-tcehy/historical/",
+            "estimated": true
+          }
+        }
+      }
+    ]
+  }
+}

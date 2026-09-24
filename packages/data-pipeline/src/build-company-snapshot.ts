@@ -4,8 +4,6 @@ import { createTextFetcher, isRejectedPayload } from "./fetch-text.ts";
 import { refreshNasdaqPriceTail } from "./recent-close.ts";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 
 interface CompanySeed {
   rank: number;
@@ -204,7 +202,6 @@ const COMPANY_FORWARD_PE_HISTORY_FILES = [
   DEFAULT_PUBLIC_COMPANY_FORWARD_PE_FILE,
   VENDOR_COMPANY_FORWARD_PE_FILE,
 ].filter((file, index, files) => file && files.indexOf(file) === index);
-const execFileAsync = promisify(execFile);
 let companiesMarketCapFetchChain: Promise<unknown> = Promise.resolve();
 let yahooSplitFetchChain: Promise<unknown> = Promise.resolve();
 let ychartsFetchChain: Promise<unknown> = Promise.resolve();
@@ -1644,41 +1641,14 @@ async function fetchSplitEventsFromYahoo(symbol: string): Promise<SplitEvent[]> 
     .filter(Boolean);
 
   for (const candidate of candidates) {
-    const urls = [
-      `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(candidate)}?range=max&interval=1d&events=split`,
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(candidate)}?range=max&interval=1d&events=split`,
-    ];
-
-    for (const url of urls) {
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          const json = await enqueueYahooSplitFetch(async () => {
-            await sleep(140 + attempt * 120);
-            const { stdout } = await execFileAsync(
-              "curl",
-              [
-                "-4",
-                "-sSL",
-                "--compressed",
-                "--max-time",
-                "25",
-                "-A",
-                "Mozilla/5.0",
-                url,
-              ],
-              { maxBuffer: 24 * 1024 * 1024 }
-            );
-            return String(stdout || "").trim();
-          });
-
-          if (!json || isRejectedPayload(json)) {
-            continue;
-          }
-          const events = parseYahooChartSplits(json);
-          if (events.length) return events;
-        } catch {
-          // retry
-        }
+    for (const host of ['query2.finance.yahoo.com', 'query1.finance.yahoo.com']) {
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(candidate)}?range=max&interval=1d&events=split`;
+      try {
+        const raw = await enqueueYahooSplitFetch(() => fetchText(url, 1, 10000));
+        const events = parseYahooChartSplits(raw);
+        if (events.length) return events;
+      } catch {
+        // Shared request deadline and circuit breaker also apply to split data.
       }
     }
   }

@@ -1,3 +1,4 @@
+import { lastCompletedSession, tradingDates } from "./market-calendar.ts";
 import { repairCompanyMetricHistory } from "./company-data-corrections.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -230,11 +231,14 @@ async function loadUsTradingDates(): Promise<Set<string>> {
     const payload = JSON.parse(await readFile(US_TRADING_CALENDAR_FILE, "utf8")) as {
       points?: Array<{ date?: string }>;
     };
-    return new Set(
+    const dates = new Set(
       (payload.points || [])
         .map((point) => String(point?.date || ""))
         .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
     );
+    const latest = [...dates].sort().at(-1);
+    if (latest) for (const date of tradingDates(latest, lastCompletedSession())) dates.add(date);
+    return dates;
   } catch {
     return new Set<string>();
   }
