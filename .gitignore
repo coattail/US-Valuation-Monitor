@@ -7,3 +7,4 @@ coverage
 apps/miniprogram/.idea
 data/standardized/company-valuation-history.json
 data/vendor/company-forward-pe-history.csv
+refresh-artifact/

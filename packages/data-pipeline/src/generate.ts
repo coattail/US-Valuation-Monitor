@@ -1,3 +1,4 @@
+import { createTextFetcher } from "./fetch-text.ts";
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -2966,47 +2967,11 @@ async function loadVendorIndexForwardPeHistory(): Promise<Map<string, MonthlyMet
   return result;
 }
 
+const fetchIndexText = createTextFetcher({ userAgent: "Mozilla/5.0", directFallback: true });
 async function curlGet(url: string, timeoutMs = 25000, extraHeaders: Record<string, string> = {}): Promise<string> {
-  const timeoutSec = Math.max(8, Math.ceil(timeoutMs / 1000));
-  const args = ["-sS", "-L", "--max-time", String(timeoutSec), "--connect-timeout", "8"];
-
-  for (const [key, value] of Object.entries(extraHeaders)) {
-    args.push("-H", `${key}: ${value}`);
-  }
-
-  args.push(url);
-
-  const clearProxyEnv: NodeJS.ProcessEnv = { ...process.env };
-  delete clearProxyEnv.HTTP_PROXY;
-  delete clearProxyEnv.HTTPS_PROXY;
-  delete clearProxyEnv.ALL_PROXY;
-  delete clearProxyEnv.http_proxy;
-  delete clearProxyEnv.https_proxy;
-  delete clearProxyEnv.all_proxy;
-  clearProxyEnv.NO_PROXY = "*";
-  clearProxyEnv.no_proxy = "*";
-
-  try {
-    const { stdout } = await execFileAsync("curl", args, {
-      maxBuffer: 32 * 1024 * 1024,
-    });
-    return stdout;
-  } catch (error) {
-    try {
-      const { stdout } = await execFileAsync("curl", args, {
-        maxBuffer: 32 * 1024 * 1024,
-        env: clearProxyEnv,
-      });
-      return stdout;
-    } catch (retryError) {
-      const fallbackMessage = retryError instanceof Error ? retryError.message : "curl failed";
-      const stderr =
-        typeof retryError === "object" && retryError && "stderr" in retryError
-          ? String((retryError as { stderr?: string }).stderr || "")
-          : "";
-      throw new Error(`${fallbackMessage}${stderr ? ` | ${stderr.trim()}` : ""}`);
-    }
-  }
+  return fetchIndexText(url, 1, timeoutMs, false, {
+    headers: Object.entries(extraHeaders).map(([key, value]) => `${key}: ${value}`),
+  });
 }
 
 async function fetchYahooIndexLatestPayloads(symbols: string[]): Promise<Map<string, IndexRatioPayload>> {
@@ -3062,6 +3027,8 @@ print(json.dumps({"symbols": symbols}))
     const { stdout } = await execFileAsync("python3", ["-c", pythonScript, ...uniqueSymbols], {
       maxBuffer: 8 * 1024 * 1024,
       env: { ...process.env, PYTHONWARNINGS: "ignore" },
+      timeout: 60000,
+      killSignal: "SIGKILL",
     });
     const parsed = JSON.parse(String(stdout || "{}")) as {
       symbols?: Record<string, { pe_ttm?: unknown; pe_forward?: unknown; pb?: unknown }>;
