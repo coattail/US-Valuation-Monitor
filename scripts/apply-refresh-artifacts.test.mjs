@@ -25,3 +25,20 @@ test('publishes a successful group when the other fails and removes departed sym
     assert.deepEqual(await readdir(path.join(dest,'company-series')),['new.json']);
   } finally { await rm(dir,{recursive:true,force:true}); }
 });
+
+test('index artifacts must include and publish the reproducible NDX price cache', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'ndx-artifact-'));
+  try {
+    const root = path.join(dir, 'repo'), artifact = path.join(dir, 'artifact');
+    const source = path.join(artifact, 'data/standardized');
+    await mkdir(path.join(source, 'index-series'), { recursive: true });
+    await writeFile(path.join(source, 'index-series/nasdaq100.json'), '{}');
+    await writeFile(path.join(source, 'valuation-snapshot.json'), JSON.stringify({ indices: [{ id: 'nasdaq100' }] }));
+    for (const name of ['index-yahoo-daily-metrics.json', 'valuation-history.json', 'index-history-lock.json']) await writeFile(path.join(source, name), '{}');
+    await assert.rejects(applyArtifacts(root, artifact), /nasdaq100-forward-closes/);
+    const prices = JSON.stringify({ symbol: '^NDX', observations: [{ date: '2026-04-17', close: 100, source: 'test' }] });
+    await writeFile(path.join(source, 'nasdaq100-forward-closes.json'), prices);
+    assert.deepEqual(await applyArtifacts(root, artifact), ['index']);
+    assert.equal(await readFile(path.join(root, 'data/standardized/nasdaq100-forward-closes.json'), 'utf8'), prices);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

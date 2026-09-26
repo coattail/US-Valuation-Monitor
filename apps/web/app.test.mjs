@@ -53,6 +53,7 @@ const {
   buildDetailLineDataForTest,
   recomputeRangeRollingStatsForTest,
   resolveYAxisRangeForTest,
+  forwardSourceLabelForTest,
   toFiniteNumberForTest,
 } = await import("./app.js");
 
@@ -78,6 +79,19 @@ test('time-axis zoom uses dates for sparse observations and never treats a gap a
   const data = [[0, 100], [1, 80], [50, null], [90, 24], [100, 25]];
   const range = resolveYAxisRangeForTest(data, 50, 100);
   assert.ok(range.min > 23 && range.max < 26);
+});
+
+test('daily Forward PE estimates remain in the WSJ basis and are identified in tooltips', () => {
+  const estimate = { method: 'wsj-forward-ndx-price-carry', anchorDate: '2026-04-17', anchorPe: 24.62 };
+  const rows = getMetricSeriesForTest({ id: 'nasdaq100', points: [
+    { date: '2026-04-17', pe_forward: 24.62 },
+    { date: '2026-04-20', pe_forward: 24.5442, pe_forward_estimate: estimate },
+  ] }, 'pe_forward');
+  assert.equal(rows[0].valuationBasis, rows[1].valuationBasis);
+  assert.equal(rows[1].forwardEstimate, estimate);
+  assert.equal(buildDetailLineDataForTest(rows).length, 2);
+  assert.equal(forwardSourceLabelForTest(rows[0]), 'WSJ 原始报价');
+  assert.match(forwardSourceLabelForTest(rows[1]), /估算.*2026-04-17.*24.62/);
 });
 
 test("overview cards use the real TTM coverage instead of the index price range", () => {

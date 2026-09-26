@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { assertDatasetMatchesIndexHistoryLock, buildIndexHistoryLock } from '../packages/data-pipeline/src/index-history-lock.ts';
 import { assertExistingPointsUnchanged, fetchGapCloses, repairMissingPoints } from '../packages/data-pipeline/src/gap-repair.ts';
 import { lastCompletedSession, shiftDate, tradingDates } from '../packages/data-pipeline/src/market-calendar.ts';
-import { applyNasdaqForwardObservationPolicy } from '../packages/data-pipeline/src/nasdaq-forward-policy.ts';
+import { refreshNasdaqForwardCloses } from '../packages/data-pipeline/src/nasdaq-forward-closes.ts';
+import { applyNasdaqForwardPricePolicy, assertNasdaqForwardCoverage } from '../packages/data-pipeline/src/nasdaq-forward-policy.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'data/standardized');
@@ -24,6 +25,7 @@ let ledger;
 try { ledger = await read(`${kind}-gap-repairs.json`); } catch (error) { if (error.code !== 'ENOENT') throw error; ledger = { version: 1, repairs: {} }; }
 const metrics = await read(`${kind}-yahoo-daily-metrics.json`);
 const target = lastCompletedSession();
+const ndxCloses = kind === 'index' ? await refreshNasdaqForwardCloses(target) : [];
 // The outage boundary is permanent, so missed dates never age out of validation.
 const expected = tradingDates('2026-09-18', target);
 const yields = new Map();
@@ -53,9 +55,10 @@ for (const item of dataset.indices) {
     }
   }
   if (kind === 'index' && item.id === 'nasdaq100') {
-    item.points = applyNasdaqForwardObservationPolicy(item.points, metrics.symbols.QQQ || []);
+    item.points = applyNasdaqForwardPricePolicy(item.points, metrics.symbols.QQQ || [], ndxCloses);
+    assertNasdaqForwardCoverage(item.points);
     for (const repair of ledger.repairs.QQQ || []) {
-      [repair.point] = applyNasdaqForwardObservationPolicy([repair.point], metrics.symbols.QQQ || []);
+      [repair.point] = applyNasdaqForwardPricePolicy([repair.point], metrics.symbols.QQQ || [], ndxCloses);
     }
   }
   assertExistingPointsUnchanged(original, item.points);

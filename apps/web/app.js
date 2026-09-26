@@ -773,7 +773,7 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
       continue;
     }
     const valuationBasis = indexData.id === "nasdaq100" && metric === "pe_forward"
-      ? (point.date >= NASDAQ_FORWARD_WSJ_START ? "wsj-observed" : "historical-estimate") : undefined;
+      ? (point.date >= NASDAQ_FORWARD_WSJ_START ? "wsj-forward" : "historical-estimate") : undefined;
     if (result.length && valuationBasis !== result.at(-1).valuationBasis) values.length = 0;
     values.push(value);
     const valueIndex = values.length - 1;
@@ -784,7 +784,7 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
 
     result.push({
       date: point.date,
-      ...(valuationBasis ? { valuationBasis } : {}),
+      ...(valuationBasis ? { valuationBasis, forwardEstimate: point.pe_forward_estimate } : {}),
       value,
       percentile_5y: pct5,
       percentile_10y: pct10,
@@ -1305,7 +1305,7 @@ function renderDetailStats(fullRows, viewRows) {
   const metricCfg = METRIC_CONFIG[state.detail.metric];
   const comparableRows = viewRows.filter(row => row.valuationBasis === latest.valuationBasis);
   const values = comparableRows.map((row) => row.value);
-  const observedBasis = latest.valuationBasis === "wsj-observed";
+  const observedBasis = latest.valuationBasis === "wsj-forward";
 
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -1334,6 +1334,13 @@ function renderDetailStats(fullRows, viewRows) {
   document.getElementById("detail-secondary-stats").innerHTML = [2, 3, 4, 6, 7, 9].map((i) => pill(stats[i])).join("");
 
   renderDetailPercentileTrack(latest);
+}
+
+function forwardSourceLabel(row) {
+  if (!row) return "";
+  if (row.valuationBasis === "historical-estimate") return "历史估算（不同口径）";
+  const estimate = row.forwardEstimate;
+  return estimate ? `按 NDX 收盘涨跌估算（基准：${estimate.anchorDate}，${fmt(estimate.anchorPe, 2)} 倍）` : "WSJ 原始报价";
 }
 
 function buildDetailLineData(rows, percentage = false) {
@@ -1386,7 +1393,7 @@ function renderDetailChart(indexMeta, rows) {
           return [
             axisDate,
             `${metricCfg.label}: <strong>${price ? metricFormatter(price.data[1]) : "--"}</strong>`,
-            ...(isNasdaqForward ? [axisDate >= NASDAQ_FORWARD_WSJ_START ? "WSJ 原始观测" : "历史估算（不同口径）"] : []),
+            ...(isNasdaqForward ? [forwardSourceLabel(rows.find(row => row.date === axisDate))] : []),
           ].join("<br/>");
         },
       },
@@ -1448,7 +1455,7 @@ function renderDetailChart(indexMeta, rows) {
           type: "line",
           smooth: false,
           showSymbol: isNasdaqForward,
-          symbolSize: value => isNasdaqForward && value[0] >= axisValueFromDate(NASDAQ_FORWARD_WSJ_START) ? 5 : 0,
+          symbolSize: value => isNasdaqForward && rows.some(row => axisValueFromDate(row.date) === value[0] && row.valuationBasis === "wsj-forward" && !row.forwardEstimate) ? 5 : 0,
           lineStyle: { width: 2.2, color: "#70dfc2" },
           areaStyle: {
             color: {
@@ -1627,7 +1634,7 @@ async function renderDetail() {
   const metric = state.detail.metric;
   const sourceNote = document.getElementById("detail-source-note");
   sourceNote.hidden = !(indexId === "nasdaq100" && metric === "pe_forward");
-  sourceNote.textContent = sourceNote.hidden ? "" : "2026-04-10 起仅展示 WSJ 原始观测（通常每周一次），无报价日留空，连线仅连接观测点。此前为不同口径的历史估算；切换处断线，百分位与区间变动仅按同口径可用样本计算。";
+  sourceNote.textContent = sourceNote.hidden ? "" : "2026-04-10 起以 WSJ 报价为基准，缺失日按纳指100实际收盘涨跌推算：当日 PE＝基准 PE×当日收盘价÷基准日收盘价。新报价到达后重设基准；圆点为原始报价，其余为估算值（假设预期盈利不变）。此前口径不同，切换处断线，统计仅使用同口径日度样本。";
   const renderToken = ++state.runtime.detailRenderToken;
 
   if (!indexId) return;
@@ -2597,6 +2604,7 @@ export {
   formatAxisDateForWidth as formatAxisDateForWidthForTest,
   buildMetricSeriesFromIndexData as getMetricSeriesForTest,
   buildDetailLineData as buildDetailLineDataForTest,
+  forwardSourceLabel as forwardSourceLabelForTest,
   recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
   resolveYAxisRangeFromSeriesData as resolveYAxisRangeForTest,
   toFiniteNumber as toFiniteNumberForTest,
