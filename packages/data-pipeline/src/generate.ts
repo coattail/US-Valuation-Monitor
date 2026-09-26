@@ -1,4 +1,5 @@
 import { createTextFetcher } from "./fetch-text.ts";
+import { applyNasdaqForwardObservationPolicy, NASDAQ_FORWARD_WSJ_START } from "./nasdaq-forward-policy.ts";
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -907,12 +908,20 @@ function applyAuthoritativePublishedMetricCorrections(
   snapshots: IndexYahooDailyMetricSnapshot[]
 ): RawValuationPoint[] {
   const corrections = buildAuthoritativeMetricCorrections(indexId, snapshots);
+  if (indexId === "nasdaq100") {
+    points = applyNasdaqForwardObservationPolicy(points, snapshots);
+  }
   if (!corrections.size) return points;
 
   return points.map((point) => {
     const rawCorrection = corrections.get(point.date);
     if (!rawCorrection) return point;
     const correction = { ...rawCorrection };
+    if (indexId === "nasdaq100" && point.date >= NASDAQ_FORWARD_WSJ_START) {
+      // The observation-only policy above is final for this metric, including
+      // when another otherwise trusted provider supplies a different estimate.
+      delete correction.pe_forward;
+    }
     if (indexId === "nasdaq100" && sanitizeSignedRatio(correction.pe_ttm) !== null) {
       if (point.date <= NASDAQ100_TTM_OFFICIAL_MONTHLY_END_DATE) {
         // The monthly Nasdaq/Bloomberg curve is the governing headline-TTM
@@ -7249,6 +7258,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           repairedHistoryPoints,
           meta.id
         );
+        if (meta.id === "nasdaq100") {
+          repairedHistoryPoints = applyAuthoritativePublishedMetricCorrections(
+            repairedHistoryPoints, meta.id, indexYahooDailyMetricsBySymbol.get(meta.symbol) || []
+          );
+        }
         generatedPointsByIndexId.set(meta.id, repairedHistoryPoints);
         indices.push({
           id: meta.id,

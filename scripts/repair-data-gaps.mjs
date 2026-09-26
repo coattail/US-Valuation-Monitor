@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { assertDatasetMatchesIndexHistoryLock, buildIndexHistoryLock } from '../packages/data-pipeline/src/index-history-lock.ts';
 import { assertExistingPointsUnchanged, fetchGapCloses, repairMissingPoints } from '../packages/data-pipeline/src/gap-repair.ts';
 import { lastCompletedSession, shiftDate, tradingDates } from '../packages/data-pipeline/src/market-calendar.ts';
+import { applyNasdaqForwardObservationPolicy } from '../packages/data-pipeline/src/nasdaq-forward-policy.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'data/standardized');
@@ -49,6 +50,12 @@ for (const item of dataset.indices) {
     if (result.repairs.length) {
       ledger.repairs[item.symbol] = [...(ledger.repairs[item.symbol] || []), ...result.repairs];
       console.log(`[gap] ${item.symbol}: recovered ${result.repairs.map(p => p.date).join(', ')}`);
+    }
+  }
+  if (kind === 'index' && item.id === 'nasdaq100') {
+    item.points = applyNasdaqForwardObservationPolicy(item.points, metrics.symbols.QQQ || []);
+    for (const repair of ledger.repairs.QQQ || []) {
+      [repair.point] = applyNasdaqForwardObservationPolicy([repair.point], metrics.symbols.QQQ || []);
     }
   }
   assertExistingPointsUnchanged(original, item.points);

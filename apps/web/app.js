@@ -1,6 +1,7 @@
 import { percentileColor, regimeFromPercentile, regimeLabel, snapshotPercentile, snapshotBadge } from "./valuation-policy.js";
 import { initAnalysisUI, formatAxisTick, createSeriesColors, resolveDetailRange, detailRangeCaption } from "./analysis-ui.js?v=20260910-detail-layout-v1";
 let analysisUI;
+const NASDAQ_FORWARD_WSJ_START = "2026-04-10";
 const SNAPSHOT_PATH_CANDIDATES = [
   "/data/standardized/valuation-snapshot.json",
   "../../data/standardized/valuation-snapshot.json",
@@ -771,6 +772,9 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
     if (!Number.isFinite(value)) {
       continue;
     }
+    const valuationBasis = indexData.id === "nasdaq100" && metric === "pe_forward"
+      ? (point.date >= NASDAQ_FORWARD_WSJ_START ? "wsj-observed" : "historical-estimate") : undefined;
+    if (result.length && valuationBasis !== result.at(-1).valuationBasis) values.length = 0;
     values.push(value);
     const valueIndex = values.length - 1;
 
@@ -780,6 +784,7 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
 
     result.push({
       date: point.date,
+      ...(valuationBasis ? { valuationBasis } : {}),
       value,
       percentile_5y: pct5,
       percentile_10y: pct10,
@@ -1167,6 +1172,7 @@ function recomputeRangeRollingStats(rows) {
 
   for (const row of rows) {
     const value = Number(row.value);
+    if (result.length && row.valuationBasis !== result.at(-1).valuationBasis) values.length = 0;
     values.push(value);
     const valueIndex = values.length - 1;
 
@@ -1299,7 +1305,9 @@ function renderDetailStats(fullRows, viewRows) {
   const latest = viewRows[viewRows.length - 1];
   const latestFull = fullRows[fullRows.length - 1] || latest;
   const metricCfg = METRIC_CONFIG[state.detail.metric];
-  const values = viewRows.map((row) => row.value);
+  const comparableRows = viewRows.filter(row => row.valuationBasis === latest.valuationBasis);
+  const values = comparableRows.map((row) => row.value);
+  const observedBasis = latest.valuationBasis === "wsj-observed";
 
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -1311,15 +1319,15 @@ function renderDetailStats(fullRows, viewRows) {
 
   const stats = [
     [metricCfg.label, valueText],
-    ["百分位(当前区间)", fmtPct(latest.percentile_full, 1)],
-    ["百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
+    [observedBasis ? "百分位(区间内同口径)" : "百分位(当前区间)", fmtPct(latest.percentile_full, 1)],
+    [observedBasis ? "百分位(WSJ 可用历史)" : "百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
     ["滚动百分位(5Y)", fmtPct(latest.percentile_5y, 1)],
     ["滚动百分位(10Y)", fmtPct(latest.percentile_10y, 1)],
     ["区间变动", fmtSigned(change, 2, true)],
     ["区间最低", metricCfg.percentage ? fmtSigned(min * 100, metricCfg.digits, true) : fmt(min, metricCfg.digits)],
     ["区间最高", metricCfg.percentage ? fmtSigned(max * 100, metricCfg.digits, true) : fmt(max, metricCfg.digits)],
     ["估值状态 · 当前区间", regimeLabel(latest.value > 0 ? regimeFromPercentile(latest.percentile_full) : "unavailable")],
-    ["数据区间", `${viewRows[0].date} ~ ${viewRows[viewRows.length - 1].date}`],
+    [observedBasis ? "统计区间(WSJ)" : "数据区间", `${comparableRows[0].date} ~ ${latest.date}`],
   ];
   const pill = ([k, v], primary = false) => `<div class="stat-pill ${primary ? "primary-stat" : ""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
   elements.detailStats.innerHTML = [0, 1, 8, 5].map((i) => pill(stats[i], true)).join("");
@@ -1330,10 +1338,24 @@ function renderDetailStats(fullRows, viewRows) {
   renderDetailPercentileTrack(latest);
 }
 
+function buildDetailLineData(rows, percentage = false) {
+  const data = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (i && row.valuationBasis !== rows[i - 1].valuationBasis) {
+      // A source change is not a market return. Break the connecting line.
+      data.push([(axisValueFromDate(rows[i - 1].date) + axisValueFromDate(row.date)) / 2, null]);
+    }
+    data.push([axisValueFromDate(row.date), percentage ? row.value * 100 : row.value]);
+  }
+  return data;
+}
+
 function renderDetailChart(indexMeta, rows) {
   const chart = ensureChart("detail", elements.detailChart);
   if (!chart) return;
   const metricCfg = METRIC_CONFIG[state.detail.metric];
+  const isNasdaqForward = indexMeta.id === "nasdaq100" && state.detail.metric === "pe_forward";
   const detailChartWidth = elements.detailChart?.clientWidth || 0;
   const detailViewportWidth = Number(window.innerWidth) || detailChartWidth;
   const detailRangeDays = seriesDateSpanDays(rows);
@@ -1366,6 +1388,7 @@ function renderDetailChart(indexMeta, rows) {
           return [
             axisDate,
             `${metricCfg.label}: <strong>${price ? metricFormatter(price.data[1]) : "--"}</strong>`,
+            ...(isNasdaqForward ? [axisDate >= NASDAQ_FORWARD_WSJ_START ? "WSJ 原始观测" : "历史估算（不同口径）"] : []),
           ].join("<br/>");
         },
       },
@@ -1426,7 +1449,8 @@ function renderDetailChart(indexMeta, rows) {
           name: metricCfg.label,
           type: "line",
           smooth: false,
-          showSymbol: false,
+          showSymbol: isNasdaqForward,
+          symbolSize: value => isNasdaqForward && value[0] >= axisValueFromDate(NASDAQ_FORWARD_WSJ_START) ? 5 : 0,
           lineStyle: { width: 2.2, color: "#70dfc2" },
           areaStyle: {
             color: {
@@ -1458,7 +1482,7 @@ function renderDetailChart(indexMeta, rows) {
           labelLayout: {
             moveOverlap: "shiftY",
           },
-          data: rows.map((row) => [axisValueFromDate(row.date), metricCfg.percentage ? row.value * 100 : row.value]),
+          data: buildDetailLineData(rows, metricCfg.percentage),
         },
       ],
     },
@@ -1585,7 +1609,7 @@ function renderDetailPercentileChart(rows) {
           labelLayout: {
             moveOverlap: "shiftY",
           },
-          data: rows.map((row) => [axisValueFromDate(row.date), row.percentile_full * 100]),
+          data: buildDetailLineData(rows.map(row => ({ ...row, value: row.percentile_full * 100 }))),
         },
       ],
     },
@@ -1603,6 +1627,9 @@ async function renderDetail() {
   charts.detailPercentile?.clear();
   const indexId = state.detail.indexId;
   const metric = state.detail.metric;
+  const sourceNote = document.getElementById("detail-source-note");
+  sourceNote.hidden = !(indexId === "nasdaq100" && metric === "pe_forward");
+  sourceNote.textContent = sourceNote.hidden ? "" : "2026-04-10 起仅展示 WSJ 原始观测（通常每周一次），无报价日留空，连线仅连接观测点。此前为不同口径的历史估算；切换处断线，百分位与区间变动仅按同口径可用样本计算。";
   const renderToken = ++state.runtime.detailRenderToken;
 
   if (!indexId) return;
@@ -2571,5 +2598,7 @@ export {
   buildSnapshotRowFromIndexData as buildSnapshotRowForTest,
   formatAxisDateForWidth as formatAxisDateForWidthForTest,
   buildMetricSeriesFromIndexData as getMetricSeriesForTest,
+  buildDetailLineData as buildDetailLineDataForTest,
+  recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
   toFiniteNumber as toFiniteNumberForTest,
 };
