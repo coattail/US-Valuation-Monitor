@@ -1016,18 +1016,16 @@ function applyZoomRange(chart, range) {
 function resolveYAxisRangeFromSeriesData(seriesData, startPercent, endPercent) {
   if (!Array.isArray(seriesData) || !seriesData.length) return null;
 
-  const values = seriesData
-    .map((item) => (Array.isArray(item) ? Number(item[1]) : Number(item?.value?.[1])))
-    .filter((value) => Number.isFinite(value));
-  if (!values.length) return null;
-
-  const total = values.length;
-  const lo = clamp(Math.floor((clamp(startPercent, 0, 100) / 100) * (total - 1)), 0, total - 1);
-  const hi = clamp(Math.ceil((clamp(endPercent, 0, 100) / 100) * (total - 1)), 0, total - 1);
-  const from = Math.min(lo, hi);
-  const to = Math.max(lo, hi);
-
-  const visible = values.slice(from, to + 1).filter((value) => Number.isFinite(value));
+  const points = seriesData.map(item => Array.isArray(item) ? item : item?.value)
+    .filter(item => Array.isArray(item) && Number.isFinite(item[0]));
+  if (!points.length) return null;
+  const first = points[0][0], spanMs = points.at(-1)[0] - first;
+  const from = first + spanMs * clamp(Math.min(startPercent, endPercent), 0, 100) / 100;
+  const to = first + spanMs * clamp(Math.max(startPercent, endPercent), 0, 100) / 100;
+  // The axis is time-based. Weekly observations must not be treated as evenly
+  // spaced daily samples, and a source-break null must never become zero.
+  const visible = points.filter(item => item[0] >= from && item[0] <= to)
+    .map(item => toFiniteNumber(item[1])).filter(value => value !== null);
   if (!visible.length) return null;
 
   let min = Math.min(...visible);
@@ -2600,5 +2598,6 @@ export {
   buildMetricSeriesFromIndexData as getMetricSeriesForTest,
   buildDetailLineData as buildDetailLineDataForTest,
   recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
+  resolveYAxisRangeFromSeriesData as resolveYAxisRangeForTest,
   toFiniteNumber as toFiniteNumberForTest,
 };

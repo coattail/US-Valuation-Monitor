@@ -52,6 +52,7 @@ const {
   getMetricSeriesForTest,
   buildDetailLineDataForTest,
   recomputeRangeRollingStatsForTest,
+  resolveYAxisRangeForTest,
   toFiniteNumberForTest,
 } = await import("./app.js");
 
@@ -70,6 +71,13 @@ test('Nasdaq forward chart and percentiles separate historical estimates from WS
   assert.equal(line[1][1], null);
   assert.equal(line[2][1], 23.57);
   assert.equal(line[3][1], 24.62);
+  assert.ok(resolveYAxisRangeForTest(line, 0, 100).min > 0);
+});
+
+test('time-axis zoom uses dates for sparse observations and never treats a gap as zero', () => {
+  const data = [[0, 100], [1, 80], [50, null], [90, 24], [100, 25]];
+  const range = resolveYAxisRangeForTest(data, 50, 100);
+  assert.ok(range.min > 23 && range.max < 26);
 });
 
 test("overview cards use the real TTM coverage instead of the index price range", () => {
