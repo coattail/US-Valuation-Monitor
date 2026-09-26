@@ -123,9 +123,9 @@ test("authoritative delayed snapshots correct only their exact published metrics
   );
 
   assert.deepEqual(corrected, [
-    published[0],
+    { ...published[0], pe_forward: null },
     { ...published[1], pe_ttm: 33.05, pe_forward: 25.12 },
-    published[2],
+    { ...published[2], pe_forward: null },
   ]);
 });
 

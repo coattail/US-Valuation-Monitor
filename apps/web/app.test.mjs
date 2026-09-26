@@ -50,8 +50,35 @@ const {
   buildSnapshotRowForTest,
   formatAxisDateForWidthForTest,
   getMetricSeriesForTest,
+  buildDetailLineDataForTest,
+  recomputeRangeRollingStatsForTest,
+  resolveYAxisRangeForTest,
   toFiniteNumberForTest,
 } = await import("./app.js");
+
+test('Nasdaq forward chart and percentiles separate historical estimates from WSJ observations', () => {
+  const rows = getMetricSeriesForTest({ id: 'nasdaq100', points: [
+    { date: '2026-04-09', pe_forward: 100 },
+    { date: '2026-04-10', pe_forward: 23.57 },
+    { date: '2026-04-13', pe_forward: null },
+    { date: '2026-04-17', pe_forward: 24.62 },
+  ] }, 'pe_forward');
+  assert.deepEqual(rows.map(row => row.date), ['2026-04-09', '2026-04-10', '2026-04-17']);
+  assert.equal(rows.at(-1).percentile_full, 1);
+  assert.equal(recomputeRangeRollingStatsForTest(rows).at(-1).percentile_full, 1);
+  const line = buildDetailLineDataForTest(rows);
+  assert.equal(line.length, 4);
+  assert.equal(line[1][1], null);
+  assert.equal(line[2][1], 23.57);
+  assert.equal(line[3][1], 24.62);
+  assert.ok(resolveYAxisRangeForTest(line, 0, 100).min > 0);
+});
+
+test('time-axis zoom uses dates for sparse observations and never treats a gap as zero', () => {
+  const data = [[0, 100], [1, 80], [50, null], [90, 24], [100, 25]];
+  const range = resolveYAxisRangeForTest(data, 50, 100);
+  assert.ok(range.min > 23 && range.max < 26);
+});
 
 test("overview cards use the real TTM coverage instead of the index price range", () => {
   const row = buildSnapshotRowForTest({
