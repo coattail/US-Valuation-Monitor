@@ -4,6 +4,16 @@ export type MetricId = "pe_ttm" | "pe_forward" | "pb" | "erp_proxy";
 
 export type Regime = "low" | "neutral" | "high";
 
+export interface ForwardPeEstimate {
+  method: 'wsj-forward-ndx-price-carry';
+  anchorDate: string;
+  anchorPe: number;
+  anchorClose: number;
+  close: number;
+  anchorPriceSource: string;
+  priceSource: string;
+}
+
 export interface IndexMeta {
   id: string;
   symbol: string;
@@ -17,6 +27,7 @@ export interface RawValuationPoint {
   date: string;
   pe_ttm: number | null;
   pe_forward: number | null;
+  pe_forward_estimate?: ForwardPeEstimate;
   pb: number | null;
   us10y_yield: number;
 }

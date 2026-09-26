@@ -5,7 +5,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const kind = process.argv[2];
 if (!['index', 'company'].includes(kind)) throw new Error('Expected index or company');
 const names = kind === 'index'
-  ? ['valuation-history.json', 'valuation-snapshot.json', 'index-series', 'index-history-lock.json', 'index-yahoo-daily-metrics.json']
+  ? ['valuation-history.json', 'valuation-snapshot.json', 'index-series', 'index-history-lock.json', 'index-yahoo-daily-metrics.json', 'nasdaq100-forward-closes.json']
   : ['company-valuation-snapshot.json', 'company-series', 'company-yahoo-daily-metrics.json'];
 const ledger = `${kind}-gap-repairs.json`;
 try { await access(path.join(root, 'data/standardized', ledger)); names.push(ledger); } catch (error) { if (error.code !== 'ENOENT') throw error; }
