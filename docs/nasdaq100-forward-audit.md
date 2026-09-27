@@ -70,8 +70,9 @@ All other valuation metrics and all other indices retain their values.
 Each derived point carries `pe_forward_estimate` metadata containing the
 formula, quote date/value, both closes, and their source URLs. An observed
 quote carries no estimate marker. The UI identifies the estimates in tooltips,
-marks original quotes, and explains the constant-earnings assumption. Earlier
-history uses a different basis and remains separated at the source transition.
+explains the constant-earnings assumption, and omits vendor labels and point
+markers. Earlier history uses a different basis; the chart connects consecutive
+data points without inserting an artificial gap at the source transition.
 Percentiles and range changes now include all comparable daily observations
 and estimates within the current WSJ basis.
 

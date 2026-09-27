@@ -57,7 +57,7 @@ const {
   toFiniteNumberForTest,
 } = await import("./app.js");
 
-test('Nasdaq forward chart and percentiles separate historical estimates from WSJ observations', () => {
+test('Nasdaq forward chart stays continuous across basis changes while statistics remain comparable', () => {
   const rows = getMetricSeriesForTest({ id: 'nasdaq100', points: [
     { date: '2026-04-09', pe_forward: 100 },
     { date: '2026-04-10', pe_forward: 23.57 },
@@ -68,10 +68,7 @@ test('Nasdaq forward chart and percentiles separate historical estimates from WS
   assert.equal(rows.at(-1).percentile_full, 1);
   assert.equal(recomputeRangeRollingStatsForTest(rows).at(-1).percentile_full, 1);
   const line = buildDetailLineDataForTest(rows);
-  assert.equal(line.length, 4);
-  assert.equal(line[1][1], null);
-  assert.equal(line[2][1], 23.57);
-  assert.equal(line[3][1], 24.62);
+  assert.deepEqual(line, rows.map(row => [Date.parse(row.date), row.value]));
   assert.ok(resolveYAxisRangeForTest(line, 0, 100).min > 0);
 });
 
@@ -90,7 +87,7 @@ test('daily Forward PE estimates remain in the WSJ basis and are identified in t
   assert.equal(rows[0].valuationBasis, rows[1].valuationBasis);
   assert.equal(rows[1].forwardEstimate, estimate);
   assert.equal(buildDetailLineDataForTest(rows).length, 2);
-  assert.equal(forwardSourceLabelForTest(rows[0]), 'WSJ 原始报价');
+  assert.equal(forwardSourceLabelForTest(rows[0]), '原始报价');
   assert.match(forwardSourceLabelForTest(rows[1]), /估算.*2026-04-17.*24.62/);
 });
 
