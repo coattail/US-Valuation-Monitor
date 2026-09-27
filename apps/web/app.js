@@ -1318,14 +1318,14 @@ function renderDetailStats(fullRows, viewRows) {
   const stats = [
     [metricCfg.label, valueText],
     [observedBasis ? "百分位(区间内同口径)" : "百分位(当前区间)", fmtPct(latest.percentile_full, 1)],
-    [observedBasis ? "百分位(WSJ 可用历史)" : "百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
+    [observedBasis ? "百分位(同口径历史)" : "百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
     ["滚动百分位(5Y)", fmtPct(latest.percentile_5y, 1)],
     ["滚动百分位(10Y)", fmtPct(latest.percentile_10y, 1)],
     ["区间变动", fmtSigned(change, 2, true)],
     ["区间最低", metricCfg.percentage ? fmtSigned(min * 100, metricCfg.digits, true) : fmt(min, metricCfg.digits)],
     ["区间最高", metricCfg.percentage ? fmtSigned(max * 100, metricCfg.digits, true) : fmt(max, metricCfg.digits)],
     ["估值状态 · 当前区间", regimeLabel(latest.value > 0 ? regimeFromPercentile(latest.percentile_full) : "unavailable")],
-    [observedBasis ? "统计区间(WSJ)" : "数据区间", `${comparableRows[0].date} ~ ${latest.date}`],
+    [observedBasis ? "统计区间(同口径)" : "数据区间", `${comparableRows[0].date} ~ ${latest.date}`],
   ];
   const pill = ([k, v], primary = false) => `<div class="stat-pill ${primary ? "primary-stat" : ""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
   elements.detailStats.innerHTML = [0, 1, 8, 5].map((i) => pill(stats[i], true)).join("");
@@ -1340,20 +1340,11 @@ function forwardSourceLabel(row) {
   if (!row) return "";
   if (row.valuationBasis === "historical-estimate") return "历史估算（不同口径）";
   const estimate = row.forwardEstimate;
-  return estimate ? `按 NDX 收盘涨跌估算（基准：${estimate.anchorDate}，${fmt(estimate.anchorPe, 2)} 倍）` : "WSJ 原始报价";
+  return estimate ? `按纳指100收盘涨跌估算（基准：${estimate.anchorDate}，${fmt(estimate.anchorPe, 2)} 倍）` : "原始报价";
 }
 
 function buildDetailLineData(rows, percentage = false) {
-  const data = [];
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    if (i && row.valuationBasis !== rows[i - 1].valuationBasis) {
-      // A source change is not a market return. Break the connecting line.
-      data.push([(axisValueFromDate(rows[i - 1].date) + axisValueFromDate(row.date)) / 2, null]);
-    }
-    data.push([axisValueFromDate(row.date), percentage ? row.value * 100 : row.value]);
-  }
-  return data;
+  return rows.map(row => [axisValueFromDate(row.date), percentage ? row.value * 100 : row.value]);
 }
 
 function renderDetailChart(indexMeta, rows) {
@@ -1454,8 +1445,8 @@ function renderDetailChart(indexMeta, rows) {
           name: metricCfg.label,
           type: "line",
           smooth: false,
-          showSymbol: isNasdaqForward,
-          symbolSize: value => isNasdaqForward && rows.some(row => axisValueFromDate(row.date) === value[0] && row.valuationBasis === "wsj-forward" && !row.forwardEstimate) ? 5 : 0,
+          showSymbol: false,
+          symbol: isNasdaqForward ? "none" : "emptyCircle",
           lineStyle: { width: 2.2, color: "#70dfc2" },
           areaStyle: {
             color: {
@@ -1634,7 +1625,7 @@ async function renderDetail() {
   const metric = state.detail.metric;
   const sourceNote = document.getElementById("detail-source-note");
   sourceNote.hidden = !(indexId === "nasdaq100" && metric === "pe_forward");
-  sourceNote.textContent = sourceNote.hidden ? "" : "2026-04-10 起以 WSJ 报价为基准，缺失日按纳指100实际收盘涨跌推算：当日 PE＝基准 PE×当日收盘价÷基准日收盘价。新报价到达后重设基准；圆点为原始报价，其余为估算值（假设预期盈利不变）。此前口径不同，切换处断线，统计仅使用同口径日度样本。";
+  sourceNote.textContent = sourceNote.hidden ? "" : "缺失日按纳指100实际收盘涨跌估算，假设两次报价之间预期盈利不变。历史口径存在差异，统计仅使用同口径样本。";
   const renderToken = ++state.runtime.detailRenderToken;
 
   if (!indexId) return;
