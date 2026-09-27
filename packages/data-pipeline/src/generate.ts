@@ -1,5 +1,6 @@
 import { createTextFetcher } from "./fetch-text.ts";
-import { applyNasdaqForwardObservationPolicy, NASDAQ_FORWARD_WSJ_START } from "./nasdaq-forward-policy.ts";
+import { applyNasdaqForwardPricePolicy, nasdaqForwardPriceCorrections, assertNasdaqForwardCoverage, NASDAQ_FORWARD_WSJ_START, type NasdaqClose } from "./nasdaq-forward-policy.ts";
+import { loadNasdaqForwardCloses, refreshNasdaqForwardCloses } from "./nasdaq-forward-closes.ts";
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -905,11 +906,12 @@ function buildAuthoritativeMetricCorrections(
 function applyAuthoritativePublishedMetricCorrections(
   points: RawValuationPoint[],
   indexId: string,
-  snapshots: IndexYahooDailyMetricSnapshot[]
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  ndxCloses: NasdaqClose[] = []
 ): RawValuationPoint[] {
   const corrections = buildAuthoritativeMetricCorrections(indexId, snapshots);
   if (indexId === "nasdaq100") {
-    points = applyNasdaqForwardObservationPolicy(points, snapshots);
+    points = applyNasdaqForwardPricePolicy(points, snapshots, ndxCloses);
   }
   if (!corrections.size) return points;
 
@@ -918,7 +920,7 @@ function applyAuthoritativePublishedMetricCorrections(
     if (!rawCorrection) return point;
     const correction = { ...rawCorrection };
     if (indexId === "nasdaq100" && point.date >= NASDAQ_FORWARD_WSJ_START) {
-      // The observation-only policy above is final for this metric, including
+      // The WSJ + NDX price policy above is final for this metric, including
       // when another otherwise trusted provider supplies a different estimate.
       delete correction.pe_forward;
     }
@@ -979,9 +981,10 @@ function repairPublishedPbOutliers(
 export function applyAuthoritativePublishedMetricCorrectionsForTest(
   points: RawValuationPoint[],
   indexId: string,
-  snapshots: IndexYahooDailyMetricSnapshot[]
+  snapshots: IndexYahooDailyMetricSnapshot[],
+  ndxCloses: NasdaqClose[] = []
 ): RawValuationPoint[] {
-  return applyAuthoritativePublishedMetricCorrections(points, indexId, snapshots);
+  return applyAuthoritativePublishedMetricCorrections(points, indexId, snapshots, ndxCloses);
 }
 
 export function preservePublishedIndexHistoryAppendOnlyForTest(
@@ -1157,7 +1160,10 @@ export function assertPublishedIndexHistoryAppendOnly(
         if (previousPoint[field] === nextPoint?.[field]) continue;
         const isAllowedAuthoritativeCorrection =
           (field === "pe_ttm" || field === "pe_forward" || field === "pb") &&
-          allowedCorrections?.[field] === nextPoint?.[field];
+          allowedCorrections?.[field] === nextPoint?.[field] &&
+          !(previousIndex.id === "nasdaq100" && field === "pe_forward" &&
+            nextPoint?.pe_forward_estimate && previousPoint.pe_forward !== null &&
+            !previousPoint.pe_forward_estimate);
         const previousPb = field === "pb" ? sanitizeSignedRatio(previousPoint.pb) : null;
         const nextPb = field === "pb" ? sanitizeSignedRatio(nextPoint?.pb) : null;
         const isAllowedPbOutlierRepair =
@@ -5925,6 +5931,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   const historyForwardStartMap = buildForwardStartMap(options.previousDataset, effectiveEnd);
   const indexYahooDailyMetricsBySymbol = await loadIndexYahooDailyMetricSnapshotsBySymbol();
   const vendorIndexForwardHistory = await loadVendorIndexForwardPeHistory();
+  const ndxForwardCloses = await refreshNasdaqForwardCloses(effectiveEnd);
   let wsjPeSnapshot = new Map<string, LatestPeSnapshot>();
 
   try {
@@ -7191,8 +7198,10 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       points = applyAuthoritativePublishedMetricCorrections(
         points,
         meta.id,
-        effectiveYahooSnapshots
+        effectiveYahooSnapshots,
+        ndxForwardCloses
       );
+      if (meta.id === "nasdaq100") assertNasdaqForwardCoverage(points);
       if (effectiveEnd > liveSourceCutoverDate) {
         const latestPointDate = points[points.length - 1]?.date || "";
         if (!latestPointDate || latestPointDate <= liveSourceCutoverDate) {
@@ -7260,8 +7269,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         );
         if (meta.id === "nasdaq100") {
           repairedHistoryPoints = applyAuthoritativePublishedMetricCorrections(
-            repairedHistoryPoints, meta.id, indexYahooDailyMetricsBySymbol.get(meta.symbol) || []
+            repairedHistoryPoints, meta.id, indexYahooDailyMetricsBySymbol.get(meta.symbol) || [], ndxForwardCloses
           );
+          assertNasdaqForwardCoverage(repairedHistoryPoints);
         }
         generatedPointsByIndexId.set(meta.id, repairedHistoryPoints);
         indices.push({
@@ -7421,12 +7431,18 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 export async function loadAuthoritativePublishedMetricCorrections(): Promise<AuthoritativePublishedMetricCorrections> {
   const snapshotsBySymbol = await loadIndexYahooDailyMetricSnapshotsBySymbol();
   const result: AuthoritativePublishedMetricCorrections = new Map();
+  const ndxCloses = await loadNasdaqForwardCloses();
 
   for (const meta of ALL_INDICES) {
     const corrections = buildAuthoritativeMetricCorrections(
       meta.id,
       snapshotsBySymbol.get(meta.symbol) || []
     );
+    if (meta.id === "nasdaq100") {
+      for (const [date, value] of nasdaqForwardPriceCorrections(snapshotsBySymbol.get(meta.symbol) || [], ndxCloses)) {
+        corrections.set(date, { ...corrections.get(date), ...value });
+      }
+    }
     if (corrections.size) result.set(meta.id, corrections);
   }
 
