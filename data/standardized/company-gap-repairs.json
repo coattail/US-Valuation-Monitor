@@ -88,6 +88,66 @@
             "estimated": true
           }
         }
+      },
+      {
+        "date": "2026-09-29",
+        "anchorDate": "2026-09-28",
+        "anchorClose": {
+          "date": "2026-09-28",
+          "close": 56.16999816894531,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1789430400&period2=1790726400&interval=1d"
+        },
+        "close": {
+          "date": "2026-09-29",
+          "close": 54.470001220703125,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1789430400&period2=1790726400&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-09-29",
+          "pe_ttm": 14.332125,
+          "pe_forward": 13.16999,
+          "pb": 3.151991,
+          "peg": 1.309667,
+          "us10y_yield": 0,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-28",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1789430400&period2=1790726400&interval=1d",
+            "estimated": true
+          }
+        }
+      }
+    ],
+    "SHEL": [
+      {
+        "date": "2026-09-29",
+        "anchorDate": "2026-09-28",
+        "anchorClose": {
+          "date": "2026-09-28",
+          "close": 96.47,
+          "source": "https://api.nasdaq.com/api/quote/SHEL/historical?assetclass=stocks&fromdate=2026-09-15&todate=2026-09-29&limit=5000"
+        },
+        "close": {
+          "date": "2026-09-29",
+          "close": 95.13999938964844,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SHEL?period1=1789430400&period2=1790726400&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-09-29",
+          "pe_ttm": 10.365102,
+          "pe_forward": 8.521573,
+          "pb": 1.444309,
+          "peg": 1.598553,
+          "us10y_yield": 0,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-28",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SHEL?period1=1789430400&period2=1790726400&interval=1d",
+            "estimated": true
+          }
+        }
       }
     ]
   }
