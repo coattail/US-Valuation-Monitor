@@ -29,6 +29,34 @@
             "estimated": true
           }
         }
+      },
+      {
+        "date": "2026-10-01",
+        "anchorDate": "2026-09-30",
+        "anchorClose": {
+          "date": "2026-09-30",
+          "close": 508.55,
+          "source": "https://api.nasdaq.com/api/quote/DIA/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "close": {
+          "date": "2026-10-01",
+          "close": 508.62,
+          "source": "https://api.nasdaq.com/api/quote/DIA/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-01",
+          "pe_ttm": 20.732853,
+          "pe_forward": 19.522687,
+          "pb": 4.455813,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-30",
+            "priceSource": "https://api.nasdaq.com/api/quote/DIA/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000",
+            "estimated": true
+          }
+        }
       }
     ],
     "IJH": [
@@ -56,6 +84,34 @@
             "method": "observed-close-ratio-with-previous-published-fundamentals",
             "anchorDate": "2026-09-21",
             "priceSource": "https://api.nasdaq.com/api/quote/IJH/historical?assetclass=etf&fromdate=2026-09-08&todate=2026-09-23&limit=5000",
+            "estimated": true
+          }
+        }
+      },
+      {
+        "date": "2026-10-01",
+        "anchorDate": "2026-09-30",
+        "anchorClose": {
+          "date": "2026-09-30",
+          "close": 71.95,
+          "source": "https://api.nasdaq.com/api/quote/IJH/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "close": {
+          "date": "2026-10-01",
+          "close": 72.7,
+          "source": "https://api.nasdaq.com/api/quote/IJH/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-01",
+          "pe_ttm": 22.279847,
+          "pe_forward": 18.293422,
+          "pb": 2.738249,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-30",
+            "priceSource": "https://api.nasdaq.com/api/quote/IJH/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000",
             "estimated": true
           }
         }
@@ -89,6 +145,34 @@
             "estimated": true
           }
         }
+      },
+      {
+        "date": "2026-10-01",
+        "anchorDate": "2026-09-30",
+        "anchorClose": {
+          "date": "2026-09-30",
+          "close": 374.24,
+          "source": "https://api.nasdaq.com/api/quote/VTI/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "close": {
+          "date": "2026-10-01",
+          "close": 375.18,
+          "source": "https://api.nasdaq.com/api/quote/VTI/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-01",
+          "pe_ttm": 29.112941,
+          "pe_forward": 28.232335,
+          "pb": 5.082735,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-30",
+            "priceSource": "https://api.nasdaq.com/api/quote/VTI/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000",
+            "estimated": true
+          }
+        }
       }
     ],
     "XLC": [
@@ -116,6 +200,34 @@
             "method": "observed-close-ratio-with-previous-published-fundamentals",
             "anchorDate": "2026-09-21",
             "priceSource": "https://api.nasdaq.com/api/quote/XLC/historical?assetclass=etf&fromdate=2026-09-08&todate=2026-09-23&limit=5000",
+            "estimated": true
+          }
+        }
+      },
+      {
+        "date": "2026-10-01",
+        "anchorDate": "2026-09-30",
+        "anchorClose": {
+          "date": "2026-09-30",
+          "close": 110.97,
+          "source": "https://api.nasdaq.com/api/quote/XLC/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "close": {
+          "date": "2026-10-01",
+          "close": 109.94,
+          "source": "https://api.nasdaq.com/api/quote/XLC/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-01",
+          "pe_ttm": 16.010006,
+          "pe_forward": 13.483675,
+          "pb": 3.301172,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-30",
+            "priceSource": "https://api.nasdaq.com/api/quote/XLC/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000",
             "estimated": true
           }
         }
@@ -356,6 +468,105 @@
             "method": "observed-close-ratio-with-previous-published-fundamentals",
             "anchorDate": "2026-09-21",
             "priceSource": "https://api.nasdaq.com/api/quote/XLU/historical?assetclass=etf&fromdate=2026-09-08&todate=2026-09-23&limit=5000",
+            "estimated": true
+          }
+        }
+      }
+    ],
+    "SPY": [
+      {
+        "date": "2026-10-01",
+        "anchorDate": "2026-09-30",
+        "anchorClose": {
+          "date": "2026-09-30",
+          "close": 762.63,
+          "source": "https://api.nasdaq.com/api/quote/SPY/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "close": {
+          "date": "2026-10-01",
+          "close": 763.99,
+          "source": "https://api.nasdaq.com/api/quote/SPY/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-01",
+          "pe_ttm": 23.255999,
+          "pe_forward": 19.749757,
+          "pb": 6.080825,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-30",
+            "priceSource": "https://api.nasdaq.com/api/quote/SPY/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000",
+            "estimated": true
+          }
+        }
+      }
+    ],
+    "QQQ": [
+      {
+        "date": "2026-10-01",
+        "anchorDate": "2026-09-30",
+        "anchorClose": {
+          "date": "2026-09-30",
+          "close": 739.77,
+          "source": "https://api.nasdaq.com/api/quote/QQQ/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "close": {
+          "date": "2026-10-01",
+          "close": 742.03,
+          "source": "https://api.nasdaq.com/api/quote/QQQ/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-01",
+          "pe_ttm": 35.103114,
+          "pe_forward": 24.0659,
+          "pb": 8.08673,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-30",
+            "priceSource": "https://api.nasdaq.com/api/quote/QQQ/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000",
+            "estimated": true
+          },
+          "pe_forward_estimate": {
+            "method": "wsj-forward-ndx-price-carry",
+            "anchorDate": "2026-09-25",
+            "anchorPe": 24.15,
+            "anchorClose": 30608.130859375,
+            "close": 30501.560546875,
+            "anchorPriceSource": "https://query2.finance.yahoo.com/v8/finance/chart/%5ENDX?range=1y&interval=1d",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1790899200&interval=1d"
+          }
+        }
+      }
+    ],
+    "IWM": [
+      {
+        "date": "2026-10-01",
+        "anchorDate": "2026-09-30",
+        "anchorClose": {
+          "date": "2026-09-30",
+          "close": 277.89,
+          "source": "https://api.nasdaq.com/api/quote/IWM/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "close": {
+          "date": "2026-10-01",
+          "close": 279.02,
+          "source": "https://api.nasdaq.com/api/quote/IWM/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-01",
+          "pe_ttm": 35.742152,
+          "pe_forward": 28.092973,
+          "pb": 2.078417,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-09-30",
+            "priceSource": "https://api.nasdaq.com/api/quote/IWM/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000",
             "estimated": true
           }
         }
