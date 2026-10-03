@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-10-03T04:05:30.467Z",
+  "generatedAt": "2026-10-03T09:35:45.603Z",
   "indices": {
     "dow30": {
       "pointCount": 7221,
@@ -128,7 +128,7 @@
       "pointCount": 6729,
       "firstDate": "1999-12-31",
       "lastDate": "2026-10-02",
-      "sha256": "698c73e4e836aa952a9f256e0defbd36b43296c69d384276b4b75b02d9fb757e"
+      "sha256": "fc107479e0830ef35cc236cc7a78eed0b2f6ad5976cbecf5b3016f0e128b03e3"
     },
     "us_total_market": {
       "pointCount": 5434,

@@ -51,13 +51,15 @@ const {
   formatAxisDateForWidthForTest,
   getMetricSeriesForTest,
   buildDetailLineDataForTest,
+  filterRowsByRangeForTest,
+  ttmSourceLabelForTest,
   recomputeRangeRollingStatsForTest,
   resolveYAxisRangeForTest,
   forwardSourceLabelForTest,
   toFiniteNumberForTest,
 } = await import("./app.js");
 
-test('Nasdaq forward chart stays continuous across basis changes while statistics remain comparable', () => {
+test('Nasdaq forward chart and percentiles cover the selected history across basis changes', () => {
   const rows = getMetricSeriesForTest({ id: 'nasdaq100', points: [
     { date: '2026-04-09', pe_forward: 100 },
     { date: '2026-04-10', pe_forward: 23.57 },
@@ -65,8 +67,8 @@ test('Nasdaq forward chart stays continuous across basis changes while statistic
     { date: '2026-04-17', pe_forward: 24.62 },
   ] }, 'pe_forward');
   assert.deepEqual(rows.map(row => row.date), ['2026-04-09', '2026-04-10', '2026-04-17']);
-  assert.equal(rows.at(-1).percentile_full, 1);
-  assert.equal(recomputeRangeRollingStatsForTest(rows).at(-1).percentile_full, 1);
+  assert.equal(rows.at(-1).percentile_full, 2 / 3);
+  assert.equal(recomputeRangeRollingStatsForTest(rows).at(-1).percentile_full, 2 / 3);
   const line = buildDetailLineDataForTest(rows);
   assert.deepEqual(line, rows.map(row => [Date.parse(row.date), row.value]));
   assert.ok(resolveYAxisRangeForTest(line, 0, 100).min > 0);
@@ -210,4 +212,28 @@ test("index overview uses ten-year percentile even when full-history regime diff
   assert.equal(row.percentile_10y, 0.18);
   assert.equal(row.percentile_full, 0.95);
   assert.equal(row.regime, "low");
+});
+
+test('Nasdaq range selectors rank against the full chosen sample, including dates before April', async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const series=JSON.parse(await readFile(new URL('../../data/standardized/index-series/nasdaq100.json',import.meta.url),'utf8'));
+  // Pin the audited endpoint so future daily appends cannot change this case.
+  const full=getMetricSeriesForTest({...series,points:series.points.filter(row=>row.date<='2026-10-02')},'pe_forward');
+  const percentiles=[];
+  for(const range of ['1y','3y','5y','10y','20y','max']) {
+    const selected=filterRowsByRangeForTest(full,range);
+    const actual=recomputeRangeRollingStatsForTest(selected).at(-1);
+    const expected=selected.filter(row=>row.value<=actual.value).length/selected.length;
+    assert.equal(actual.percentile_full,expected,range);
+    assert.ok(selected[0].date<'2026-04-10');
+    percentiles.push(actual.percentile_full);
+  }
+  assert.equal(new Set(percentiles).size,6);
+});
+
+test('TTM recovery provenance is retained in detail tooltips',()=>{
+  const estimate={anchorDate:'2026-05-08',anchorPe:26.4};
+  const rows=getMetricSeriesForTest({id:'sp500',points:[{date:'2026-05-11',pe_ttm:26.664,pe_ttm_estimate:estimate}]},'pe_ttm');
+  assert.equal(rows[0].ttmEstimate,estimate);
+  assert.match(ttmSourceLabelForTest(rows[0]),/估算.*2026-05-08/);
 });
