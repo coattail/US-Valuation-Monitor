@@ -221,7 +221,8 @@ Workflow file:
 - `.github/workflows/daily-data-refresh.yml`
 
 Current behavior:
-- Runs on schedule (`cron: 30 21 * * 1-5`, 21:30 UTC on US trading weekdays, after market close year-round) and manual dispatch
+- Runs Tuesday–Saturday at 05:17 UTC, with an independent recovery at 09:17 UTC, allowing historical tables to finalize for the preceding US session. Manual dispatch is also supported; GitHub scheduling can be delayed.
+- A dated, non-real-time Nasdaq primary quote from a closed market can extend a delayed historical tail. Gap recovery uses up to four workers within five minutes. Missing verified prices still fail validation; published history stays unchanged.
 - Executes `npm run build:data`
 - Index valuation keeps the historical non-Yahoo source chain to avoid short-term source-regime shocks
 - Company valuation series are capped to the latest completed US trading day and appended into history; company `PE(TTM)` is refreshed from Yahoo quote data after the close

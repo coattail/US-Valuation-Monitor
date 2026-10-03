@@ -58,3 +58,34 @@ test("Nasdaq share-class symbols use dots for Yahoo-style dash tickers", async (
   });
   assert.equal(result.at(-1)?.close, 503.49);
 });
+
+test("delayed historical table falls back to a dated closed primary quote", async () => {
+  const calls: string[] = [];
+  const original = structuredClone(history);
+  const result = await refreshNasdaqPriceTail(history, "SPY", "2026-09-22", "etf", async url => {
+    calls.push(url);
+    if (url.includes('/historical')) return response([{date:'09/21/2026',close:'999'}]);
+    return JSON.stringify({status:{rCode:200},data:{symbol:'SPY',marketStatus:'Closed',primaryData:{
+      lastTradeTimestamp:'Sep 22, 2026',lastSalePrice:'$228.87',isRealTime:false,
+    },secondaryData:{lastSalePrice:'$999'}}});
+  });
+  assert.equal(calls.length, 2);
+  assert.equal(new URL(calls[1]).searchParams.get('assetclass'), 'etf');
+  assert.equal(result.at(-1)?.close, 228.87);
+  assert.deepEqual(history, original);
+});
+
+test("closed quote rejects stale, realtime, intraday, mismatched and invalid observations", async () => {
+  const { parseNasdaqClosedQuote } = await import('../src/recent-close.ts');
+  const base = {symbol:'BRK.B',marketStatus:'Closed',primaryData:{lastTradeTimestamp:'Sep 22, 2026',lastSalePrice:'$503.49',isRealTime:false}};
+  const parse = data => parseNasdaqClosedQuote(JSON.stringify({status:{rCode:200},data}), 'BRK-B', '2026-09-22');
+  assert.equal(parse(base)[0].close, 503.49);
+  for (const data of [
+    {...base,symbol:'SPY'}, {...base,marketStatus:'Open'}, {...base,marketStatus:'Pre-Market'},
+    ...[
+      {isRealTime:true}, {lastTradeTimestamp:'Sep 21, 2026'},
+      {lastTradeTimestamp:'Sep 22, 2026 4:05 PM ET'}, {lastTradeTimestamp:'Sep 99, 2026'},
+      {lastSalePrice:'N/A'}, {lastSalePrice:'0'}, {lastSalePrice:'-1'},
+    ].map(change => ({...base,primaryData:{...base.primaryData,...change}})),
+  ]) assert.deepEqual(parse(data), []);
+});

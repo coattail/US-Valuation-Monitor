@@ -221,7 +221,8 @@ npx wrangler pages deploy .pages --project-name us-valuation-monitor --branch ma
 - `.github/workflows/daily-data-refresh.yml`
 
 当前策略：
-- 定时触发（`cron: 30 21 * * 1-5`，按 UTC 21:30 在美股交易日运行；对应美东 16:30 EST / 17:30 EDT，全年都在收盘后）+ 手动触发
+- 定时触发：UTC 周二至周六 05:17 首轮、09:17 恢复轮（北京时间 13:17 / 17:17），等待上一美股交易日行情归档；也支持手动触发。GitHub 调度可能延迟。
+- 历史行情缺少最新一天时，使用 Nasdaq 日期明确、已收盘、非实时的主报价补充；补洞最多 4 路并发、5 分钟预算。缺失真实价格时仍报错，已发布历史保持不变。
 - 执行 `npm run build:data`
 - 指数估值沿用既有历史同源链路（不引入 Yahoo，降低短期口径波动）
 - 企业估值时序按 Yahoo 可用最新交易日截断并同步写入历史

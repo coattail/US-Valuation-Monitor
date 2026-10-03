@@ -1,3 +1,4 @@
+import { lastCompletedSession as getLastCompletedUsMarketDate } from "./market-calendar.ts";
 import { repairCompanyMetricHistory, preserveSpcxUnavailableMetrics } from "./company-data-corrections.mjs";
 import path from "node:path";
 import { createTextFetcher, isRejectedPayload } from "./fetch-text.ts";
@@ -663,50 +664,7 @@ function addDays(dateText: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
-function getLastCompletedUsMarketDate(now = new Date()): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    weekday: "short",
-  });
-  const parts = formatter.formatToParts(now);
-  const get = (type: string): string => parts.find((part) => part.type === type)?.value || "";
 
-  const year = Number(get("year"));
-  const month = Number(get("month"));
-  const day = Number(get("day"));
-  const hour = Number(get("hour"));
-  const minute = Number(get("minute"));
-  const weekdayName = get("weekday");
-
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-    return new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
-  }
-
-  const weekdayMap: Record<string, number> = {
-    Sun: 0,
-    Mon: 1,
-    Tue: 2,
-    Wed: 3,
-    Thu: 4,
-    Fri: 5,
-    Sat: 6,
-  };
-  const weekday = weekdayMap[weekdayName] ?? new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  const etDate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  const minutesSinceMidnight = (Number.isFinite(hour) ? hour : 0) * 60 + (Number.isFinite(minute) ? minute : 0);
-  const marketClosed = minutesSinceMidnight >= 16 * 60;
-
-  if (weekday === 0) return addDays(etDate, -2);
-  if (weekday === 6) return addDays(etDate, -1);
-  if (weekday === 1) return marketClosed ? etDate : addDays(etDate, -3);
-  return marketClosed ? etDate : addDays(etDate, -1);
-}
 
 function median(values: readonly number[]): number | null {
   const arr = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);

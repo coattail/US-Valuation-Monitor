@@ -49,3 +49,38 @@ test('fallback fills an interior null despite a newer primary observation', asyn
   });
   assert.equal(calls.length,3); assert.equal(result[0].close,57.91);
 });
+
+test('gap recovery can use closed quote while retaining historical anchor provenance', async () => {
+  const result = await fetchGapCloses('SPY','etf','2026-09-18','2026-09-22',['2026-09-21','2026-09-22'],async url => {
+    if (url.includes('/historical')) return JSON.stringify({data:{tradesTable:{rows:[{date:'09/21/2026',close:'$100'}]}}});
+    assert.ok(url.includes('/info'));
+    return JSON.stringify({status:{rCode:200},data:{symbol:'SPY',marketStatus:'Closed',primaryData:{lastTradeTimestamp:'Sep 22, 2026',lastSalePrice:'$105',isRealTime:false}}});
+  });
+  assert.equal(result.length,2);
+  assert.match(result[0].source,/historical/); assert.match(result[1].source,/info/);
+  const repaired = repairMissingPoints([{date:'2026-09-21',pe_ttm:20}],['2026-09-22'],result,new Map());
+  assert.equal(repaired.points[1].pe_ttm,21);
+});
+
+test('recovery pool caps concurrency and gives all 100 tickers an attempt', async () => {
+  const { recoverWithBudget } = await import('../src/gap-repair.ts');
+  let active=0, peak=0;
+  const visited = new Set<number>();
+  const skipped = await recoverWithBudget(Array.from({length:100},(_,i)=>i),async item => {
+    active++; peak=Math.max(peak,active);
+    await new Promise(resolve=>setImmediate(resolve));
+    visited.add(item);active--;
+  });
+  assert.equal(peak,4); assert.equal(visited.size,100); assert.deepEqual(skipped,[]);
+});
+
+test('budget exhaustion drains started workers and identifies unattempted tickers', async () => {
+  const { recoverWithBudget } = await import('../src/gap-repair.ts');
+  let clock=0;
+  const visited:number[]=[];
+  const skipped=await recoverWithBudget([0,1,2,3,4],async item=>{
+    await new Promise(resolve=>setImmediate(resolve));
+    clock+=100;visited.push(item);
+  },{concurrency:2,budgetMs:100,now:()=>clock});
+  assert.deepEqual(visited,[0,1]);assert.deepEqual(skipped,[2,3,4]);
+});

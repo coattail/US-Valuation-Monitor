@@ -1,3 +1,4 @@
+import { lastCompletedSession as getLastCompletedUsMarketDate } from "./market-calendar.ts";
 import { createTextFetcher } from "./fetch-text.ts";
 import { applyNasdaqForwardPricePolicy, nasdaqForwardPriceCorrections, assertNasdaqForwardCoverage, NASDAQ_FORWARD_WSJ_START, type NasdaqClose } from "./nasdaq-forward-policy.ts";
 import { loadNasdaqForwardCloses, refreshNasdaqForwardCloses } from "./nasdaq-forward-closes.ts";
@@ -1331,50 +1332,7 @@ export function extendSeriesWithRebasedPreviousTailForTest(
   return extendSeriesWithRebasedPreviousTail(previousPoints, nextPoints, cutoverDate);
 }
 
-function getLastCompletedUsMarketDate(now = new Date()): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    weekday: "short",
-  });
-  const parts = formatter.formatToParts(now);
-  const get = (type: string): string => parts.find((part) => part.type === type)?.value || "";
 
-  const year = Number(get("year"));
-  const month = Number(get("month"));
-  const day = Number(get("day"));
-  const hour = Number(get("hour"));
-  const minute = Number(get("minute"));
-  const weekdayName = get("weekday");
-
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-    return shiftIsoDate(formatDate(now), -1);
-  }
-
-  const weekdayMap: Record<string, number> = {
-    Sun: 0,
-    Mon: 1,
-    Tue: 2,
-    Wed: 3,
-    Thu: 4,
-    Fri: 5,
-    Sat: 6,
-  };
-  const weekday = weekdayMap[weekdayName] ?? new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  const etDate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  const minutesSinceMidnight = (Number.isFinite(hour) ? hour : 0) * 60 + (Number.isFinite(minute) ? minute : 0);
-  const marketClosed = minutesSinceMidnight >= 16 * 60;
-
-  if (weekday === 0) return shiftIsoDate(etDate, -2);
-  if (weekday === 6) return shiftIsoDate(etDate, -1);
-  if (weekday === 1) return marketClosed ? etDate : shiftIsoDate(etDate, -3);
-  return marketClosed ? etDate : shiftIsoDate(etDate, -1);
-}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));

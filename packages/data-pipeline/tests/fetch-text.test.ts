@@ -99,3 +99,32 @@ test("real curl validates HTTP status and enforces deadline on a hanging respons
   await assert.rejects(fetch(`${base}/hang`, 3), /transport failure/);
   assert.ok(Date.now() - started < 2000);
 });
+
+test("HTTP/2 stream failure retries the same route with HTTP/1.1 within one deadline", async () => {
+  let clock = 0;
+  const argsSeen: string[][] = [];
+  const budgets: number[] = [];
+  const fetch = createTextFetcher({
+    userAgent:'test',now:()=>clock,directFallback:true,requestBudgetMs:100,
+    run:async (args,budget) => {
+      argsSeen.push(args); budgets.push(budget); clock += 20;
+      if (argsSeen.length === 1) throw Object.assign(new Error('HTTP/2 stream reset'), {code:92});
+      return response('observation_date,DGS10\n2026-10-02,4.1');
+    },
+  });
+  assert.match(await fetch('https://fred.test/graph', 0), /DGS10/);
+  assert.deepEqual(budgets, [100,80]);
+  assert.equal(argsSeen[0].includes('--http1.1'), false);
+  assert.equal(argsSeen[1].includes('--http1.1'), true);
+  assert.equal(argsSeen[1].includes('--noproxy'), false);
+});
+
+test("HTTP/2 retry does not accept partial output or multiply the deadline", async () => {
+  let clock = 0, calls = 0;
+  const fetch = createTextFetcher({
+    userAgent:'test',now:()=>clock,requestBudgetMs:100,warn:()=>{},sleep:async ms=>{clock+=ms;},
+    run:async () => {calls++; clock+=50; throw Object.assign(new Error('reset'),{code:92,stdout:response('partial')});},
+  });
+  await assert.rejects(fetch('https://fred.test/graph',3), /transport failure/);
+  assert.equal(calls,2); assert.equal(clock,100);
+});

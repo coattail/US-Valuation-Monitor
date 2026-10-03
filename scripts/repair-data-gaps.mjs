@@ -2,7 +2,7 @@ import { readFile, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertDatasetMatchesIndexHistoryLock, buildIndexHistoryLock } from '../packages/data-pipeline/src/index-history-lock.ts';
-import { assertExistingPointsUnchanged, fetchGapCloses, repairMissingPoints } from '../packages/data-pipeline/src/gap-repair.ts';
+import { assertExistingPointsUnchanged, fetchGapCloses, repairMissingPoints, recoverWithBudget } from '../packages/data-pipeline/src/gap-repair.ts';
 import { lastCompletedSession, shiftDate, tradingDates } from '../packages/data-pipeline/src/market-calendar.ts';
 import { refreshNasdaqForwardCloses } from '../packages/data-pipeline/src/nasdaq-forward-closes.ts';
 import { applyNasdaqForwardPricePolicy, assertNasdaqForwardCoverage } from '../packages/data-pipeline/src/nasdaq-forward-policy.ts';
@@ -35,25 +35,33 @@ if (kind === 'index') {
   for (const date of expected) yields.set(date, 0);
 } // Existing company schema convention.
 let added = 0;
-const deadline = Date.now() + 120000; // Leave time to publish progress even in a widespread outage.
+const originals = new Map(dataset.indices.map(item => [item, structuredClone(item.points)]));
+// Replay cached recoveries for every ticker before starting network work.
 for (const item of dataset.indices) {
-  const original = structuredClone(item.points);
   const known = new Map(item.points.map(p => [p.date, p]));
-  // Replay proven recoveries if a primary source omits the same date again.
   for (const repair of ledger.repairs[item.symbol] || []) if (!known.has(repair.date) && repair.date <= target) known.set(repair.date, repair.point);
   item.points = [...known.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+const pending = dataset.indices.filter(item => {
+  const known = new Set(item.points.map(p => p.date));
+  return expected.some(date => date >= item.points[0]?.date && !known.has(date));
+});
+const skipped = await recoverWithBudget(pending, async item => {
+  const known = new Set(item.points.map(p => p.date));
   const missing = expected.filter(date => date >= item.points[0]?.date && !known.has(date));
-  if (missing.length && Date.now() < deadline) {
-    const from = shiftDate(missing[0], -14);
-    const anchorDates = missing.map(date => [...item.points].reverse().find(p => p.date < date)?.date).filter(Boolean);
-    const closes = await fetchGapCloses(item.symbol, kind === 'index' ? 'etf' : 'stocks', from, target, [...missing, ...anchorDates]);
-    const result = repairMissingPoints(item.points, missing, closes, yields, metrics.symbols[item.symbol] || []);
-    item.points = result.points;
-    if (result.repairs.length) {
-      ledger.repairs[item.symbol] = [...(ledger.repairs[item.symbol] || []), ...result.repairs];
-      console.log(`[gap] ${item.symbol}: recovered ${result.repairs.map(p => p.date).join(', ')}`);
-    }
+  const from = shiftDate(missing[0], -14);
+  const anchorDates = missing.map(date => [...item.points].reverse().find(p => p.date < date)?.date).filter(Boolean);
+  const closes = await fetchGapCloses(item.symbol, kind === 'index' ? 'etf' : 'stocks', from, target, [...missing, ...anchorDates]);
+  const result = repairMissingPoints(item.points, missing, closes, yields, metrics.symbols[item.symbol] || []);
+  item.points = result.points;
+  if (result.repairs.length) {
+    ledger.repairs[item.symbol] = [...(ledger.repairs[item.symbol] || []), ...result.repairs];
+    console.log(`[gap] ${item.symbol}: recovered ${result.repairs.map(p => p.date).join(', ')}`);
   }
+});
+if (skipped.length) console.warn(`[gap] recovery budget exhausted; not attempted: ${skipped.map(item => item.symbol).join(', ')}`);
+for (const item of dataset.indices) {
+  const original = originals.get(item);
   if (kind === 'index' && item.id === 'nasdaq100') {
     item.points = applyNasdaqForwardPricePolicy(item.points, metrics.symbols.QQQ || [], ndxCloses);
     assertNasdaqForwardCoverage(item.points);
