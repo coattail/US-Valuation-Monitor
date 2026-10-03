@@ -73,8 +73,11 @@ quote carries no estimate marker. The UI identifies the estimates in tooltips,
 explains the constant-earnings assumption, and omits vendor labels and point
 markers. Earlier history uses a different basis; the chart connects consecutive
 data points without inserting an artificial gap at the source transition.
-Percentiles and range changes now include all comparable daily observations
-and estimates within the current WSJ basis.
+The 2026-10-03 display correction computes percentiles and range changes from
+all valid samples in the selected interval. It no longer clears the sample at
+the April 10 basis transition. The UI explicitly warns that earlier estimates
+and recent WSJ observations use different bases, so cross-basis statistics are
+reference values. The underlying Forward P/E observations are unchanged.
 
 ## Price provenance and refresh
 

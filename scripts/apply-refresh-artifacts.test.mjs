@@ -38,6 +38,8 @@ test('index artifacts must include and publish the reproducible NDX price cache'
     await assert.rejects(applyArtifacts(root, artifact), /nasdaq100-forward-closes/);
     const prices = JSON.stringify({ symbol: '^NDX', observations: [{ date: '2026-04-17', close: 100, source: 'test' }] });
     await writeFile(path.join(source, 'nasdaq100-forward-closes.json'), prices);
+    await assert.rejects(applyArtifacts(root, artifact), /sp500-ttm-closes/);
+    await writeFile(path.join(source, 'sp500-ttm-closes.json'), JSON.stringify({symbol:'^GSPC',observations:[]}));
     assert.deepEqual(await applyArtifacts(root, artifact), ['index']);
     assert.equal(await readFile(path.join(root, 'data/standardized/nasdaq100-forward-closes.json'), 'utf8'), prices);
   } finally { await rm(dir, { recursive: true, force: true }); }

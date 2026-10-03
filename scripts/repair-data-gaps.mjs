@@ -1,3 +1,5 @@
+import { refreshSp500TtmCloses } from '../packages/data-pipeline/src/sp500-ttm-closes.ts';
+import { applySp500TtmPricePolicy, assertSp500TtmCoverage } from '../packages/data-pipeline/src/sp500-ttm-policy.ts';
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +28,7 @@ try { ledger = await read(`${kind}-gap-repairs.json`); } catch (error) { if (err
 const metrics = await read(`${kind}-yahoo-daily-metrics.json`);
 const target = lastCompletedSession();
 const ndxCloses = kind === 'index' ? await refreshNasdaqForwardCloses(target) : [];
+const spxCloses = kind === 'index' ? await refreshSp500TtmCloses(target) : [];
 // The outage boundary is permanent, so missed dates never age out of validation.
 const expected = tradingDates('2026-09-18', target);
 const yields = new Map();
@@ -67,6 +70,15 @@ for (const item of dataset.indices) {
     assertNasdaqForwardCoverage(item.points);
     for (const repair of ledger.repairs.QQQ || []) {
       [repair.point] = applyNasdaqForwardPricePolicy([repair.point], metrics.symbols.QQQ || [], ndxCloses);
+    }
+  }
+  if (kind === 'index' && item.id === 'sp500') {
+    item.points = applySp500TtmPricePolicy(item.points, metrics.symbols.SPY || [], spxCloses);
+    assertSp500TtmCoverage(item.points);
+    for (const repair of ledger.repairs.SPY || []) {
+      // Include the retained March anchor when correcting a cached repair row.
+      const repaired = applySp500TtmPricePolicy([...item.points.filter(p => p.date === '2026-03-20'), repair.point], metrics.symbols.SPY || [], spxCloses);
+      repair.point = repaired.at(-1);
     }
   }
   assertExistingPointsUnchanged(original, item.points);

@@ -490,7 +490,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-01",
-          "pe_ttm": 23.255999,
+          "pe_ttm": 23.2466,
           "pe_forward": 19.749757,
           "pb": 6.080825,
           "us10y_yield": 0.035,
@@ -499,6 +499,15 @@
             "anchorDate": "2026-09-30",
             "priceSource": "https://api.nasdaq.com/api/quote/SPY/historical?assetclass=etf&fromdate=2026-09-17&todate=2026-10-01&limit=5000",
             "estimated": true
+          },
+          "pe_ttm_estimate": {
+            "method": "wsj-ttm-spx-price-carry",
+            "anchorDate": "2026-09-25",
+            "anchorPe": 23.48,
+            "anchorClose": 7743.41015625,
+            "close": 7666.4501953125,
+            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
           }
         }
       }

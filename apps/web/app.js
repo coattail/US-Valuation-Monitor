@@ -774,7 +774,6 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
     }
     const valuationBasis = indexData.id === "nasdaq100" && metric === "pe_forward"
       ? (point.date >= NASDAQ_FORWARD_WSJ_START ? "wsj-forward" : "historical-estimate") : undefined;
-    if (result.length && valuationBasis !== result.at(-1).valuationBasis) values.length = 0;
     values.push(value);
     const valueIndex = values.length - 1;
 
@@ -785,6 +784,7 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
     result.push({
       date: point.date,
       ...(valuationBasis ? { valuationBasis, forwardEstimate: point.pe_forward_estimate } : {}),
+      ...(metric === "pe_ttm" && point.pe_ttm_estimate ? { ttmEstimate: point.pe_ttm_estimate } : {}),
       value,
       percentile_5y: pct5,
       percentile_10y: pct10,
@@ -1170,7 +1170,6 @@ function recomputeRangeRollingStats(rows) {
 
   for (const row of rows) {
     const value = Number(row.value);
-    if (result.length && row.valuationBasis !== result.at(-1).valuationBasis) values.length = 0;
     values.push(value);
     const valueIndex = values.length - 1;
 
@@ -1303,9 +1302,8 @@ function renderDetailStats(fullRows, viewRows) {
   const latest = viewRows[viewRows.length - 1];
   const latestFull = fullRows[fullRows.length - 1] || latest;
   const metricCfg = METRIC_CONFIG[state.detail.metric];
-  const comparableRows = viewRows.filter(row => row.valuationBasis === latest.valuationBasis);
+  const comparableRows = viewRows;
   const values = comparableRows.map((row) => row.value);
-  const observedBasis = latest.valuationBasis === "wsj-forward";
 
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -1317,15 +1315,15 @@ function renderDetailStats(fullRows, viewRows) {
 
   const stats = [
     [metricCfg.label, valueText],
-    [observedBasis ? "百分位(区间内同口径)" : "百分位(当前区间)", fmtPct(latest.percentile_full, 1)],
-    [observedBasis ? "百分位(同口径历史)" : "百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
+    ["百分位(当前区间)", fmtPct(latest.percentile_full, 1)],
+    ["百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
     ["滚动百分位(5Y)", fmtPct(latest.percentile_5y, 1)],
     ["滚动百分位(10Y)", fmtPct(latest.percentile_10y, 1)],
     ["区间变动", fmtSigned(change, 2, true)],
     ["区间最低", metricCfg.percentage ? fmtSigned(min * 100, metricCfg.digits, true) : fmt(min, metricCfg.digits)],
     ["区间最高", metricCfg.percentage ? fmtSigned(max * 100, metricCfg.digits, true) : fmt(max, metricCfg.digits)],
     ["估值状态 · 当前区间", regimeLabel(latest.value > 0 ? regimeFromPercentile(latest.percentile_full) : "unavailable")],
-    [observedBasis ? "统计区间(同口径)" : "数据区间", `${comparableRows[0].date} ~ ${latest.date}`],
+    ["统计区间", `${comparableRows[0].date} ~ ${latest.date}`],
   ];
   const pill = ([k, v], primary = false) => `<div class="stat-pill ${primary ? "primary-stat" : ""}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
   elements.detailStats.innerHTML = [0, 1, 8, 5].map((i) => pill(stats[i], true)).join("");
@@ -1341,6 +1339,11 @@ function forwardSourceLabel(row) {
   if (row.valuationBasis === "historical-estimate") return "历史估算（不同口径）";
   const estimate = row.forwardEstimate;
   return estimate ? `按纳指100收盘涨跌估算（基准：${estimate.anchorDate}，${fmt(estimate.anchorPe, 2)} 倍）` : "原始报价";
+}
+
+function ttmSourceLabel(row) {
+  const estimate = row?.ttmEstimate;
+  return estimate ? `按标普500收盘涨跌估算（基准：${estimate.anchorDate}，${fmt(estimate.anchorPe, 2)} 倍）` : "历史报价";
 }
 
 function buildDetailLineData(rows, percentage = false) {
@@ -1385,6 +1388,7 @@ function renderDetailChart(indexMeta, rows) {
             axisDate,
             `${metricCfg.label}: <strong>${price ? metricFormatter(price.data[1]) : "--"}</strong>`,
             ...(isNasdaqForward ? [forwardSourceLabel(rows.find(row => row.date === axisDate))] : []),
+            ...(indexMeta.id === "sp500" && state.detail.metric === "pe_ttm" ? [ttmSourceLabel(rows.find(row => row.date === axisDate))] : []),
           ].join("<br/>");
         },
       },
@@ -1624,8 +1628,10 @@ async function renderDetail() {
   const indexId = state.detail.indexId;
   const metric = state.detail.metric;
   const sourceNote = document.getElementById("detail-source-note");
-  sourceNote.hidden = !(indexId === "nasdaq100" && metric === "pe_forward");
-  sourceNote.textContent = sourceNote.hidden ? "" : "缺失日按纳指100实际收盘涨跌估算，假设两次报价之间预期盈利不变。历史口径存在差异，统计仅使用同口径样本。";
+  sourceNote.hidden = !((indexId === "nasdaq100" && metric === "pe_forward") || (indexId === "sp500" && metric === "pe_ttm"));
+  sourceNote.textContent = sourceNote.hidden ? "" : indexId === "nasdaq100"
+    ? "百分位按所选区间全部有效样本计算。较早历史与近期报价口径不同，跨口径统计仅供参考。缺失日按纳指100收盘涨跌估算，假设预期盈利不变。"
+    : "保留 WSJ 的原始 TTM PE 报价，报价之间按标普500实际收盘涨跌估算，假设盈利不变。新的盈利报价可能引起真实跳变；估算值可在提示中查看。";
   const renderToken = ++state.runtime.detailRenderToken;
 
   if (!indexId) return;
@@ -2595,7 +2601,9 @@ export {
   formatAxisDateForWidth as formatAxisDateForWidthForTest,
   buildMetricSeriesFromIndexData as getMetricSeriesForTest,
   buildDetailLineData as buildDetailLineDataForTest,
+  filterRowsByRange as filterRowsByRangeForTest,
   forwardSourceLabel as forwardSourceLabelForTest,
+  ttmSourceLabel as ttmSourceLabelForTest,
   recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
   resolveYAxisRangeFromSeriesData as resolveYAxisRangeForTest,
   toFiniteNumber as toFiniteNumberForTest,

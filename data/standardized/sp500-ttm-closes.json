@@ -1,0 +1,685 @@
+{
+  "symbol": "^GSPC",
+  "observations": [
+    {
+      "date": "2026-03-20",
+      "close": 6506.47998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-03-23",
+      "close": 6581,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-03-24",
+      "close": 6556.3701171875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-03-25",
+      "close": 6591.89990234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-03-26",
+      "close": 6477.16015625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-03-27",
+      "close": 6368.85009765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-03-30",
+      "close": 6343.72021484375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-03-31",
+      "close": 6528.52001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-01",
+      "close": 6575.31982421875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-02",
+      "close": 6582.68994140625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-06",
+      "close": 6611.830078125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-07",
+      "close": 6616.85009765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-08",
+      "close": 6782.81005859375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-09",
+      "close": 6824.66015625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-10",
+      "close": 6816.89013671875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-13",
+      "close": 6886.240234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-14",
+      "close": 6967.3798828125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-15",
+      "close": 7022.9501953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-16",
+      "close": 7041.27978515625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-17",
+      "close": 7126.06005859375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-20",
+      "close": 7109.14013671875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-21",
+      "close": 7064.009765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-22",
+      "close": 7137.89990234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-23",
+      "close": 7108.39990234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-24",
+      "close": 7165.080078125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-27",
+      "close": 7173.91015625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-28",
+      "close": 7138.7998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-29",
+      "close": 7135.9501953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-04-30",
+      "close": 7209.009765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-01",
+      "close": 7230.1201171875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-04",
+      "close": 7200.75,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-05",
+      "close": 7259.22021484375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-06",
+      "close": 7365.1201171875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-07",
+      "close": 7337.10986328125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-08",
+      "close": 7398.93017578125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-11",
+      "close": 7412.83984375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-12",
+      "close": 7400.9599609375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-13",
+      "close": 7444.25,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-14",
+      "close": 7501.240234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-15",
+      "close": 7408.5,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-18",
+      "close": 7403.0498046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-19",
+      "close": 7353.60986328125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-20",
+      "close": 7432.97021484375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-21",
+      "close": 7445.72021484375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-22",
+      "close": 7473.47021484375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-26",
+      "close": 7519.1201171875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-27",
+      "close": 7520.35986328125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-28",
+      "close": 7563.6298828125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-05-29",
+      "close": 7580.06005859375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-01",
+      "close": 7599.9599609375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-02",
+      "close": 7609.77978515625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-03",
+      "close": 7553.68017578125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-04",
+      "close": 7584.31005859375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-05",
+      "close": 7383.740234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-08",
+      "close": 7405.72998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-09",
+      "close": 7386.64990234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-10",
+      "close": 7266.990234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-11",
+      "close": 7394.2998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-12",
+      "close": 7431.4599609375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-15",
+      "close": 7554.2900390625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-16",
+      "close": 7511.35009765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-17",
+      "close": 7420.10009765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-18",
+      "close": 7500.580078125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-22",
+      "close": 7472.7900390625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-23",
+      "close": 7365.4599609375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-24",
+      "close": 7358.22021484375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-25",
+      "close": 7357.490234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-26",
+      "close": 7354.02001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-29",
+      "close": 7440.43017578125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-06-30",
+      "close": 7499.35986328125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-01",
+      "close": 7483.22998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-02",
+      "close": 7483.240234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-06",
+      "close": 7537.43017578125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-07",
+      "close": 7503.85009765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-08",
+      "close": 7482.7099609375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-09",
+      "close": 7543.64013671875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-10",
+      "close": 7575.39013671875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-13",
+      "close": 7515.33984375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-14",
+      "close": 7543.58984375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-15",
+      "close": 7572.39990234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-16",
+      "close": 7533.77001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-17",
+      "close": 7457.68994140625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-20",
+      "close": 7443.27978515625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-21",
+      "close": 7509.2001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-22",
+      "close": 7498.9599609375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-23",
+      "close": 7408.2998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-24",
+      "close": 7411.97998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-27",
+      "close": 7413.18017578125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-28",
+      "close": 7428.77978515625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-29",
+      "close": 7316.14990234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-30",
+      "close": 7437.6298828125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-07-31",
+      "close": 7489.72021484375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-03",
+      "close": 7600.5,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-04",
+      "close": 7736.52001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-05",
+      "close": 7723.5498046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-06",
+      "close": 7709.9599609375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-07",
+      "close": 7757.64013671875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-10",
+      "close": 7753.10986328125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-11",
+      "close": 7728.2001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-12",
+      "close": 7748.5,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-13",
+      "close": 7798.990234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-14",
+      "close": 7785.759765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-17",
+      "close": 7745.06005859375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-18",
+      "close": 7691.759765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-19",
+      "close": 7707.97998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-20",
+      "close": 7641.16015625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-21",
+      "close": 7674.3701171875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-24",
+      "close": 7652.85986328125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-25",
+      "close": 7677.27978515625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-26",
+      "close": 7675.7001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-27",
+      "close": 7730.990234375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-28",
+      "close": 7711.759765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-08-31",
+      "close": 7686.14013671875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-01",
+      "close": 7631.47021484375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-02",
+      "close": 7666.60009765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-03",
+      "close": 7747.7099609375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-04",
+      "close": 7718.60009765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-08",
+      "close": 7673.52001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-09",
+      "close": 7636.35986328125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-10",
+      "close": 7591.7001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-11",
+      "close": 7656.97998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-14",
+      "close": 7619.97998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-15",
+      "close": 7585.72998046875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-16",
+      "close": 7551.81005859375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-17",
+      "close": 7637.759765625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-18",
+      "close": 7650.5,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-21",
+      "close": 7764.7001953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-22",
+      "close": 7764.64013671875,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-23",
+      "close": 7706.02978515625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-24",
+      "close": 7704.1298828125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-25",
+      "close": 7743.41015625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-28",
+      "close": 7683.68994140625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-29",
+      "close": 7670.83984375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-09-30",
+      "close": 7651.5400390625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-10-01",
+      "close": 7666.4501953125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    },
+    {
+      "date": "2026-10-02",
+      "close": 7722.72021484375,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+    }
+  ]
+}
