@@ -1,8 +1,33 @@
 import { createTextFetcher } from "./fetch-text.ts";
+import { isTradingDate } from "./market-calendar.ts";
 
 interface PricePoint { date: string; close: number }
 interface DailyClose extends PricePoint { ts: number }
 const fetchText = createTextFetcher({ userAgent: "Mozilla/5.0", requestBudgetMs: 10000 });
+
+// Nasdaq's historical table can lag its dated, closed-market primary quote.
+// Date-only, non-real-time primary data is required: never use secondary
+// after-hours quotes or an intraday timestamp as a completed daily close.
+export function parseNasdaqClosedQuote(raw: string, symbol: string, endDate: string): PricePoint[] {
+  const payload = JSON.parse(raw);
+  const data = payload?.data;
+  const quote = data?.primaryData;
+  if (Number(payload?.status?.rCode) !== 200 || data?.symbol !== symbol.replace(/-/g, ".") ||
+      data?.marketStatus !== "Closed" || quote?.isRealTime !== false) return [];
+  const match = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{1,2}), (\d{4})$/.exec(quote.lastTradeTimestamp || "");
+  if (!match) return [];
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].indexOf(match[1]) + 1;
+  const date = `${match[3]}-${String(month).padStart(2, "0")}-${match[2].padStart(2, "0")}`;
+  const close = Number(String(quote.lastSalePrice || "").replace(/[$,\s]/g, ""));
+  const ts = Date.parse(`${date}T00:00:00Z`);
+  if (date !== endDate || !Number.isFinite(ts) || !isTradingDate(date) || new Date(ts).toISOString().slice(0, 10) !== date ||
+      !Number.isFinite(close) || close <= 0) return [];
+  return [{ date, close }];
+}
+
+export function nasdaqClosedQuoteUrl(symbol: string, assetClass: "stocks" | "etf"): string {
+  return `https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol.replace(/-/g, "."))}/info?assetclass=${assetClass}`;
+}
 
 export function appendRecentCloses(
   history: readonly PricePoint[], raw: string, endDate: string
@@ -49,15 +74,23 @@ export async function refreshNasdaqPriceTail(
   const nasdaqSymbol = symbol.replace(/-/g, ".");
   const url = `https://api.nasdaq.com/api/quote/${encodeURIComponent(nasdaqSymbol)}/historical` +
     `?assetclass=${assetClass}&fromdate=${fromDate}&todate=${endDate}&limit=100`;
+  let updated = [...original];
   try {
-    const updated = appendRecentCloses(original, await request(url), endDate);
-    if (updated.length > original.length) {
-      console.log(`[prices] ${symbol}: appended ${updated.length - original.length} Nasdaq close(s), latest=${updated.at(-1)?.date}`);
-    }
-    return updated;
+    updated = appendRecentCloses(original, await request(url), endDate);
   } catch (error) {
     // Preserve source dates when no verified newer observation is available.
     console.warn(`[prices] ${symbol}: recent close unavailable: ${String(error)}`);
-    return original;
   }
+  if (updated.at(-1)?.date !== endDate) {
+    try {
+      for (const point of parseNasdaqClosedQuote(await request(nasdaqClosedQuoteUrl(symbol, assetClass)), symbol, endDate)) {
+        updated.push({ ...point, ts: Date.parse(`${point.date}T00:00:00Z`) });
+        console.log(`[prices] ${symbol}: recovered dated Nasdaq closed quote ${point.date}`);
+      }
+    } catch (error) { console.warn(`[prices] ${symbol}: closed quote unavailable: ${String(error)}`); }
+  }
+  if (updated.length > original.length) {
+    console.log(`[prices] ${symbol}: appended ${updated.length - original.length} Nasdaq close(s), latest=${updated.at(-1)?.date}`);
+  }
+  return updated;
 }

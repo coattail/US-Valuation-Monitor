@@ -1,5 +1,5 @@
 import { createTextFetcher } from './fetch-text.ts';
-import { appendRecentCloses } from './recent-close.ts';
+import { appendRecentCloses, nasdaqClosedQuoteUrl, parseNasdaqClosedQuote } from './recent-close.ts';
 
 export interface CloseObservation { date: string; close: number; source: string }
 export interface GapPoint { date: string; [key: string]: unknown }
@@ -29,6 +29,8 @@ export async function fetchGapCloses(symbol: string, assetClass: 'stocks' | 'etf
   const chart = `https://chartexchange.com/symbol/otc-${symbol.toLowerCase()}/historical/`;
   const sources = [
     { url: nasdaq, parse: (raw: string) => appendRecentCloses([], raw, to).map(p => ({ date: p.date, close: p.close, source: nasdaq })) },
+    ...(requiredDates.includes(to) ? [{ url: nasdaqClosedQuoteUrl(symbol, assetClass), parse: (raw: string) =>
+      parseNasdaqClosedQuote(raw, symbol, to).map(p => ({ ...p, source: nasdaqClosedQuoteUrl(symbol, assetClass) })) }] : []),
     { url: yahoo, parse: (raw: string) => parseYahooCloses(raw, yahoo) },
     ...(symbol === 'TCEHY' ? [{ url: chart, parse: (raw: string) => parseChartExchangeCloses(raw, chart) }] : []),
   ];
@@ -41,6 +43,21 @@ export async function fetchGapCloses(symbol: string, assetClass: 'stocks' | 'etf
     } catch (error) { console.warn(`[gap] ${symbol}: ${String(error)}`); }
   }
   return [...observations.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// A slow ticker must not consume the recovery window for the entire universe.
+// Drain started workers before returning; callers can then validate/write once.
+export async function recoverWithBudget<T>(items: T[], recover: (item: T) => Promise<void>,
+  { concurrency = 4, budgetMs = 300000, now = Date.now } = {}): Promise<T[]> {
+  const deadline = now() + budgetMs;
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length && now() < deadline) {
+      const item = items[next++];
+      await recover(item);
+    }
+  }));
+  return items.slice(next);
 }
 
 // Short-window, price-based estimates, never represented as historical vendor

@@ -56,6 +56,7 @@ export function createTextFetcher(options: FetcherOptions) {
     let lastError = "request budget exhausted";
     let sourceFailure = false;
     let stop = false;
+    let http1 = false;
     for (let attempt = 0; attempt <= retries && !stop; attempt += 1) {
       for (const direct of routes) {
         if (disabled.has(origin)) throw new Error(`Source unavailable for this build: ${origin}`);
@@ -63,6 +64,7 @@ export function createTextFetcher(options: FetcherOptions) {
         if (remaining <= 0) { stop = true; break; }
         const args = [
           ...(direct ? ["--noproxy", "*"] : []),
+          ...(http1 ? ["--http1.1"] : []),
           "-4", "-sSL", "--compressed", "--connect-timeout", String(Math.min(5, remaining / 1000)),
           "--max-time", String(remaining / 1000), "-A", request.userAgent || options.userAgent,
           "-H", "accept-language: en-US,en;q=0.9",
@@ -87,6 +89,12 @@ export function createTextFetcher(options: FetcherOptions) {
         } catch (error) {
           // Never accept a partial body from a timed-out curl as valid data.
           const code = (error as { code?: unknown }).code;
+          // FRED intermittently resets HTTP/2 streams (curl 16/92). Retry the
+          // same route once with HTTP/1.1, inside the original request budget.
+          if ((code === 16 || code === 92) && !http1 && now() < deadline) {
+            http1 = true;
+            routes.splice(routes.indexOf(direct) + 1, 0, direct);
+          }
           lastError = `transport failure (${String(code || "timeout")})`;
           sourceFailure = true;
         }
