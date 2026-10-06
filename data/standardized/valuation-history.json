@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T12:08:40.040Z",
+  "generatedAt": "2026-10-06T16:01:00.515Z",
   "source": "free-live-proxy-v6+stockanalysis-pe-2+stockmarketperatio-pe-1+multpl-pb-1+wsj-pe-4+stockanalysis-snap-2+curated-public-fpe-8+vendor-index-fpe-2+ndx-bloomberg-fpe-1+ndx-official-ttm-monthly-1+rut-index-close-1+history-fpe-4+sp500-pb-prefix-1+sp500-wsj-carry-1+sp500-yardeni-refinitiv-fpe-prefix-1+fallback10y",
   "indices": [
     {
@@ -193237,7 +193237,7 @@
           "date": "2026-10-05",
           "pe_ttm": 35.9661,
           "pe_forward": 26.6248,
-          "pb": 2.0837,
+          "pb": 2.09,
           "us10y_yield": 0.035
         }
       ]
@@ -231302,9 +231302,9 @@
         },
         {
           "date": "2026-10-05",
-          "pe_ttm": 22.2174,
+          "pe_ttm": 21.89,
           "pe_forward": 18.2934,
-          "pb": 2.7307,
+          "pb": 2.68,
           "us10y_yield": 0.035
         }
       ]
@@ -269369,9 +269369,9 @@
         },
         {
           "date": "2026-10-05",
-          "pe_ttm": 28.3746,
+          "pe_ttm": 28.32,
           "pe_forward": 28.6402,
-          "pb": 5.0748,
+          "pb": 5.07,
           "us10y_yield": 0.035
         }
       ]
@@ -722722,9 +722722,9 @@
         },
         {
           "date": "2026-10-05",
-          "pe_ttm": 36.5801,
+          "pe_ttm": 35.97,
           "pe_forward": 26.6197,
-          "pb": 7.397,
+          "pb": 7.28,
           "us10y_yield": 0.035
         }
       ]
@@ -767140,9 +767140,9 @@
         },
         {
           "date": "2026-10-05",
-          "pe_ttm": 51.1029,
+          "pe_ttm": 51.76,
           "pe_forward": 26.1165,
-          "pb": 11.3017,
+          "pb": 11.54,
           "us10y_yield": 0.035
         }
       ]
