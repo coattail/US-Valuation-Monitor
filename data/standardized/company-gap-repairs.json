@@ -233,6 +233,35 @@
             "estimated": true
           }
         }
+      },
+      {
+        "date": "2026-10-07",
+        "anchorDate": "2026-10-06",
+        "anchorClose": {
+          "date": "2026-10-06",
+          "close": 54.5,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1790121600&period2=1791417600&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-07",
+          "close": 53.4900016784668,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1790121600&period2=1791417600&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-07",
+          "pe_ttm": 14.101336,
+          "pe_forward": 12.966609,
+          "pb": 3.103381,
+          "peg": 1.288587,
+          "us10y_yield": 0,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-06",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/TCEHY?period1=1790121600&period2=1791417600&interval=1d",
+            "estimated": true
+          }
+        }
       }
     ],
     "SHEL": [
