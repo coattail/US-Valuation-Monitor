@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-13T12:48:53.762Z",
+  "generatedAt": "2026-10-13T17:02:02.297Z",
   "symbols": {
     "DIA": [
       {
@@ -936,7 +936,7 @@
         "pe_forward": 19.58,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-10-13T12:46:48.098Z"
+        "capturedAt": "2026-10-13T16:58:46.994Z"
       }
     ],
     "DRAM": [
@@ -1418,7 +1418,7 @@
         "pe_forward": null,
         "pb": null,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-10-13T12:48:53.259Z"
+        "capturedAt": "2026-10-13T17:02:01.983Z"
       }
     ],
     "IGV": [
@@ -1892,7 +1892,7 @@
         "pe_forward": null,
         "pb": 7.45,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-10-13T12:48:46.801Z"
+        "capturedAt": "2026-10-13T17:01:55.133Z"
       }
     ],
     "IJH": [
@@ -2550,7 +2550,7 @@
         "pe_forward": null,
         "pb": 2.69,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-10-13T12:47:22.890Z"
+        "capturedAt": "2026-10-13T16:59:24.900Z"
       }
     ],
     "IWM": [
@@ -3248,7 +3248,7 @@
         "pe_forward": 25.91,
         "pb": 2.07,
         "source": "wsj-latest",
-        "capturedAt": "2026-10-13T12:46:57.719Z"
+        "capturedAt": "2026-10-13T16:58:58.796Z"
       }
     ],
     "QQQ": [
@@ -3466,7 +3466,7 @@
         "pe_forward": 22.15,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-10-13T12:46:41.061Z"
+        "capturedAt": "2026-10-13T16:58:40.446Z"
       }
     ],
     "SMH": [
@@ -3948,7 +3948,7 @@
         "pe_forward": null,
         "pb": null,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-10-13T12:48:51.458Z"
+        "capturedAt": "2026-10-13T17:01:59.414Z"
       }
     ],
     "SOXX": [
@@ -4422,7 +4422,7 @@
         "pe_forward": null,
         "pb": 11.06,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-10-13T12:48:49.195Z"
+        "capturedAt": "2026-10-13T17:01:57.328Z"
       }
     ],
     "SPY": [
@@ -4640,7 +4640,7 @@
         "pe_forward": 19.56,
         "pb": null,
         "source": "wsj-latest",
-        "capturedAt": "2026-10-13T12:46:08.218Z"
+        "capturedAt": "2026-10-13T16:58:05.811Z"
       }
     ],
     "VTI": [
@@ -5274,7 +5274,7 @@
         "pe_forward": null,
         "pb": 5.1,
         "source": "ishares-official-latest",
-        "capturedAt": "2026-10-13T12:47:44.712Z"
+        "capturedAt": "2026-10-13T16:59:48.821Z"
       }
     ],
     "XLB": [
@@ -6156,7 +6156,7 @@
         "pe_forward": 16.75,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:35.376Z"
+        "capturedAt": "2026-10-13T17:01:20.001Z"
       }
     ],
     "XLC": [
@@ -7022,7 +7022,7 @@
         "pe_forward": 13.67,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:17.590Z"
+        "capturedAt": "2026-10-13T16:59:58.023Z"
       }
     ],
     "XLE": [
@@ -7912,7 +7912,7 @@
         "pe_forward": 12.51,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:24.785Z"
+        "capturedAt": "2026-10-13T17:00:34.358Z"
       }
     ],
     "XLF": [
@@ -8786,7 +8786,7 @@
         "pe_forward": null,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:28.202Z"
+        "capturedAt": "2026-10-13T17:00:45.039Z"
       }
     ],
     "XLI": [
@@ -9668,7 +9668,7 @@
         "pe_forward": 24.79,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:32.816Z"
+        "capturedAt": "2026-10-13T17:01:07.285Z"
       }
     ],
     "XLK": [
@@ -10550,7 +10550,7 @@
         "pe_forward": 24.59,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:40.949Z"
+        "capturedAt": "2026-10-13T17:01:42.927Z"
       }
     ],
     "XLP": [
@@ -11424,7 +11424,7 @@
         "pe_forward": 20.16,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:22.381Z"
+        "capturedAt": "2026-10-13T17:00:17.329Z"
       }
     ],
     "XLRE": [
@@ -12290,7 +12290,7 @@
         "pe_forward": null,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:38.774Z"
+        "capturedAt": "2026-10-13T17:01:28.324Z"
       }
     ],
     "XLU": [
@@ -13164,7 +13164,7 @@
         "pe_forward": 17.36,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:44.721Z"
+        "capturedAt": "2026-10-13T17:01:53.593Z"
       }
     ],
     "XLV": [
@@ -14046,7 +14046,7 @@
         "pe_forward": 20.67,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:30.712Z"
+        "capturedAt": "2026-10-13T17:00:56.706Z"
       }
     ],
     "XLY": [
@@ -14920,7 +14920,7 @@
         "pe_forward": 22.39,
         "pb": null,
         "source": "ssga-official-latest",
-        "capturedAt": "2026-10-13T12:48:20.150Z"
+        "capturedAt": "2026-10-13T17:00:07.927Z"
       }
     ]
   }
