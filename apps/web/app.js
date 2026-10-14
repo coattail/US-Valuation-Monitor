@@ -1,4 +1,4 @@
-import { detailChartFrame, updateDetailWindow } from "./detail-chart-ui.js?v=20261014-range-polish-v1";
+import { detailChartFrame } from "./detail-chart-ui.js?v=20261014-simple-chart-layout-v1";
 import { percentileColor, regimeFromPercentile, regimeLabel, snapshotPercentile, snapshotBadge } from "./valuation-policy.js";
 import { initAnalysisUI, formatAxisTick, createSeriesColors, resolveDetailRange, detailRangeCaption } from "./analysis-ui.js?v=20260910-detail-layout-v1";
 let analysisUI;
@@ -1093,7 +1093,6 @@ function bindDetailZoomSync() {
       detailZoomSyncState.syncing = true;
       applyZoomRange(task.targetChart, task.range);
       applyMainYAxisRange(task.range);
-      updateDetailWindow(mainChart);
       detailZoomSyncState.syncing = false;
     });
   };
@@ -1102,7 +1101,6 @@ function bindDetailZoomSync() {
   percentileChart.on("datazoom", (payload) => scheduleSync(percentileChart, mainChart, payload));
 
   applyMainYAxisRange(extractZoomRange(mainChart));
-  updateDetailWindow(mainChart);
 }
 
 function renderOverview() {

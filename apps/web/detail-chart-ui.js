@@ -38,16 +38,3 @@ export function detailChartFrame(right, tone = "value") {
     }],
   };
 }
-
-export function updateDetailWindow(chart) {
-  const zoom = chart?.getOption?.()?.dataZoom?.[0];
-  for (const [id, value] of [["detail-window-start", zoom?.startValue], ["detail-window-end", zoom?.endValue]]) {
-    const element = document.getElementById(id);
-    if (!element) continue;
-    const date = value == null ? null : new Date(value);
-    const label = date && Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : "—";
-    element.textContent = label;
-    if (label !== "—") element.dateTime = label;
-    else element.removeAttribute("datetime");
-  }
-}

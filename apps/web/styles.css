@@ -430,10 +430,9 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .detail-visual-grid .panel-title-row { margin-bottom: 4px; }
 .detail-visual-grid h3 { font-size: 14px; }
 .detail-visual-grid .hint { font-size: 11px; }
-#detail-percentile-track, .detail-window-summary { margin-top: 8px; padding: 12px 0 0; min-height: 68px; border-top: 1px solid var(--border); }
-.detail-window-summary .title { margin-bottom: 8px; color: var(--subtle); font-size: 11px; }
-.detail-window-dates { display: flex; align-items: center; gap: 12px; color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
-.detail-window-dates > span { color: var(--subtle); }
+/* Stretch the value plot to the card bottom; the percentile card retains its track. */
+.detail-visual-main .chart-large { flex: 1; }
+#detail-percentile-track { margin-top: 8px; padding: 12px 0 0; min-height: 68px; border-top: 1px solid var(--border); }
 #detail-percentile-track .title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-size: 11px; }
 #detail-percentile-track .title strong { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
 #detail-percentile-track .labels { margin-top: 7px; font-size: 10px; }
@@ -452,5 +451,5 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
   .detail-controls.analysis-controls { gap: 8px; padding-top: 4px; }
   .detail-visual-grid, .detail-visual-main, .detail-visual-side { min-height: 0; }
   .detail-visual-main, .detail-visual-side { padding: 12px; }
-  .detail-visual-main .chart-large, .detail-visual-side .chart-medium { height: 300px; }
+  .detail-visual-main .chart-large, .detail-visual-side .chart-medium { height: 300px; flex: none; }
 }
