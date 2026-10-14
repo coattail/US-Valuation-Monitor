@@ -1,3 +1,4 @@
+import { detailChartFrame, updateDetailWindow } from "./detail-chart-ui.js?v=20261014-range-polish-v1";
 import { percentileColor, regimeFromPercentile, regimeLabel, snapshotPercentile, snapshotBadge } from "./valuation-policy.js";
 import { initAnalysisUI, formatAxisTick, createSeriesColors, resolveDetailRange, detailRangeCaption } from "./analysis-ui.js?v=20260910-detail-layout-v1";
 let analysisUI;
@@ -1092,6 +1093,7 @@ function bindDetailZoomSync() {
       detailZoomSyncState.syncing = true;
       applyZoomRange(task.targetChart, task.range);
       applyMainYAxisRange(task.range);
+      updateDetailWindow(mainChart);
       detailZoomSyncState.syncing = false;
     });
   };
@@ -1100,6 +1102,7 @@ function bindDetailZoomSync() {
   percentileChart.on("datazoom", (payload) => scheduleSync(percentileChart, mainChart, payload));
 
   applyMainYAxisRange(extractZoomRange(mainChart));
+  updateDetailWindow(mainChart);
 }
 
 function renderOverview() {
@@ -1372,7 +1375,7 @@ function renderDetailChart(indexMeta, rows) {
     {
       animationDuration: 500,
       legend: { show: false },
-      grid: { containLabel: true, left: 12, right: detailRightPadding, top: 16, bottom: 54 },
+      ...detailChartFrame(detailRightPadding, "value"),
       tooltip: {
         trigger: "axis",
         backgroundColor: "#17212d",
@@ -1406,33 +1409,6 @@ function renderDetailChart(indexMeta, rows) {
           },
         },
       },
-      dataZoom: [
-        {
-          type: "slider",
-          xAxisIndex: 0,
-          filterMode: "none",
-          height: 20,
-          bottom: 4,
-          brushSelect: false,
-          showDetail: false,
-          borderColor: "rgba(159, 184, 236, 0.4)",
-          backgroundColor: "rgba(29, 45, 85, 0.7)",
-          fillerColor: "rgba(105, 182, 255, 0.25)",
-          handleSize: 24,
-          handleStyle: {
-            color: "#7ab7ff",
-            borderColor: "#d7e8ff",
-            borderWidth: 1,
-          },
-          moveHandleStyle: {
-            color: "rgba(149, 203, 255, 0.65)",
-          },
-          moveHandleSize: 20,
-          textStyle: {
-            color: "#8aa5b8",
-          },
-        },
-      ],
       yAxis: {
         type: "value",
         scale: true,
@@ -1510,7 +1486,7 @@ function renderDetailPercentileChart(rows) {
   chart.setOption(
     {
       animationDuration: 420,
-      grid: { containLabel: true, left: 12, right: percentileRightPadding, top: 16, bottom: 54 },
+      ...detailChartFrame(percentileRightPadding, "percentile"),
       tooltip: {
         trigger: "axis",
         backgroundColor: "#17212d",
@@ -1538,33 +1514,6 @@ function renderDetailPercentileChart(rows) {
           },
         },
       },
-      dataZoom: [
-        {
-          type: "slider",
-          xAxisIndex: 0,
-          filterMode: "none",
-          height: 20,
-          bottom: 4,
-          brushSelect: false,
-          showDetail: false,
-          borderColor: "rgba(163, 186, 233, 0.38)",
-          backgroundColor: "rgba(35, 52, 95, 0.68)",
-          fillerColor: "rgba(132, 171, 255, 0.25)",
-          handleSize: 22,
-          handleStyle: {
-            color: "#9ab8ff",
-            borderColor: "#dce7ff",
-            borderWidth: 1,
-          },
-          moveHandleStyle: {
-            color: "rgba(166, 188, 255, 0.62)",
-          },
-          moveHandleSize: 18,
-          textStyle: {
-            color: "#9ab3d3",
-          },
-        },
-      ],
       yAxis: {
         type: "value",
         min: 0,
