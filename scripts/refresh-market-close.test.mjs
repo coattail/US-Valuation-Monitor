@@ -10,14 +10,26 @@ import { fetchGapCloses } from '../packages/data-pipeline/src/gap-repair.ts';
 
 test('close schedule starts after 16:00 New York in both DST offsets and skips holidays', () => {
   const plan = time => marketClosePlan({ schedule: '7,22,47 20,21 * * 1-5', now: new Date(time) });
-  assert.deepEqual(plan('2026-10-14T20:07:00Z'), { mode: 'close', target: '2026-10-14', run: 'true' });
+  assert.deepEqual(plan('2026-10-14T20:07:00Z'), { mode: 'close', target: '2026-10-14', run: 'true', datasets: '["index"]' });
   assert.equal(plan('2026-12-14T20:07:00Z').run, 'false');
-  assert.deepEqual(plan('2026-12-14T21:07:00Z'), { mode: 'close', target: '2026-12-14', run: 'true' });
+  assert.deepEqual(plan('2026-12-14T21:07:00Z'), { mode: 'close', target: '2026-12-14', run: 'true', datasets: '["index"]' });
   assert.equal(plan('2026-12-25T21:07:00Z').run, 'false');
   assert.equal(plan('2026-10-17T20:07:00Z').run, 'false');
   assert.equal(marketClosePlan({ schedule: '17 5 * * 2-6', now: new Date('2026-10-15T05:17:00Z') }).mode, 'full');
   assert.equal(marketClosePlan({ schedule: '17 9 * * 2-6', now: new Date('2026-10-15T09:17:00Z') }).run, 'true');
   assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'close' }).run, 'true');
+});
+
+test('index close runs exclude companies; daily Yahoo runs exclude index estimation', () => {
+  for (const schedule of ['17 22 * * 1-5', '17 1 * * 2-6']) {
+    const plan = marketClosePlan({ schedule, now: new Date('2026-10-15T01:17:00Z') });
+    assert.equal(plan.mode, 'company');
+    assert.equal(plan.datasets, '["company"]');
+    assert.equal(plan.run, 'true');
+  }
+  assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'company' }).datasets, '["company"]');
+  assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'full' }).datasets, '["index","company"]');
+  assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'close' }).datasets, '["index"]');
 });
 
 test('fast price fetch uses verified Yahoo symbol and unadjusted close before lagging Nasdaq history', async () => {
@@ -56,20 +68,10 @@ const now = new Date('2026-10-14T20:07:00Z');
 const anchor = { date: '2026-10-13', pe_ttm: 20, pe_forward: 18, pb: 3, us10y_yield: .04 };
 const fetchCloses = async () => [{ date: '2026-10-13', close: 100, source: 'dated-price' }, { date: '2026-10-14', close: 105, source: 'dated-price' }];
 
-test('company fast refresh appends from published series and leaves unavailable metrics null', async t => {
-  const { dir, read } = await fixture(t, 'company', [{ id: 'company_aapl', symbol: 'AAPL', points: [{ ...anchor, pe_forward: null }] }]);
-  const result = await refreshMarketClose('company', { dir, now, fetchCloses });
-  assert.equal(result.added, 1);
-  assert.deepEqual(result.pending, []);
-  const next = await read('company-valuation-history.json');
-  assert.deepEqual(next.indices[0].points[0], { ...anchor, pe_forward: null });
-  const point = next.indices[0].points[1];
-  assert.equal(point.pe_ttm, 21);
-  assert.equal(point.pb, 3.15);
-  assert.equal(point.pe_forward, null);
-  assert.equal(point.recovery.estimated, true);
-  assert.equal(next.generatedAt, now.toISOString());
-  assert.deepEqual((await read('company-gap-repairs.json')).repairs.AAPL[0].point, point);
+test('company close estimation is rejected before touching files or sources', async () => {
+  await assert.rejects(refreshMarketClose('company', { dir: '/does-not-exist', now,
+    fetchCloses: () => { throw new Error('Must not fetch company prices'); },
+  }), /index-only/);
 });
 
 test('index appends with dated Treasury carry when FRED has not finalized and preserves history lock', async t => {
@@ -117,9 +119,11 @@ test('missing actual index close does not prevent another symbol publishing vali
 });
 
 test('missing price never advances the date and an open session is rejected', async t => {
-  const { dir, read } = await fixture(t, 'company', [{ id: 'company_aapl', symbol: 'AAPL', points: [anchor] }]);
-  assert.equal((await refreshMarketClose('company', { dir, now, fetchCloses: async () => [] })).added, 0);
-  assert.equal((await read('company-valuation-history.json')).indices[0].points.at(-1).date, anchor.date);
-  await assert.rejects(refreshMarketClose('company', { dir, now: new Date('2026-10-14T19:59:00Z'), target: '2026-10-14' }), /uncompleted/);
+  const { dir, read } = await fixture(t, 'index', [{ id: 'dow30', symbol: 'DIA', points: [anchor] }]);
+  assert.equal((await refreshMarketClose('index', { dir, now, fetchCloses: async () => [],
+    ndxCloses: async () => [], spxCloses: async () => [], fetchYield: async () => 'date,DGS10',
+  })).added, 0);
+  assert.equal((await read('valuation-history.json')).indices[0].points.at(-1).date, anchor.date);
+  await assert.rejects(refreshMarketClose('index', { dir, now: new Date('2026-10-14T19:59:00Z'), target: '2026-10-14' }), /uncompleted/);
   assert.deepEqual(parseTreasuryYields('observation_date,DGS10\n2026-10-14,.', 'fred'), []);
 });

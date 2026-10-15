@@ -12,7 +12,7 @@ import { applyNasdaqForwardPricePolicy, assertNasdaqForwardCoverage } from '../p
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'data/standardized');
 const kind = process.argv[2];
-if (!['index', 'company'].includes(kind)) throw new Error('Usage: node scripts/repair-data-gaps.mjs index|company');
+if (kind !== 'index') throw new Error('Gap price estimates are index-only; company valuations must synchronize Yahoo sources');
 const read = async name => JSON.parse(await readFile(path.join(dir, name), 'utf8'));
 const write = async (name, value) => writeFile(path.join(dir, name), JSON.stringify(value, null, 2) + '\n');
 const historyFile = kind === 'index' ? 'valuation-history.json' : 'company-valuation-history.json';

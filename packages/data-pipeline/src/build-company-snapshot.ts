@@ -1,4 +1,5 @@
 import { lastCompletedSession as getLastCompletedUsMarketDate } from "./market-calendar.ts";
+import { capCompanyPublicationToYahoo } from "./company-yahoo-publication.ts";
 import { repairCompanyMetricHistory, preserveSpcxUnavailableMetrics } from "./company-data-corrections.mjs";
 import path from "node:path";
 import { createTextFetcher, isRejectedPayload } from "./fetch-text.ts";
@@ -7796,7 +7797,12 @@ async function main(): Promise<void> {
     marketCap: item.marketCap,
     peg: sanitizeSignedRatio(item.peg ?? null),
     forwardStartDate: item.forwardStartDate,
-    points: stripGrowthOnlyFieldsFromSnapshotPoints(item.points),
+    points: stripGrowthOnlyFieldsFromSnapshotPoints(capCompanyPublicationToYahoo(
+      item.points,
+      previousSeriesBySymbol.get(item.symbol)?.points || [],
+      yahooDailyMetricsBySymbol.get(item.symbol) || [],
+      companySeriesCapDate
+    )),
   }));
 
   const dataset = {

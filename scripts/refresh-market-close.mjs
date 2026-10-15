@@ -27,22 +27,15 @@ export async function refreshMarketClose(kind, {
   ndxCloses = refreshNasdaqForwardCloses, spxCloses = refreshSp500TtmCloses,
   fetchYield = url => request(url, 0, 10000),
 } = {}) {
-  if (!['index', 'company'].includes(kind)) throw new Error('Expected index or company');
+  if (kind !== 'index') throw new Error('Close estimates are index-only; company valuations must synchronize Yahoo sources');
   if (target > lastCompletedSession(now)) throw new Error('Cannot refresh an uncompleted session');
   const read = async name => JSON.parse(await readFile(path.join(dir, name), 'utf8'));
   const write = async (name, value) => writeFile(path.join(dir, name), JSON.stringify(value, null, 2) + '\n');
-  const historyFile = kind === 'index' ? 'valuation-history.json' : 'company-valuation-history.json';
-  // Company aggregate history is ignored by git and may be a stale local build.
-  // Always start from the exact series currently published on the site.
-  const dataset = kind === 'index' ? await read(historyFile) : await read('company-valuation-snapshot.json');
-  if (kind === 'company') dataset.indices = await Promise.all(dataset.indices.map(async row => ({
-    ...row, ...await read(`company-series/${row.id}.json`), id: row.id,
-  })));
-  if (kind === 'index') assertDatasetMatchesIndexHistoryLock(dataset, await read('index-history-lock.json'));
+  const historyFile = 'valuation-history.json';
+  const dataset = await read(historyFile);
+  assertDatasetMatchesIndexHistoryLock(dataset, await read('index-history-lock.json'));
   const pending = dataset.indices.filter(item => item.points.length && item.points.at(-1).date < target);
   if (!pending.length) {
-    // The split step needs an aggregate company input even on a no-op retry.
-    if (kind === 'company') await write(historyFile, dataset);
     console.log(`[close] ${kind}: already through ${target}`);
     return { added: 0, pending: [] };
   }
@@ -52,9 +45,9 @@ export async function refreshMarketClose(kind, {
     if (error.code !== 'ENOENT') throw error;
     ledger = { version: 1, repairs: {} };
   }
-  const [ndx, spx] = kind === 'index' ? await Promise.all([ndxCloses(target), spxCloses(target)]) : [[], []];
+  const [ndx, spx] = await Promise.all([ndxCloses(target), spxCloses(target)]);
   const yieldRows = [];
-  if (kind === 'index') {
+  {
     for (const item of dataset.indices) for (const point of item.points) {
       if (Number.isFinite(point.us10y_yield) && point.us10y_yield > 0) yieldRows.push({
         date: point.date, value: point.us10y_yield, source: 'previous-published-us10y-yield',
@@ -71,20 +64,19 @@ export async function refreshMarketClose(kind, {
     const original = structuredClone(item.points);
     const last = original.at(-1).date;
     const missing = tradingDates(shiftDate(last, 1), target);
-    const closes = await fetchCloses(item.symbol, kind === 'index' ? 'etf' : 'stocks', last, target, [last, ...missing]);
+    const closes = await fetchCloses(item.symbol, 'etf', last, target, [last, ...missing]);
     const yieldByDate = new Map(missing.map(date => [date, yieldRows.findLast(row => row.date <= date)]));
-    const yields = new Map(missing.flatMap(date => kind === 'company' ? [[date, 0]] :
-      yieldByDate.get(date) ? [[date, yieldByDate.get(date).value]] : []));
+    const yields = new Map(missing.flatMap(date => yieldByDate.get(date) ? [[date, yieldByDate.get(date).value]] : []));
     const result = repairMissingPoints(original, missing, closes, yields, metrics.symbols[item.symbol] || []);
     let points = result.repairs.map(repair => repair.point);
     // Keep the audited SPX/NDX actual-index-price rules. Only new rows enter
     // these policies; the complete published prefix remains byte-for-byte fixed.
     try {
-      if (kind === 'index' && item.id === 'nasdaq100') {
+      if (item.id === 'nasdaq100') {
         points = applyNasdaqForwardPricePolicy(points, metrics.symbols.QQQ || [], ndx);
         assertNasdaqForwardCoverage(points);
       }
-      if (kind === 'index' && item.id === 'sp500') {
+      if (item.id === 'sp500') {
         points = applySp500TtmPricePolicy(points, metrics.symbols.SPY || [], spx);
         assertSp500TtmCoverage(points);
       }
@@ -94,7 +86,7 @@ export async function refreshMarketClose(kind, {
     }
     for (const [index, point] of points.entries()) {
       const repair = result.repairs[index];
-      if (kind === 'index' && yieldByDate.get(point.date)) {
+      if (yieldByDate.get(point.date)) {
         const observation = yieldByDate.get(point.date);
         point.recovery = { ...point.recovery, us10yYieldDate: observation.date, us10yYieldSource: observation.source };
       }
@@ -112,14 +104,12 @@ export async function refreshMarketClose(kind, {
   if (added) {
     dataset.generatedAt = now.toISOString();
     if (!dataset.source?.includes('+market-close-estimate')) dataset.source = `${dataset.source || kind}+market-close-estimate`;
-    if (kind === 'index') {
-      const lock = await read('index-history-lock.json');
-      assertDatasetMatchesIndexHistoryLock(dataset, lock, { allowAppendedPoints: true });
-      await write('index-history-lock.json', buildIndexHistoryLock(dataset));
-    }
+    const lock = await read('index-history-lock.json');
+    assertDatasetMatchesIndexHistoryLock(dataset, lock, { allowAppendedPoints: true });
+    await write('index-history-lock.json', buildIndexHistoryLock(dataset));
     await write(`${kind}-gap-repairs.json`, ledger);
   }
-  if (added || kind === 'company') await write(historyFile, dataset);
+  if (added) await write(historyFile, dataset);
   return { added, pending: dataset.indices.filter(item => item.points.at(-1)?.date < target).map(item => item.symbol) };
 }
 
