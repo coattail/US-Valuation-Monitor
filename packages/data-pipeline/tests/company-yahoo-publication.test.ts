@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { capCompanyPublicationToYahoo } from '../src/company-yahoo-publication.ts';
+import { capCompanyPublicationToYahoo, restoreCompanyPublishedArchive } from '../src/company-yahoo-publication.ts';
 
 const previous = [{ date: '2026-10-13', pe_ttm: 20 }];
 const points = [...previous, { date: '2026-10-14', pe_ttm: 21 }];
@@ -28,4 +28,23 @@ test('settled company history survives a source outage, but non-Yahoo and empty 
     { date: '2026-10-14', pe_ttm: 30, source: 'other-provider' },
     { date: '2026-10-14', pe_ttm: null, pb: null, source: 'yahoo-quote-page-latest' },
   ]) assert.deepEqual(capCompanyPublicationToYahoo(points, previous, [row], '2026-10-14'), previous);
+});
+
+test('a sparse rebuild preserves published historical gaps without extending the unobserved tail', () => {
+  const retained = { date: '2026-09-21', pe_ttm: 19, recovery: { estimated: true } };
+  const before = [retained, ...previous, { ...points[1], recovery: { estimated: true } }];
+  const result = capCompanyPublicationToYahoo(points, before, [yahoo('2026-10-13')], '2026-10-14');
+  assert.deepEqual(result, [retained, ...previous]);
+  assert.deepEqual(result[0], retained);
+});
+
+test('the frozen company archive restores only interior dates and cannot replay a future close estimate', () => {
+  const retained = { date: '2026-09-21', pe_ttm: 19, recovery: { estimated: true } };
+  const restored = restoreCompanyPublishedArchive(previous, [
+    { date: retained.date, point: retained },
+    { date: previous[0].date, point: { ...previous[0], pe_ttm: 99 } },
+    { date: points[1].date, point: points[1] },
+    { date: '2026-09-22', point: { date: '2026-09-23', pe_ttm: 99 } },
+  ]);
+  assert.deepEqual(restored, [retained, ...previous]);
 });

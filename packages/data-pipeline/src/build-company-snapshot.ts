@@ -1,5 +1,5 @@
 import { lastCompletedSession as getLastCompletedUsMarketDate, shiftDate, tradingDates } from "./market-calendar.ts";
-import { capCompanyPublicationToYahoo } from "./company-yahoo-publication.ts";
+import { capCompanyPublicationToYahoo, restoreCompanyPublishedArchive } from "./company-yahoo-publication.ts";
 import { repairCompanyMetricHistory, preserveSpcxUnavailableMetrics } from "./company-data-corrections.mjs";
 import path from "node:path";
 import { createTextFetcher, isRejectedPayload } from "./fetch-text.ts";
@@ -7160,6 +7160,14 @@ async function loadPreviousSeriesBySymbol(): Promise<Map<string, PreviousSeries>
     // no previous dataset yet
   }
 
+  try {
+    const archive = JSON.parse(await readFile(path.join(OUTPUT_DIR, 'company-gap-repairs.json'), 'utf8'));
+    for (const [symbol, previous] of bySymbol) {
+      previous.points = restoreCompanyPublishedArchive(previous.points, archive.repairs?.[symbol] || []);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
   return bySymbol;
 }
 
