@@ -22,7 +22,35 @@ import {
   selectCompanyCloseHistoryForTest,
   selectLatestYahooRatioOverrideForTest,
   stripGrowthOnlyFieldsFromSnapshotPointsForTest,
+  refreshCompanyYahooDailyTail,
 } from "../src/build-company-snapshot.ts";
+
+test('a sparse OTC history is overlaid with verified Yahoo daily prices before dating valuations', async () => {
+  const make = (date: string, close: number) => ({ date, close, ts: Date.parse(`${date}T00:00:00Z`) });
+  const old = [make('2026-08-31', 50), make('2026-09-30', 51)];
+  const dates = ['2026-09-23','2026-09-24','2026-09-25','2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09','2026-10-12','2026-10-13','2026-10-14','2026-10-15'];
+  const calls: string[] = [];
+  const result = await refreshCompanyYahooDailyTail(old, 'TCEHY', '2026-10-14', async url => {
+    calls.push(url);
+    return JSON.stringify({ chart: { result: [{ meta: { symbol: 'TCEHY' },
+      timestamp: dates.map(date => Date.parse(`${date}T13:30:00Z`) / 1000),
+      indicators: { quote: [{ close: dates.map((_, index) => index === 0 ? null : 52 + index) }] },
+    }] } });
+  });
+  assert.ok(calls.every(url => url.includes('range=1mo')));
+  assert.equal(result.at(-1)?.date, '2026-10-14');
+  assert.equal(result.find(point => point.date === '2026-10-14')?.close, 67);
+  assert.equal(result.find(point => point.date === '2026-09-30')?.close, 57);
+  assert.equal(result.some(point => point.date === '2026-09-23'), false); // Yahoo null is not a close.
+  assert.equal(result.some(point => point.date === '2026-10-15'), false); // Never publish the open session.
+});
+
+test('complete company daily prices need no extra request; a wrong-symbol response is rejected', async () => {
+  const point = { date: '2026-10-14', close: 53.25, ts: Date.parse('2026-10-14T00:00:00Z') };
+  assert.deepEqual(await refreshCompanyYahooDailyTail([point], 'TCEHY', point.date, async () => { throw new Error('Must not fetch'); }), [point]);
+  const old = [{ ...point, date: '2026-09-30', ts: Date.parse('2026-09-30T00:00:00Z') }];
+  assert.deepEqual(await refreshCompanyYahooDailyTail(old, 'TCEHY', point.date, async () => JSON.stringify({ chart: { result: [{ meta: { symbol: 'AAPL' } }] } })), old);
+});
 
 test("dense close overlay removes fallback holiday points and rebases its prefix", () => {
   const day = 86_400_000;

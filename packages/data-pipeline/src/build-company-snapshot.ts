@@ -1,4 +1,4 @@
-import { lastCompletedSession as getLastCompletedUsMarketDate } from "./market-calendar.ts";
+import { lastCompletedSession as getLastCompletedUsMarketDate, shiftDate, tradingDates } from "./market-calendar.ts";
 import { capCompanyPublicationToYahoo } from "./company-yahoo-publication.ts";
 import { repairCompanyMetricHistory, preserveSpcxUnavailableMetrics } from "./company-data-corrections.mjs";
 import path from "node:path";
@@ -697,6 +697,9 @@ const fetchText = createTextFetcher({
   userAgent: USER_AGENT,
   directFallback: ENABLE_DIRECT_FETCH_FALLBACK,
 });
+// Probe the short daily endpoint independently: a rejected long-history or
+// statistics request must not disable this price recovery for the whole build.
+const fetchYahooDailyText = createTextFetcher({ userAgent: 'Mozilla/5.0', requestBudgetMs: 10000 });
 
 async function mapLimit<T, R>(
   items: readonly T[],
@@ -1681,6 +1684,30 @@ export function selectCompanyCloseHistoryForTest(
   return selectCompanyCloseHistory(fromStooq, fromYahoo, fromNasdaq, fromCompaniesMarketCap);
 }
 
+export async function refreshCompanyYahooDailyTail(
+  history: ClosePoint[], symbol: string, endDate: string,
+  request: (url: string) => Promise<string> = url => fetchYahooDailyText(url, 1, 10000)
+): Promise<ClosePoint[]> {
+  if (!history.length) return history;
+  const present = new Set(history.map(point => point.date));
+  const required = tradingDates(shiftDate(endDate, -21), endDate).filter(date => date >= history[0].date);
+  if (required.every(date => present.has(date))) return history;
+  // Yahoo range=max can be monthly despite interval=1d (notably OTC TCEHY).
+  // Read an independent daily window before assigning Current valuation dates.
+  for (const host of ['query1', 'query2']) {
+    const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol.replace(/\./g, '-'))}?range=1mo&interval=1d&events=history&includeAdjustedClose=true`;
+    try {
+      const raw = await request(url);
+      if (JSON.parse(raw)?.chart?.result?.[0]?.meta?.symbol !== symbol.replace(/\./g, '-')) throw new Error('Unexpected Yahoo chart symbol');
+      const recent = capCloseSeriesByDate(parseYahooChartClose(raw), endDate);
+      if (recent.length) history = mergeCloseSeries(history, recent);
+      const available = new Set(history.map(point => point.date));
+      if (required.every(date => available.has(date))) break;
+    } catch (error) { console.warn(`[company] ${symbol} Yahoo daily tail unavailable: ${String(error)}`); }
+  }
+  return history;
+}
+
 async function fetchCloseHistory(symbol: string, slug: string): Promise<ClosePoint[]> {
   const candidates = getStooqSymbolCandidates(symbol);
   let fromStooq: ClosePoint[] = [];
@@ -1716,7 +1743,7 @@ async function fetchCloseHistory(symbol: string, slug: string): Promise<ClosePoi
   }
 
   const completedDate = getLastCompletedUsMarketDate();
-  const completedCloses = capCloseSeriesByDate(selected, completedDate);
+  const completedCloses = await refreshCompanyYahooDailyTail(capCloseSeriesByDate(selected, completedDate), symbol, completedDate);
   const refreshed = await refreshNasdaqPriceTail(completedCloses, symbol, completedDate, "stocks");
   return densifyCloseSeriesWithRecentDailyVol(refreshed);
 }
