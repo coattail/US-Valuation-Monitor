@@ -2,11 +2,20 @@ name: Daily Data Refresh
 
 on:
   schedule:
-    # Allow overnight finalization of historical tables, then retry independently.
-    # 13:17 / 17:17 Asia/Shanghai; both cover the preceding US session.
+    # Start 7 minutes after the regular US close, then retry at +22/+47.
+    # Both UTC offsets are covered; the plan skips pre-close winter runs.
+    - cron: "7,22,47 20,21 * * 1-5"
+    # Full source/history synchronization and independent overnight recovery.
+    # 13:17 / 17:17 Asia/Shanghai.
     - cron: "17 5 * * 2-6"
     - cron: "17 9 * * 2-6"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "close: derive from published anchors; full: synchronize all sources"
+        type: choice
+        options: [full, close]
+        default: full
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -19,8 +28,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      target: ${{ steps.plan.outputs.target }}
+      run: ${{ steps.plan.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 25
+      - id: plan
+        name: Select completed session and refresh mode
+        env:
+          REFRESH_EVENT: ${{ github.event_name }}
+          REFRESH_SCHEDULE: ${{ github.event.schedule }}
+          REFRESH_MODE: ${{ inputs.mode || 'full' }}
+        run: node scripts/market-close-plan.mjs
+
   build:
     name: Refresh ${{ matrix.dataset }}
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -36,8 +66,13 @@ jobs:
         with:
           node-version: 25
       - name: Build and repair dataset
+        if: needs.plan.outputs.mode == 'full'
         timeout-minutes: 20
         run: npm run build:data:${{ matrix.dataset }}
+      - name: Derive valuations from completed-session closes
+        if: needs.plan.outputs.mode == 'close'
+        timeout-minutes: 8
+        run: npm run refresh:close:${{ matrix.dataset }}
       - name: Validate company history
         if: matrix.dataset == 'company'
         run: npm run validate:data:company
@@ -56,9 +91,9 @@ jobs:
 
   publish:
     name: Publish available datasets
-    needs: build
+    needs: [plan, build]
     # Branch dispatches exercise the real sources without publishing to main.
-    if: ${{ always() && !cancelled() && github.ref_name == github.event.repository.default_branch }}
+    if: ${{ always() && !cancelled() && needs.plan.outputs.run == 'true' && github.ref_name == github.event.repository.default_branch }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

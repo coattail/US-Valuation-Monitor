@@ -7,8 +7,9 @@ export interface GapRepair { date: string; anchorDate: string; anchorClose: Clos
 const fetchText = createTextFetcher({ userAgent: 'Mozilla/5.0', requestBudgetMs: 10000 });
 const validClose = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
 
-export function parseYahooCloses(raw: string, source: string): CloseObservation[] {
+export function parseYahooCloses(raw: string, source: string, symbol?: string): CloseObservation[] {
   const result = JSON.parse(raw)?.chart?.result?.[0];
+  if (symbol && result?.meta?.symbol !== symbol.replace(/\./g, '-')) throw new Error(`Unexpected Yahoo price symbol for ${symbol}`);
   return (result?.timestamp || []).flatMap((ts: number, i: number) => {
     const close = result?.indicators?.quote?.[0]?.close?.[i];
     return Number.isFinite(ts) && validClose(close) ? [{ date: new Date(ts * 1000).toISOString().slice(0, 10), close, source }] : [];
@@ -22,16 +23,18 @@ export function parseChartExchangeCloses(html: string, source: string): CloseObs
     return /^\d{4}-\d{2}-\d{2}$/.test(date) && validClose(close) ? [{ date, close, source }] : [];
   });
 }
-export async function fetchGapCloses(symbol: string, assetClass: 'stocks' | 'etf', from: string, to: string, requiredDates: string[], request = (url: string) => fetchText(url, 1, 10000)): Promise<CloseObservation[]> {
+export async function fetchGapCloses(symbol: string, assetClass: 'stocks' | 'etf', from: string, to: string, requiredDates: string[], request = (url: string) => fetchText(url, 1, 10000), { preferYahoo = false } = {}): Promise<CloseObservation[]> {
   const observations = new Map<string, CloseObservation>();
   const nasdaq = `https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol.replace(/-/g, '.'))}/historical?assetclass=${assetClass}&fromdate=${from}&todate=${to}&limit=5000`;
   const yahoo = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol.replace(/\./g, '-'))}?period1=${Date.parse(from + 'T00:00:00Z') / 1000}&period2=${Date.parse(to + 'T00:00:00Z') / 1000 + 86400}&interval=1d`;
   const chart = `https://chartexchange.com/symbol/otc-${symbol.toLowerCase()}/historical/`;
+  const yahooSource = { url: yahoo, parse: (raw: string) => parseYahooCloses(raw, yahoo, preferYahoo ? symbol : undefined) };
   const sources = [
+    ...(preferYahoo ? [yahooSource] : []),
     { url: nasdaq, parse: (raw: string) => appendRecentCloses([], raw, to).map(p => ({ date: p.date, close: p.close, source: nasdaq })) },
     ...(requiredDates.includes(to) ? [{ url: nasdaqClosedQuoteUrl(symbol, assetClass), parse: (raw: string) =>
       parseNasdaqClosedQuote(raw, symbol, to).map(p => ({ ...p, source: nasdaqClosedQuoteUrl(symbol, assetClass) })) }] : []),
-    { url: yahoo, parse: (raw: string) => parseYahooCloses(raw, yahoo) },
+    ...(!preferYahoo ? [yahooSource] : []),
     ...(symbol === 'TCEHY' ? [{ url: chart, parse: (raw: string) => parseChartExchangeCloses(raw, chart) }] : []),
   ];
   for (const { url, parse } of sources) {
