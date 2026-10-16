@@ -8,13 +8,13 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-10-15T23:01:16.904Z",
+  "generatedAt": "2026-10-16T09:58:47.352Z",
   "indices": {
     "dow30": {
       "pointCount": 7230,
       "firstDate": "1998-01-20",
       "lastDate": "2026-10-15",
-      "sha256": "23d82ff4173fc08f7a764d26b4a8008a98fad29c063303f4cf163e60cf7741e7"
+      "sha256": "0bc040a31971b063e06fe0da3c37447bcd5ada7ca0f5ee96d55cc49c1339955e"
     },
     "dram": {
       "pointCount": 136,
@@ -26,7 +26,7 @@
       "pointCount": 6350,
       "firstDate": "2001-07-17",
       "lastDate": "2026-10-15",
-      "sha256": "d65cd241455599c667b426d800f99ad5819413a74d626709c02f9278786b1103"
+      "sha256": "9351dcefb5f6431dd5534069ed483960e3f4a6ed1b74656076cb26ba86f3097a"
     },
     "nasdaq100": {
       "pointCount": 6943,
@@ -38,7 +38,7 @@
       "pointCount": 6484,
       "firstDate": "2001-01-03",
       "lastDate": "2026-10-15",
-      "sha256": "ceeb1aed301405398c9e04ee71cf3ff9cca4fe74ac668ff6e2325f2f4117d17e"
+      "sha256": "18ffe622f77cc117377027046122dda33cacab3424f93171bc676f56a53acfc5"
     },
     "sector_communication": {
       "pointCount": 2093,
@@ -116,13 +116,13 @@
       "pointCount": 6352,
       "firstDate": "2001-07-13",
       "lastDate": "2026-10-15",
-      "sha256": "16e801f9d6aeeea5c93e73d955f61dcfa69a5218f4910a0ed95b3073b1b6a36c"
+      "sha256": "51b143b0cb5e5edb2904b537d64822aa95068fab6e4c36ddb8156ec3f5eb7cba"
     },
     "sp400": {
       "pointCount": 5443,
       "firstDate": "2005-02-25",
       "lastDate": "2026-10-15",
-      "sha256": "9792f0149116646afb66d3c9a5d9ae5a7de904a0571c60aa73a47b1b9d5da002"
+      "sha256": "86ef07a949025c1dde37cf0e6cc3a5a4c6313e83392a6e79047d39dceca86810"
     },
     "sp500": {
       "pointCount": 6738,
@@ -134,7 +134,7 @@
       "pointCount": 5443,
       "firstDate": "2005-02-25",
       "lastDate": "2026-10-15",
-      "sha256": "59e2f556545b069bfa0a5e9fc90df3cc8a69ef839ab38f11ce64ec833fd7fefe"
+      "sha256": "767ba17dbd7bb200fe285409bf7140c41e4380e6e72530925f914f2521ecc3cc"
     }
   }
 }
