@@ -655,6 +655,11 @@
       "date": "2026-10-15",
       "close": 29935.59375,
       "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1792108800&interval=1d"
+    },
+    {
+      "date": "2026-10-16",
+      "close": 29187.548828125,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1792195200&interval=1d"
     }
   ]
 }
