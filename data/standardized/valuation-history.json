@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-17T02:10:26.134Z",
-  "source": "free-live-proxy-v6+stockanalysis-pe-2+stockmarketperatio-pe-1+multpl-pb-1+wsj-pe-4+stockanalysis-snap-6+curated-public-fpe-8+vendor-index-fpe-2+ndx-bloomberg-fpe-1+ndx-official-ttm-monthly-1+rut-index-close-1+stockanalysis-fpe-4+history-fpe-2+sp500-pb-prefix-1+sp500-wsj-carry-1+sp500-yardeni-refinitiv-fpe-prefix-1+fallback10y+market-close-estimate+wsj-reconciled",
+  "generatedAt": "2026-10-17T09:30:28.471Z",
+  "source": "free-live-proxy-v6+stockanalysis-pe-2+stockmarketperatio-pe-1+multpl-pb-1+wsj-pe-4+stockanalysis-snap-6+curated-public-fpe-8+vendor-index-fpe-2+ndx-bloomberg-fpe-1+ndx-official-ttm-monthly-1+rut-index-close-1+stockanalysis-fpe-4+history-fpe-2+sp500-pb-prefix-1+sp500-wsj-carry-1+sp500-yardeni-refinitiv-fpe-prefix-1+fallback10y",
   "indices": [
     {
       "id": "sp500",
@@ -231840,9 +231840,9 @@
         },
         {
           "date": "2026-10-15",
-          "pe_ttm": 21.811307,
-          "pe_forward": 18.235967,
-          "pb": 2.671586,
+          "pe_ttm": 21.6,
+          "pe_forward": 15.23,
+          "pb": 2.64,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -269994,9 +269994,9 @@
         },
         {
           "date": "2026-10-15",
-          "pe_ttm": 28.442037,
-          "pe_forward": 28.476274,
-          "pb": 5.071137,
+          "pe_ttm": 28.22,
+          "pe_forward": 19.37,
+          "pb": 5.01,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -724391,9 +724391,9 @@
         },
         {
           "date": "2026-10-15",
-          "pe_ttm": 36.678175,
-          "pe_forward": 26.590492,
-          "pb": 7.386988,
+          "pe_ttm": 35.73,
+          "pe_forward": 25.66,
+          "pb": 7.15,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -768896,9 +768896,9 @@
         },
         {
           "date": "2026-10-15",
-          "pe_ttm": 46.304027,
-          "pe_forward": 22.802722,
-          "pb": 10.078436,
+          "pe_ttm": 45.74,
+          "pe_forward": 18.9,
+          "pb": 10.16,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
