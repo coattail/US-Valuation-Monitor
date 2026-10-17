@@ -134,8 +134,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 20.896269,
-          "pe_forward": 19.501857,
+          "pe_ttm": 20.87,
+          "pe_forward": 19.78,
           "pb": 4.526499,
           "us10y_yield": 0.035,
           "recovery": {
@@ -1685,8 +1685,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 23.1209,
-          "pe_forward": 19.175085,
+          "pe_ttm": 23.51,
+          "pe_forward": 19.25,
           "pb": 6.072566,
           "us10y_yield": 0.035,
           "recovery": {
@@ -1696,15 +1696,6 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-15",
             "us10yYieldSource": "previous-published-us10y-yield"
-          },
-          "pe_ttm_estimate": {
-            "method": "wsj-ttm-spx-price-carry",
-            "anchorDate": "2026-10-09",
-            "anchorPe": 23.58,
-            "anchorClose": 7811.5400390625,
-            "close": 7659.43994140625,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1791590400&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792195200&interval=1d"
           }
         }
       }
@@ -1841,8 +1832,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 29.770609,
-          "pe_forward": 20.9339,
+          "pe_ttm": 30.27,
+          "pe_forward": 21.45,
           "pb": 7.1127,
           "us10y_yield": 0.035,
           "recovery": {
@@ -1852,15 +1843,6 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-15",
             "us10yYieldSource": "previous-published-us10y-yield"
-          },
-          "pe_forward_estimate": {
-            "method": "wsj-forward-ndx-price-carry",
-            "anchorDate": "2026-10-09",
-            "anchorPe": 22.15,
-            "anchorClose": 30883.150390625,
-            "close": 29187.548828125,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1791590400&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1792195200&interval=1d"
           }
         }
       }
@@ -1970,8 +1952,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 33.574729,
-          "pe_forward": 25.120425,
+          "pe_ttm": 34.62,
+          "pe_forward": 26.32,
           "pb": 1.976096,
           "us10y_yield": 0.035,
           "recovery": {

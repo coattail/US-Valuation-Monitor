@@ -394,9 +394,9 @@ const CURATED_PUBLIC_FORWARD_PE_REFERENCES: Partial<Record<string, Array<{ date:
 };
 
 const WSJ_PEYIELD_URLS = [
+  "https://www.wsj.com/market-data/stocks/peyields",
   "https://online.wsj.com/mdc/public/page/2_3021-peyield.html",
   "https://www.wsj.com/mdc/public/page/2_3021-peyield.html",
-  "https://www.wsj.com/market-data/stocks/peyields",
   "https://r.jina.ai/http://online.wsj.com/mdc/public/page/2_3021-peyield.html",
   "https://r.jina.ai/http://www.wsj.com/market-data/stocks/peyields",
 ];
@@ -1913,7 +1913,7 @@ function serializeIndexYahooDailyMetricSnapshots(
   };
 }
 
-function upsertIndexYahooDailyMetricSnapshot(
+export function upsertIndexYahooDailyMetricSnapshot(
   bySymbol: Map<string, IndexYahooDailyMetricSnapshot[]>,
   symbol: string,
   snapshot: IndexYahooDailyMetricSnapshot | null
@@ -3265,21 +3265,17 @@ function stripWsjIndexLabelFromText(raw: string, indexId?: string): string {
 
 export function parseWsjRowPeValues(cells: string[], indexId?: string): LatestPeSnapshot | undefined {
   const numericCells = cells.length > 1 ? cells.slice(1) : [stripWsjIndexLabelFromText(cells[0] || "", indexId)];
-  const values: number[] = [];
-  for (const cell of numericCells) {
-    const matches = String(cell || "").match(/[0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]+)?/g) || [];
-    for (const raw of matches) {
-      const value = Number(raw.replace(/,/g, ""));
-      if (!Number.isFinite(value)) continue;
-      if (value < 4 || value > 120) continue;
-      values.push(value);
-    }
-  }
-
-  if (values.length < 3) return undefined;
-  const trailing = values[0];
-  const forward = values[2];
-  if (!Number.isFinite(trailing) || !Number.isFinite(forward)) return undefined;
+  // Keep column positions: a missing/year-ago/out-of-range value must
+  // never shift dividend yield into the forward-P/E column.
+  const columns = numericCells.length === 1
+    ? (numericCells[0].match(/N\/A|N\/M|--|[0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?/gi) || [])
+    : numericCells;
+  if (columns.length < 3) return undefined;
+  const parse = (value: string) => /^\s*\d+(?:,\d{3})*(?:\.\d+)?\s*$/.test(value)
+    ? Number(value.replace(/,/g, "")) : NaN;
+  const trailing = parse(columns[0]);
+  const forward = parse(columns[2]);
+  if (!isReasonablePe(trailing) || !isReasonableForwardPe(forward)) return undefined;
   return {
     trailing,
     forward,
@@ -3375,8 +3371,16 @@ export function pickLatestWsjPeSnapshotForTest(
   return pickLatestWsjPeSnapshot(liveSnapshot, cachedSnapshots);
 }
 
-function parseWsjPeSnapshotFromHtml(html: string): Map<string, LatestPeSnapshot> {
+export function parseWsjPeSnapshotFromHtml(html: string): Map<string, LatestPeSnapshot> {
   const result = new Map<string, LatestPeSnapshot>();
+  const tables = [...html.matchAll(/<table\b[^>]*>[\s\S]*?<\/table>/gi)];
+  if (tables.length > 1) {
+    for (const table of tables) {
+      const dated = attachWsjSnapshotDate(parseWsjPeSnapshotFromHtml(table[0]), parseWsjSnapshotAsOfDate(table[0]));
+      for (const [id, row] of dated) result.set(id, row);
+    }
+    return result;
+  }
   const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   let rowMatch: RegExpExecArray | null;
 
@@ -3419,7 +3423,7 @@ function parseWsjPeSnapshotFromText(text: string): Map<string, LatestPeSnapshot>
       ? line
           .split("|")
           .map((cell) => cell.trim())
-          .filter(Boolean)
+          .filter((cell, i, all) => cell || (i > 0 && i < all.length - 1))
       : [];
     if (cells.length < 4) continue;
     const lineKey = normalizeLookupText(cells.join(" "));
@@ -3441,30 +3445,35 @@ export function parseWsjPeSnapshotFromTextForTest(text: string): Map<string, Lat
   return parseWsjPeSnapshotFromText(text);
 }
 
-function mergeLatestPeSnapshotMaps(primary: Map<string, LatestPeSnapshot>, secondary: Map<string, LatestPeSnapshot>): Map<string, LatestPeSnapshot> {
+export function mergeLatestPeSnapshotMaps(primary: Map<string, LatestPeSnapshot>, secondary: Map<string, LatestPeSnapshot>): Map<string, LatestPeSnapshot> {
   const merged = new Map<string, LatestPeSnapshot>(secondary);
   for (const [key, value] of primary.entries()) {
-    merged.set(key, value);
+    const existing = merged.get(key);
+    if (value.asOfDate && (!existing?.asOfDate || value.asOfDate > existing.asOfDate)) merged.set(key, value);
   }
   return merged;
 }
 
-async function fetchWsjPeSnapshot(): Promise<Map<string, LatestPeSnapshot>> {
+export async function fetchWsjPeSnapshot(
+  request = (url: string) => curlGet(url, 15000, {
+    "User-Agent": "Mozilla/5.0", Accept: "text/html,application/xhtml+xml,text/plain",
+  }),
+  target = getLastCompletedUsMarketDate()
+): Promise<Map<string, LatestPeSnapshot>> {
   let combined = new Map<string, LatestPeSnapshot>();
 
   for (const url of WSJ_PEYIELD_URLS) {
     try {
-      const body = await curlGet(url, 28000, {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        Accept: "text/html,application/xhtml+xml,text/plain",
-      });
+      const body = await request(url);
       const asOfDate = parseWsjSnapshotAsOfDate(body);
       const htmlParsed = attachWsjSnapshotDate(parseWsjPeSnapshotFromHtml(body), asOfDate);
       const textParsed = attachWsjSnapshotDate(parseWsjPeSnapshotFromText(body), asOfDate);
       const merged = mergeLatestPeSnapshotMaps(textParsed, htmlParsed);
-      if (merged.size > 0) {
-        combined = mergeLatestPeSnapshotMaps(merged, combined);
+      for (const [id, snapshot] of merged) {
+        if (!snapshot.asOfDate || snapshot.asOfDate > target) merged.delete(id);
       }
+      combined = mergeLatestPeSnapshotMaps(merged, combined);
+      if (Object.keys(WSJ_ROW_KEYWORDS).every(id => combined.get(id)?.asOfDate === target)) break;
     } catch {
       // try next source
     }

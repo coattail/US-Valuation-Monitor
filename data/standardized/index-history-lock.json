@@ -8,13 +8,13 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-10-16T22:46:47.710Z",
+  "generatedAt": "2026-10-17T02:10:26.134Z",
   "indices": {
     "dow30": {
       "pointCount": 7231,
       "firstDate": "1998-01-20",
       "lastDate": "2026-10-16",
-      "sha256": "fef587cda3d6c799dd0f12cceadcabb68ed5d28e515c8be7c079eb2f25abe3e6"
+      "sha256": "3279b4efd7fd732f98463df5c2b04817f7eeb50b7c0a0b2a112f386d3910991a"
     },
     "dram": {
       "pointCount": 137,
@@ -32,13 +32,13 @@
       "pointCount": 6944,
       "firstDate": "1999-03-10",
       "lastDate": "2026-10-16",
-      "sha256": "144a160fd96d08541bb587baad89d5a8a76fbd151f68fdc305728b2c1063b5af"
+      "sha256": "383f8447ecaec0c53f48baf549ccda55619d76223f34cfd624be88e245f57d29"
     },
     "russell2000": {
       "pointCount": 6485,
       "firstDate": "2001-01-03",
       "lastDate": "2026-10-16",
-      "sha256": "dd71e658961b2fd8d19651f4b8814b2891bd501c5754ab7a6efa7a25fca577a4"
+      "sha256": "2d31d308de116cc9e42a487596722f7b04e7f08c663920101d809df3d3ea450f"
     },
     "sector_communication": {
       "pointCount": 2094,
@@ -128,7 +128,7 @@
       "pointCount": 6739,
       "firstDate": "1999-12-31",
       "lastDate": "2026-10-16",
-      "sha256": "f5284153ee24818f5035cf6fc5099402c79bca5902767928b83f416e955ab24d"
+      "sha256": "9d324dcbdded0c2361d8300c7057028b759330e00ef9fb21213586ebde2862d6"
     },
     "us_total_market": {
       "pointCount": 5444,

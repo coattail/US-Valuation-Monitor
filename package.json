@@ -9,6 +9,7 @@
     "cloudfunctions"
   ],
   "scripts": {
+    "refresh:wsj:index": "node scripts/sync-wsj-valuations.mjs && node packages/data-pipeline/src/split-index-dataset.ts",
     "refresh:close:index": "node scripts/refresh-market-close.mjs index && node packages/data-pipeline/src/split-index-dataset.ts",
     "build:data:index": "node packages/data-pipeline/src/build-snapshot.ts && node scripts/repair-data-gaps.mjs index && node packages/data-pipeline/src/split-index-dataset.ts",
     "build:data:company": "node packages/data-pipeline/src/build-company-snapshot.ts && node packages/data-pipeline/src/split-company-dataset.ts",

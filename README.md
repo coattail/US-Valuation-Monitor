@@ -23,6 +23,7 @@ A production-oriented valuation monitoring project for:
 ## Data Integrity Policy (Important)
 
 - **Index valuation data** stays on its historical non-Yahoo source chain to avoid short-term regime noise.
+- Core index TTM/forward P/E observations are reconciled with dated WSJ quotes after close and during overnight company runs, even when every trading date already exists. Run `npm run refresh:wsj:index` to retry only this synchronization. Source freshness and published-value equality are checked separately from trading-date coverage; see [the WSJ audit](./docs/wsj-reconciliation-2026-10-17.md).
 - **Company latest valuation** is aligned to Yahoo trusted metrics when available.
 - If a Yahoo daily snapshot has an untrusted source for `pe_forward`, that day is stored as `null` (not forced/interpolated).
 - For symbols with source-regime transition (e.g., yesterday unavailable, latest day available), historical `forward PE` is rebased by a fixed factor using latest-day price movement to connect to Yahoo latest smoothly and transparently.

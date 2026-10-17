@@ -13,7 +13,9 @@ export function marketClosePlan({ event = 'schedule', schedule = '', mode = 'ful
   // UTC schedules cover both DST offsets; the earlier winter invocation skips
   // instead of deriving from a session that is still open.
   const run = event !== 'schedule' || refreshMode !== 'close' || (isTradingDate(parts) && target === parts);
-  const datasets = JSON.stringify(refreshMode === 'close' ? ['index'] : refreshMode === 'company' ? ['company'] : ['index', 'company']);
+  // Overnight company runs also reconcile delayed WSJ quotes, independently
+  // of the expensive full index-history build.
+  const datasets = JSON.stringify(refreshMode === 'close' ? ['index'] : ['index', 'company']);
   return { mode: refreshMode, target, run: String(run), datasets };
 }
 

@@ -20,14 +20,14 @@ test('close schedule starts after 16:00 New York in both DST offsets and skips h
   assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'close' }).run, 'true');
 });
 
-test('index close runs exclude companies; daily Yahoo runs exclude index estimation', () => {
+test('overnight company runs also synchronize WSJ without rebuilding index history', () => {
   for (const schedule of ['17 22 * * 1-5', '17 1 * * 2-6']) {
     const plan = marketClosePlan({ schedule, now: new Date('2026-10-15T01:17:00Z') });
     assert.equal(plan.mode, 'company');
-    assert.equal(plan.datasets, '["company"]');
+    assert.equal(plan.datasets, '["index","company"]');
     assert.equal(plan.run, 'true');
   }
-  assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'company' }).datasets, '["company"]');
+  assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'company' }).datasets, '["index","company"]');
   assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'full' }).datasets, '["index","company"]');
   assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'close' }).datasets, '["index"]');
 });
