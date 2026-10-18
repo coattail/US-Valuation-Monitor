@@ -1574,11 +1574,6 @@ async function renderDetail() {
   charts.detailPercentile?.clear();
   const indexId = state.detail.indexId;
   const metric = state.detail.metric;
-  const sourceNote = document.getElementById("detail-source-note");
-  sourceNote.hidden = !((indexId === "nasdaq100" && metric === "pe_forward") || (indexId === "sp500" && metric === "pe_ttm"));
-  sourceNote.textContent = sourceNote.hidden ? "" : indexId === "nasdaq100"
-    ? "百分位按所选区间全部有效样本计算。较早历史与近期报价口径不同，跨口径统计仅供参考。缺失日按纳指100收盘涨跌估算，假设预期盈利不变。"
-    : "保留 WSJ 的原始 TTM PE 报价，报价之间按标普500实际收盘涨跌估算，假设盈利不变。新的盈利报价可能引起真实跳变；估算值可在提示中查看。";
   const renderToken = ++state.runtime.detailRenderToken;
 
   if (!indexId) return;
