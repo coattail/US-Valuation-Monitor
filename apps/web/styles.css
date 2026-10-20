@@ -440,7 +440,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 @media (min-width: 761px) and (max-width: 1199px) {
   .detail-visual-grid { grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr); }
 }
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-width: 1024px) and (max-height: 600px) and (pointer: coarse) {
   .detail-identity h2 { font-size: 20px; }
   .detail-heading { align-items: flex-start; }
   .detail-date { margin-left: 0; font-size: 10px; }
@@ -452,4 +452,34 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
   .detail-visual-grid, .detail-visual-main, .detail-visual-side { min-height: 0; }
   .detail-visual-main, .detail-visual-side { padding: 12px; }
   .detail-visual-main .chart-large, .detail-visual-side .chart-medium { height: 300px; flex: none; }
+}
+
+/* Mobile browser and embedded WebView layout. Keep page zoom available. */
+@media (max-width: 760px), (max-width: 1024px) and (max-height: 600px) and (pointer: coarse) {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px; min-width: 0; max-width: 100%; }
+  button, select, a { touch-action: manipulation; }
+  button, select { min-height: 44px; }
+  input[type="range"] { touch-action: pan-y; }
+  .table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+}
+
+@media (max-width: 760px), (max-width: 1024px) and (max-height: 600px) and (pointer: coarse) {
+  .app-shell { width: 100%; padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .masthead { flex-wrap: wrap; gap: 4px 12px; padding-top: 8px; }
+  .brand { min-height: 40px; }
+  .board-tabs { min-height: 44px; }
+  .board-tab-desc { display: none; }
+  .view-tabs { gap: 16px; justify-content: flex-start; overflow-x: auto; top: env(safe-area-inset-top, 0px); }
+  .tab { min-height: 48px; flex-shrink: 0; }
+  .toolbar-grid { grid-template-columns: minmax(0, 1fr) auto; }
+  .toolbar-grid > label:has(input) { grid-column: 1 / -1; }
+  .detail-controls, .compare-controls, .detail-heading { flex-wrap: wrap; }
+  .analysis-controls .segmented, .range-chip-group { max-width: 100%; flex-wrap: wrap; }
+  .chip, .filter-chip, .btn, .compare-shortcut { min-height: 44px; }
+  .detail-heading, .detail-identity, .object-switcher, .compare-main-layout > * { min-width: 0; }
+  .table-wrap table, .compare-cross-table { min-width: 620px; }
+  .compare-picker { max-height: 280px; }
+  .chart-large, .chart-medium { touch-action: pan-y; }
 }
