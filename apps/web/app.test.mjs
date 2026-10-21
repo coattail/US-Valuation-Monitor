@@ -54,6 +54,7 @@ const {
   filterRowsByRangeForTest,
   ttmSourceLabelForTest,
   recomputeRangeRollingStatsForTest,
+  recomputeDetailRangeStatsForTest,
   resolveYAxisRangeForTest,
   forwardSourceLabelForTest,
   toFiniteNumberForTest,
@@ -236,4 +237,15 @@ test('TTM recovery provenance is retained in detail tooltips',()=>{
   const rows=getMetricSeriesForTest({id:'sp500',points:[{date:'2026-05-11',pe_ttm:26.664,pe_ttm_estimate:estimate}]},'pe_ttm');
   assert.equal(rows[0].ttmEstimate,estimate);
   assert.match(ttmSourceLabelForTest(rows[0]),/估算.*2026-05-08/);
+});
+
+
+test('live detail stats preserve the existing rolling statistics and rank convention', () => {
+  const rows = Array.from({length: 3000}, (_, i) => ({date: new Date(Date.UTC(2010, 0, i + 1)).toISOString().slice(0, 10), value: 10 + (i * 7919 % 997) / 100}));
+  for (const selected of [rows, rows.slice(1800), rows.slice(2000, 2500), rows.slice(-1), []]) {
+    const actual = recomputeDetailRangeStatsForTest(selected);
+    const expected = recomputeRangeRollingStatsForTest(selected);
+    assert.deepEqual(actual.at(-1), expected.at(-1));
+    assert.deepEqual(actual.map(row => row.percentile_full), expected.map(row => row.percentile_full));
+  }
 });

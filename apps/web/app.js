@@ -1,4 +1,5 @@
 import { detailChartFrame } from "./detail-chart-ui.js?v=20261014-simple-chart-layout-v1";
+import { filterDetailRowsByZoom, recomputeDetailPercentiles, buildDetailPercentileData, bindDetailRangeSync } from "./detail-range.js?v=20261021-live-range-v1";
 import { percentileColor, regimeFromPercentile, regimeLabel, snapshotPercentile, snapshotBadge } from "./valuation-policy.js";
 import { initAnalysisUI, formatAxisTick, createSeriesColors, resolveDetailRange, detailRangeCaption } from "./analysis-ui.js?v=20260910-detail-layout-v1";
 let analysisUI;
@@ -192,11 +193,7 @@ const charts = {
   compare: null,
 };
 
-const detailZoomSyncState = {
-  syncing: false,
-  rafId: 0,
-  pending: null,
-};
+let cleanupDetailZoomSync;
 
 function safeJsonParse(rawValue, fallback) {
   if (!rawValue) return fallback;
@@ -991,29 +988,6 @@ function ensureChart(name, element) {
   return charts[name];
 }
 
-function extractZoomRange(chart, payload) {
-  const batchItem = Array.isArray(payload?.batch) ? payload.batch[payload.batch.length - 1] : payload;
-  const optionZoom = chart?.getOption?.()?.dataZoom?.[0] || {};
-
-  const rawStart = batchItem?.start ?? optionZoom.start ?? 0;
-  const rawEnd = batchItem?.end ?? optionZoom.end ?? 100;
-
-  return {
-    start: clamp(Number(rawStart), 0, 100),
-    end: clamp(Number(rawEnd), 0, 100),
-  };
-}
-
-function applyZoomRange(chart, range) {
-  if (!chart || !range) return;
-  chart.dispatchAction({
-    type: "dataZoom",
-    dataZoomIndex: [0],
-    start: range.start,
-    end: range.end,
-  });
-}
-
 function resolveYAxisRangeFromSeriesData(seriesData, startPercent, endPercent) {
   if (!Array.isArray(seriesData) || !seriesData.length) return null;
 
@@ -1050,57 +1024,65 @@ function resolveYAxisRangeFromSeriesData(seriesData, startPercent, endPercent) {
   };
 }
 
-function bindDetailZoomSync() {
+// The curve needs every cumulative rank; secondary rolling cards only need the endpoint.
+function recomputeDetailRangeStats(rows) {
+  const result = recomputeDetailPercentiles(rows);
+  if (!result.length) return result;
+  const values = rows.map(row => row.value);
+  const last = result.at(-1);
+  const end = values.length - 1;
+  last.percentile_5y = percentileWindow(values, end - TRADING_DAYS_PER_YEAR * 5 + 1, end, last.value);
+  last.percentile_10y = percentileWindow(values, end - TRADING_DAYS_PER_YEAR * 10 + 1, end, last.value);
+  last.z_score_3y = zScoreWindow(values, end - TRADING_DAYS_PER_YEAR * 3 + 1, end, last.value);
+  last.regime = regimeFromPercentile(last.percentile_full);
+  return result;
+}
+
+function bindDetailZoomSync(fullRows, baseRows) {
   const mainChart = charts.detail;
   const percentileChart = charts.detailPercentile;
   if (!mainChart || !percentileChart) return;
-
-  mainChart.off("datazoom");
-  percentileChart.off("datazoom");
-
-  const applyMainYAxisRange = (range) => {
-    const seriesData = mainChart.getOption?.()?.series?.[0]?.data || [];
-    const yRange = resolveYAxisRangeFromSeriesData(seriesData, range?.start ?? 0, range?.end ?? 100);
-    if (!yRange) return;
-
-    mainChart.setOption(
-      {
-        yAxis: {
-          min: yRange.min,
-          max: yRange.max,
-        },
-      },
-      false
-    );
+  cleanupDetailZoomSync?.();
+  const seriesData = buildDetailLineData(baseRows, METRIC_CONFIG[state.detail.metric].percentage);
+  let previousWindow;
+  const applyRange = (range) => {
+    const visibleRows = filterDetailRowsByZoom(baseRows, range);
+    const key = `${visibleRows[0]?.date}:${visibleRows.at(-1)?.date}`;
+    if (key === previousWindow) return;
+    previousWindow = key;
+    const viewRows = recomputeDetailRangeStats(visibleRows);
+    const yRange = resolveYAxisRangeFromSeriesData(seriesData, range.start, range.end);
+    const latest = viewRows.at(-1);
+    const metricCfg = METRIC_CONFIG[state.detail.metric];
+    mainChart.setOption({
+      ...(yRange ? { yAxis: yRange } : {}),
+      // With filterMode:none ECharts may label an interpolated point beyond the
+      // selected end date. Keep the endpoint label on the same sample as cards.
+      series: [{ endLabel: {
+        show: Boolean(latest),
+        formatter: () => latest
+          ? `${fmt(latest.value * (metricCfg.percentage ? 100 : 1), metricCfg.digits)}${metricCfg.percentage ? "%" : ""}`
+          : "--",
+      } }],
+    }, { silent: true });
+    percentileChart.setOption({
+      series: [{ data: buildDetailPercentileData(baseRows, viewRows) }],
+    }, { silent: true });
+    renderDetailStats(fullRows, viewRows);
+    const custom = Number(range.start) > 0 || Number(range.end) < 100;
+    const caption = custom ? "自定义区间" : detailRangeCaption(state.detail.range, state.detail.effectiveRange);
+    elements.detailRange.textContent = viewRows.length
+      ? `${caption} · ${viewRows[0].date} — ${viewRows.at(-1).date}`
+      : `${caption} · 所选区间无观测数据`;
+    for (const chip of elements.detailRangeChips) {
+      const active = !custom && chip.dataset.range === state.detail.effectiveRange;
+      chip.classList.toggle("is-active", active);
+      chip.setAttribute("aria-pressed", String(active));
+    }
   };
-
-  const scheduleSync = (sourceChart, targetChart, payload) => {
-    if (detailZoomSyncState.syncing) return;
-
-    detailZoomSyncState.pending = {
-      targetChart,
-      range: extractZoomRange(sourceChart, payload),
-    };
-
-    if (detailZoomSyncState.rafId) return;
-
-    detailZoomSyncState.rafId = requestAnimationFrame(() => {
-      const task = detailZoomSyncState.pending;
-      detailZoomSyncState.pending = null;
-      detailZoomSyncState.rafId = 0;
-      if (!task) return;
-
-      detailZoomSyncState.syncing = true;
-      applyZoomRange(task.targetChart, task.range);
-      applyMainYAxisRange(task.range);
-      detailZoomSyncState.syncing = false;
-    });
-  };
-
-  mainChart.on("datazoom", (payload) => scheduleSync(mainChart, percentileChart, payload));
-  percentileChart.on("datazoom", (payload) => scheduleSync(percentileChart, mainChart, payload));
-
-  applyMainYAxisRange(extractZoomRange(mainChart));
+  cleanupDetailZoomSync = bindDetailRangeSync(mainChart, percentileChart, applyRange);
+  const yRange = resolveYAxisRangeFromSeriesData(seriesData, 0, 100);
+  if (yRange) mainChart.setOption({ yAxis: yRange }, { silent: true });
 }
 
 function renderOverview() {
@@ -1300,8 +1282,15 @@ function renderDetailPercentileTrack(latest) {
 }
 
 function renderDetailStats(fullRows, viewRows) {
+  if (!viewRows.length) {
+    elements.detailStats.innerHTML = [METRIC_CONFIG[state.detail.metric].label, "百分位(当前区间)", "估值状态 · 当前区间", "区间变动"]
+      .map(label => `<div class="stat-pill primary-stat"><div class="k">${label}</div><div class="v">--</div></div>`).join("");
+    document.getElementById("detail-secondary-stats").innerHTML = "";
+    elements.detailPercentileTrack.innerHTML = '<div class="hint">所选区间无观测数据</div>';
+    return;
+  }
   const latest = viewRows[viewRows.length - 1];
-  const latestFull = fullRows[fullRows.length - 1] || latest;
+  const latestFull = fullRows.find(row => row.date === latest.date) || latest;
   const metricCfg = METRIC_CONFIG[state.detail.metric];
   const comparableRows = viewRows;
   const values = comparableRows.map((row) => row.value);
@@ -1366,14 +1355,16 @@ function renderDetailChart(indexMeta, rows) {
     ? 76
     : Math.round(Math.max(detailChartWidth * 0.035, Math.min(endLabelLayout.rightSpace + 18, 102)));
 
+  const chartFrame = detailChartFrame(detailRightPadding, "value");
   const metricFormatter = (value) =>
     metricCfg.percentage ? `${fmt(value * 100, metricCfg.digits)}%` : fmt(value, metricCfg.digits);
 
   chart.setOption(
     {
-      animationDuration: 500,
+      animation: false,
       legend: { show: false },
-      ...detailChartFrame(detailRightPadding, "value"),
+      ...chartFrame,
+      dataZoom: [{ ...chartFrame.dataZoom[0], realtime: true, throttle: 16 }],
       tooltip: {
         trigger: "axis",
         backgroundColor: "#17212d",
@@ -1395,6 +1386,8 @@ function renderDetailChart(indexMeta, rows) {
       },
       xAxis: {
         type: "time",
+        min: axisValueFromDate(rows[0].date),
+        max: axisValueFromDate(rows.at(-1).date),
         splitNumber: timeAxisSplitNumber(detailViewportWidth),
         axisLabel: {
           color: "#8aa5b8",
@@ -1481,10 +1474,12 @@ function renderDetailPercentileChart(rows) {
     ? 70
     : Math.round(Math.max(percentileChartWidth * 0.04, Math.min(endLabelLayout.rightSpace + 14, 92)));
 
+  const chartFrame = detailChartFrame(percentileRightPadding, "percentile");
   chart.setOption(
     {
-      animationDuration: 420,
-      ...detailChartFrame(percentileRightPadding, "percentile"),
+      animation: false,
+      ...chartFrame,
+      dataZoom: [{ ...chartFrame.dataZoom[0], realtime: true, throttle: 16 }],
       tooltip: {
         trigger: "axis",
         backgroundColor: "#17212d",
@@ -1500,6 +1495,8 @@ function renderDetailPercentileChart(rows) {
       },
       xAxis: {
         type: "time",
+        min: axisValueFromDate(rows[0].date),
+        max: axisValueFromDate(rows.at(-1).date),
         splitNumber: timeAxisSplitNumber(percentileViewportWidth),
         axisLabel: {
           color: "#9ab3d3",
@@ -1565,6 +1562,8 @@ function renderDetailPercentileChart(rows) {
 }
 
 async function renderDetail() {
+  cleanupDetailZoomSync?.();
+  cleanupDetailZoomSync = null;
   state.detail.effectiveRange = state.detail.range;
   analysisUI?.syncDetail();
   document.getElementById("detail-secondary-stats").innerHTML = "";
@@ -1597,7 +1596,7 @@ async function renderDetail() {
     state.detail.effectiveRange = resolveDetailRange(fullRows, state.detail.range);
     syncDetailSelectors();
     const rangedRows = filterRowsByRange(fullRows, state.detail.effectiveRange);
-    const viewRows = recomputeRangeRollingStats(rangedRows);
+    const viewRows = recomputeDetailRangeStats(rangedRows);
 
     const indexMeta = state.metaRows.find((item) => item.id === indexId);
     if (!indexMeta || !viewRows.length) {
@@ -1607,7 +1606,7 @@ async function renderDetail() {
 
     renderDetailChart(indexMeta, viewRows);
     renderDetailPercentileChart(viewRows);
-    bindDetailZoomSync();
+    bindDetailZoomSync(fullRows, rangedRows);
     renderDetailStats(fullRows, viewRows);
     charts.detail?.resize();
     charts.detailPercentile?.resize();
@@ -2547,6 +2546,7 @@ export {
   forwardSourceLabel as forwardSourceLabelForTest,
   ttmSourceLabel as ttmSourceLabelForTest,
   recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
+  recomputeDetailRangeStats as recomputeDetailRangeStatsForTest,
   resolveYAxisRangeFromSeriesData as resolveYAxisRangeForTest,
   toFiniteNumber as toFiniteNumberForTest,
 };
