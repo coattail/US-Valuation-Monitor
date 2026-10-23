@@ -267,6 +267,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 527.8900146484375,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/DIA?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 521.3699951171875,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/DIA?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 20.99,
+          "pe_forward": 19.86,
+          "pb": 4.546293,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/DIA?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "IJH": [
@@ -532,6 +562,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1792540800&period2=1792713600&interval=1d",
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 72.80000305175781,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 72.37000274658203,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 21.614192,
+          "pe_forward": 18.071162,
+          "pb": 2.647442,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
@@ -803,6 +863,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 374.8999938964844,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 373.010009765625,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 28.035421,
+          "pe_forward": 28.069169,
+          "pb": 4.998639,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "XLC": [
@@ -1071,6 +1161,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 107.41999816894531,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 105.51000213623047,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 15.489599,
+          "pe_forward": 12.965296,
+          "pb": 3.123202,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "XLY": [
@@ -1308,6 +1428,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLY?period1=1792540800&period2=1792713600&interval=1d",
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 115.01000213623047,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLY?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 113.0999984741211,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLY?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 26.030405,
+          "pe_forward": 22.490191,
+          "pb": 6.658063,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLY?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
@@ -1551,6 +1701,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 89.98999786376953,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 88.26000213623047,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 26.382866,
+          "pe_forward": 21.086677,
+          "pb": 6.002602,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "XLV": [
@@ -1788,6 +1968,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLV?period1=1792540800&period2=1792713600&interval=1d",
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 181.3000030517578,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLV?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 179.27999877929688,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLV?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 33.265191,
+          "pe_forward": 21.646106,
+          "pb": 6.137639,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLV?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
@@ -2031,6 +2241,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 166.72999572753906,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLI?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 164.6199951171875,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLI?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 27.477806,
+          "pe_forward": 24.012226,
+          "pb": 4.662298,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLI?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "XLB": [
@@ -2268,6 +2508,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLB?period1=1792540800&period2=1792713600&interval=1d",
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 51.689998626708984,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLB?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 51.310001373291016,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLB?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 23.227976,
+          "pe_forward": 17.371349,
+          "pb": 3.586643,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLB?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
@@ -2511,6 +2781,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 42.52000045776367,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLRE?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 42.56999969482422,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLRE?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 31.667194,
+          "pe_forward": 28.960117,
+          "pb": 2.830708,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLRE?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "XLK": [
@@ -2751,6 +3051,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 182.33999633789062,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLK?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 183.22999572753906,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLK?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 31.452775,
+          "pe_forward": 22.861042,
+          "pb": 8.253939,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLK?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "XLU": [
@@ -2988,6 +3318,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLU?period1=1792540800&period2=1792713600&interval=1d",
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 42.869998931884766,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLU?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 42.560001373291016,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLU?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 18.594561,
+          "pe_forward": 17.743495,
+          "pb": 2.279456,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLU?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
@@ -3294,6 +3654,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792713600&interval=1d"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 763.9600219726562,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SPY?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 759.969970703125,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SPY?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 23.27,
+          "pe_forward": 19.15,
+          "pb": 6.046468,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SPY?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "QQQ": [
@@ -3597,6 +3987,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1792713600&interval=1d"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 704.469970703125,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/QQQ?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 704.4000244140625,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/QQQ?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 29.55,
+          "pe_forward": 21.1,
+          "pb": 7.058588,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/QQQ?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "IWM": [
@@ -3837,6 +4257,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 276.6700134277344,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IWM?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 275.75,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IWM?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 34.75,
+          "pe_forward": 25.92,
+          "pb": 2.02325,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IWM?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "XLE": [
@@ -4046,6 +4496,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLE?period1=1792540800&period2=1792713600&interval=1d",
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 67.56999969482422,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLE?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 69.33000183105469,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLE?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 18.797183,
+          "pe_forward": 12.528035,
+          "pb": 2.479684,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLE?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
@@ -4261,6 +4741,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 56.650001525878906,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLF?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 55.900001525878906,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLF?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 15.650026,
+          "pe_forward": 15.940066,
+          "pb": 1.883693,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLF?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "IGV": [
@@ -4470,6 +4980,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1792540800&period2=1792713600&interval=1d",
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 108.72000122070312,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 110.58999633789062,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 37.009483,
+          "pe_forward": 26.830679,
+          "pb": 7.453713,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
@@ -4685,6 +5225,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 523.3499755859375,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 527.2000122070312,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 33.122561,
+          "pe_forward": 22.916509,
+          "pb": 8.315869,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "DRAM": [
@@ -4897,6 +5467,36 @@
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 45.68000030517578,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/DRAM?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 47.060001373291016,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/DRAM?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 13.296855,
+          "pe_forward": 5.333704,
+          "pb": 4.156582,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/DRAM?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
       }
     ],
     "SOXX": [
@@ -5106,6 +5706,36 @@
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1792540800&period2=1792713600&interval=1d",
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
+            "us10yYieldSource": "previous-published-us10y-yield"
+          }
+        }
+      },
+      {
+        "date": "2026-10-23",
+        "anchorDate": "2026-10-22",
+        "anchorClose": {
+          "date": "2026-10-22",
+          "close": 475.69000244140625,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "close": {
+          "date": "2026-10-23",
+          "close": 478.20001220703125,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1792627200&period2=1792800000&interval=1d"
+        },
+        "method": "observed-close-ratio-with-previous-published-fundamentals",
+        "point": {
+          "date": "2026-10-23",
+          "pe_ttm": 43.019536,
+          "pe_forward": 21.185253,
+          "pb": 9.363541,
+          "us10y_yield": 0.035,
+          "recovery": {
+            "method": "observed-close-ratio-with-previous-published-fundamentals",
+            "anchorDate": "2026-10-22",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1792627200&period2=1792800000&interval=1d",
+            "estimated": true,
+            "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
           }
         }

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T14:20:12.789Z",
+  "generatedAt": "2026-10-23T23:05:36.155Z",
   "symbols": {
     "DIA": [
       {
@@ -1001,6 +1001,14 @@
         "pb": null,
         "source": "wsj-latest",
         "capturedAt": "2026-10-23T14:17:06.564Z"
+      },
+      {
+        "date": "2026-10-23",
+        "pe_ttm": 20.99,
+        "pe_forward": 19.86,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-10-23T23:05:36.155Z"
       }
     ],
     "DRAM": [
@@ -3569,6 +3577,14 @@
         "pb": 2.03,
         "source": "ishares-official-latest",
         "capturedAt": "2026-10-23T14:17:17.289Z"
+      },
+      {
+        "date": "2026-10-23",
+        "pe_ttm": 34.75,
+        "pe_forward": 25.92,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-10-23T23:05:36.155Z"
       }
     ],
     "QQQ": [
@@ -3795,6 +3811,14 @@
         "pb": null,
         "source": "wsj-latest",
         "capturedAt": "2026-10-23T14:16:59.540Z"
+      },
+      {
+        "date": "2026-10-23",
+        "pe_ttm": 29.55,
+        "pe_forward": 21.1,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-10-23T23:05:36.155Z"
       }
     ],
     "SMH": [
@@ -5105,6 +5129,14 @@
         "pb": null,
         "source": "wsj-latest",
         "capturedAt": "2026-10-23T14:16:26.015Z"
+      },
+      {
+        "date": "2026-10-23",
+        "pe_ttm": 23.27,
+        "pe_forward": 19.15,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-10-23T23:05:36.155Z"
       }
     ],
     "VTI": [
