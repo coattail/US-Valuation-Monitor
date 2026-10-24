@@ -239,6 +239,17 @@ test('TTM recovery provenance is retained in detail tooltips',()=>{
   assert.match(ttmSourceLabelForTest(rows[0]),/估算.*2026-05-08/);
 });
 
+test('ETF TTM tooltips identify estimates and undated first-seen snapshots', () => {
+  const points = [
+    { date: '2026-07-21', pe_ttm: 32, pe_ttm_snapshot: { source: 'stockanalysis-latest', dateBasis: 'first-seen' } },
+    { date: '2026-07-22', pe_ttm: 33, pe_ttm_estimate: { method: 'undated-ttm-etf-price-carry', anchorDate: '2026-07-21', anchorPe: 32 } },
+  ];
+  const rows = getMetricSeriesForTest({ id: 'dram', points }, 'pe_ttm');
+  assert.match(ttmSourceLabelForTest(rows[0]), /首次采集.*未标注估值日期/);
+  assert.match(ttmSourceLabelForTest(rows[1]), /ETF.*估算.*2026-07-21.*首次采集/);
+  assert.doesNotMatch(ttmSourceLabelForTest(rows[1]), /标普/);
+});
+
 
 test('live detail stats preserve the existing rolling statistics and rank convention', () => {
   const rows = Array.from({length: 3000}, (_, i) => ({date: new Date(Date.UTC(2010, 0, i + 1)).toISOString().slice(0, 10), value: 10 + (i * 7919 % 997) / 100}));

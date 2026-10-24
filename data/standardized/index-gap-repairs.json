@@ -316,7 +316,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-09-22",
-          "pe_ttm": 22.407096,
+          "pe_ttm": 22.4071,
           "pe_forward": 18.159076,
           "pb": 2.748229,
           "us10y_yield": 0.0496,
@@ -325,6 +325,15 @@
             "anchorDate": "2026-09-21",
             "priceSource": "https://api.nasdaq.com/api/quote/IJH/historical?assetclass=etf&fromdate=2026-09-08&todate=2026-09-23&limit=5000",
             "estimated": true
+          },
+          "pe_ttm_estimate": {
+            "method": "dated-ttm-etf-price-carry",
+            "anchorDate": "2026-09-21",
+            "anchorPe": 22.34,
+            "anchorClose": 73.25,
+            "close": 73.47000122070312,
+            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1784160000&period2=1792800000&interval=1d",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1784160000&period2=1792800000&interval=1d"
           }
         }
       },
@@ -344,7 +353,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-01",
-          "pe_ttm": 22.279847,
+          "pe_ttm": 21.9,
           "pe_forward": 18.293422,
           "pb": 2.738249,
           "us10y_yield": 0.035,
@@ -372,7 +381,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-14",
-          "pe_ttm": 21.584323,
+          "pe_ttm": 21.84,
           "pe_forward": 18.046191,
           "pb": 2.643784,
           "us10y_yield": 0.035,
@@ -402,7 +411,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-15",
-          "pe_ttm": 21.811307,
+          "pe_ttm": 21.6,
           "pe_forward": 18.235967,
           "pb": 2.671586,
           "us10y_yield": 0.035,
@@ -432,7 +441,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 21.608217,
+          "pe_ttm": 21.78,
           "pe_forward": 18.066167,
           "pb": 2.64671,
           "us10y_yield": 0.035,
@@ -462,7 +471,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-19",
-          "pe_ttm": 21.617177,
+          "pe_ttm": 21.74,
           "pe_forward": 18.073658,
           "pb": 2.647807,
           "us10y_yield": 0.035,
@@ -492,7 +501,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-20",
-          "pe_ttm": 21.829227,
+          "pe_ttm": 21.63,
           "pe_forward": 18.250948,
           "pb": 2.67378,
           "us10y_yield": 0.035,
@@ -522,7 +531,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-21",
-          "pe_ttm": 21.918827,
+          "pe_ttm": 21.93,
           "pe_forward": 18.32586,
           "pb": 2.684755,
           "us10y_yield": 0.035,
@@ -552,7 +561,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-22",
-          "pe_ttm": 21.742617,
+          "pe_ttm": 21.69,
           "pe_forward": 18.178535,
           "pb": 2.663172,
           "us10y_yield": 0.035,
@@ -582,7 +591,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-23",
-          "pe_ttm": 21.614192,
+          "pe_ttm": 21.5619,
           "pe_forward": 18.071162,
           "pb": 2.647442,
           "us10y_yield": 0.035,
@@ -593,6 +602,15 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_estimate": {
+            "method": "dated-ttm-etf-price-carry",
+            "anchorDate": "2026-10-22",
+            "anchorPe": 21.69,
+            "anchorClose": 72.80000305175781,
+            "close": 72.37000274658203,
+            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1784160000&period2=1792800000&interval=1d",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1784160000&period2=1792800000&interval=1d"
           }
         }
       }
@@ -614,7 +632,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-09-22",
-          "pe_ttm": 29.483146,
+          "pe_ttm": 29.4831,
           "pe_forward": 28.690593,
           "pb": 5.142293,
           "us10y_yield": 0.0496,
@@ -623,6 +641,15 @@
             "anchorDate": "2026-09-21",
             "priceSource": "https://api.nasdaq.com/api/quote/VTI/historical?assetclass=etf&fromdate=2026-09-08&todate=2026-09-23&limit=5000",
             "estimated": true
+          },
+          "pe_ttm_estimate": {
+            "method": "dated-ttm-etf-price-carry",
+            "anchorDate": "2026-09-21",
+            "anchorPe": 29.47,
+            "anchorClose": 381.1000061035156,
+            "close": 381.2699890136719,
+            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1784160000&period2=1792800000&interval=1d",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1784160000&period2=1792800000&interval=1d"
           }
         }
       },
@@ -642,7 +669,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-01",
-          "pe_ttm": 29.112941,
+          "pe_ttm": 28.91,
           "pe_forward": 28.232335,
           "pb": 5.082735,
           "us10y_yield": 0.035,
@@ -670,7 +697,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-14",
-          "pe_ttm": 28.32629,
+          "pe_ttm": 28.55,
           "pe_forward": 28.360388,
           "pb": 5.0505,
           "us10y_yield": 0.035,
@@ -700,7 +727,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-15",
-          "pe_ttm": 28.442037,
+          "pe_ttm": 28.22,
           "pe_forward": 28.476274,
           "pb": 5.071137,
           "us10y_yield": 0.035,
@@ -730,7 +757,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 28.115091,
+          "pe_ttm": 28.35,
           "pe_forward": 28.148934,
           "pb": 5.012843,
           "us10y_yield": 0.035,
@@ -760,7 +787,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-19",
-          "pe_ttm": 28.225576,
+          "pe_ttm": 28.24,
           "pe_forward": 28.259552,
           "pb": 5.032542,
           "us10y_yield": 0.035,
@@ -790,7 +817,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-20",
-          "pe_ttm": 28.342073,
+          "pe_ttm": 28.2,
           "pe_forward": 28.376189,
           "pb": 5.053313,
           "us10y_yield": 0.035,
@@ -820,7 +847,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-21",
-          "pe_ttm": 28.496902,
+          "pe_ttm": 28.37,
           "pe_forward": 28.531205,
           "pb": 5.080919,
           "us10y_yield": 0.035,
@@ -850,7 +877,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-22",
-          "pe_ttm": 28.177472,
+          "pe_ttm": 28.23,
           "pe_forward": 28.211391,
           "pb": 5.023966,
           "us10y_yield": 0.035,
@@ -880,7 +907,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-23",
-          "pe_ttm": 28.035421,
+          "pe_ttm": 28.0877,
           "pe_forward": 28.069169,
           "pb": 4.998639,
           "us10y_yield": 0.035,
@@ -891,6 +918,15 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_estimate": {
+            "method": "dated-ttm-etf-price-carry",
+            "anchorDate": "2026-10-22",
+            "anchorPe": 28.23,
+            "anchorClose": 374.8999938964844,
+            "close": 373.010009765625,
+            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1784160000&period2=1792800000&interval=1d",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1784160000&period2=1792800000&interval=1d"
           }
         }
       }
@@ -4790,7 +4826,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-14",
-          "pe_ttm": 36.025599,
+          "pe_ttm": 37.15,
           "pe_forward": 26.117395,
           "pb": 7.255559,
           "us10y_yield": 0.035,
@@ -4820,7 +4856,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-15",
-          "pe_ttm": 36.678175,
+          "pe_ttm": 35.73,
           "pe_forward": 26.590492,
           "pb": 7.386988,
           "us10y_yield": 0.035,
@@ -4850,7 +4886,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 34.91789,
+          "pe_ttm": 36.68,
           "pe_forward": 25.314342,
           "pb": 7.032466,
           "us10y_yield": 0.035,
@@ -4880,7 +4916,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-19",
-          "pe_ttm": 35.470071,
+          "pe_ttm": 35.64,
           "pe_forward": 25.714655,
           "pb": 7.143675,
           "us10y_yield": 0.035,
@@ -4910,7 +4946,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-20",
-          "pe_ttm": 35.784647,
+          "pe_ttm": 35.49,
           "pe_forward": 25.942713,
           "pb": 7.207031,
           "us10y_yield": 0.035,
@@ -4940,7 +4976,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-21",
-          "pe_ttm": 36.417145,
+          "pe_ttm": 36.39,
           "pe_forward": 26.401253,
           "pb": 7.334416,
           "us10y_yield": 0.035,
@@ -4970,7 +5006,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-22",
-          "pe_ttm": 36.38368,
+          "pe_ttm": 36.69,
           "pe_forward": 26.376992,
           "pb": 7.327676,
           "us10y_yield": 0.035,
@@ -5000,7 +5036,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-23",
-          "pe_ttm": 37.009483,
+          "pe_ttm": 37.3211,
           "pe_forward": 26.830679,
           "pb": 7.453713,
           "us10y_yield": 0.035,
@@ -5011,6 +5047,15 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_estimate": {
+            "method": "dated-ttm-etf-price-carry",
+            "anchorDate": "2026-10-22",
+            "anchorPe": 36.69,
+            "anchorClose": 108.72000122070312,
+            "close": 110.58999633789062,
+            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1784160000&period2=1792800000&interval=1d",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1784160000&period2=1792800000&interval=1d"
           }
         }
       }
@@ -5032,7 +5077,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-14",
-          "pe_ttm": 35.481097,
+          "pe_ttm": 30.61,
           "pe_forward": 24.54831,
           "pb": 8.908012,
           "us10y_yield": 0.035,
@@ -5043,6 +5088,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-13",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5062,7 +5111,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-15",
-          "pe_ttm": 35.110418,
+          "pe_ttm": 31.71,
           "pe_forward": 24.291848,
           "pb": 8.814948,
           "us10y_yield": 0.035,
@@ -5073,6 +5122,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-14",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5092,7 +5145,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 33.913555,
+          "pe_ttm": 30.71,
           "pe_forward": 23.463774,
           "pb": 8.514459,
           "us10y_yield": 0.035,
@@ -5103,6 +5156,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-15",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5122,7 +5179,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-19",
-          "pe_ttm": 34.458271,
+          "pe_ttm": 31.16,
           "pe_forward": 23.840646,
           "pb": 8.651217,
           "us10y_yield": 0.035,
@@ -5133,6 +5190,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-16",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5152,7 +5213,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-20",
-          "pe_ttm": 34.326331,
+          "pe_ttm": 31,
           "pe_forward": 23.749361,
           "pb": 8.618092,
           "us10y_yield": 0.035,
@@ -5163,6 +5224,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-19",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5182,7 +5247,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-21",
-          "pe_ttm": 34.975967,
+          "pe_ttm": 30.62,
           "pe_forward": 24.198825,
           "pb": 8.781192,
           "us10y_yield": 0.035,
@@ -5193,6 +5258,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-20",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5212,7 +5281,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-22",
-          "pe_ttm": 32.880674,
+          "pe_ttm": 28.83,
           "pe_forward": 22.749154,
           "pb": 8.25514,
           "us10y_yield": 0.035,
@@ -5223,6 +5292,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5242,7 +5315,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-23",
-          "pe_ttm": 33.122561,
+          "pe_ttm": 29.13,
           "pe_forward": 22.916509,
           "pb": 8.315869,
           "us10y_yield": 0.035,
@@ -5253,6 +5326,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       }
@@ -5274,7 +5351,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-14",
-          "pe_ttm": 14.167112,
+          "pe_ttm": 23.95,
           "pe_forward": 5.682786,
           "pb": 4.428622,
           "us10y_yield": 0.035,
@@ -5285,6 +5362,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-13",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5304,7 +5385,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-15",
-          "pe_ttm": 13.938246,
+          "pe_ttm": 23.56,
           "pe_forward": 5.590982,
           "pb": 4.357079,
           "us10y_yield": 0.035,
@@ -5315,6 +5396,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-14",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5334,7 +5419,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 13.124499,
+          "pe_ttm": 22.19,
           "pe_forward": 5.264567,
           "pb": 4.102703,
           "us10y_yield": 0.035,
@@ -5345,6 +5430,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-15",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5364,7 +5453,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-19",
-          "pe_ttm": 13.655695,
+          "pe_ttm": 23.08,
           "pe_forward": 5.477643,
           "pb": 4.268754,
           "us10y_yield": 0.035,
@@ -5375,6 +5464,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-16",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5394,7 +5487,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-20",
-          "pe_ttm": 13.483339,
+          "pe_ttm": 22.79,
           "pe_forward": 5.408507,
           "pb": 4.214876,
           "us10y_yield": 0.035,
@@ -5405,6 +5498,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-19",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5424,7 +5521,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-21",
-          "pe_ttm": 13.890212,
+          "pe_ttm": 23.48,
           "pe_forward": 5.571714,
           "pb": 4.342064,
           "us10y_yield": 0.035,
@@ -5435,6 +5532,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-20",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5454,7 +5555,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-22",
-          "pe_ttm": 12.906934,
+          "pe_ttm": 21.82,
           "pe_forward": 5.177297,
           "pb": 4.034693,
           "us10y_yield": 0.035,
@@ -5465,6 +5566,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-21",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       },
@@ -5484,7 +5589,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-23",
-          "pe_ttm": 13.296855,
+          "pe_ttm": 22.48,
           "pe_forward": 5.333704,
           "pb": 4.156582,
           "us10y_yield": 0.035,
@@ -5495,6 +5600,10 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       }
@@ -5516,7 +5625,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-14",
-          "pe_ttm": 46.727742,
+          "pe_ttm": 47.78,
           "pe_forward": 23.011383,
           "pb": 10.170661,
           "us10y_yield": 0.035,
@@ -5546,7 +5655,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-15",
-          "pe_ttm": 46.304027,
+          "pe_ttm": 45.74,
           "pe_forward": 22.802722,
           "pb": 10.078436,
           "us10y_yield": 0.035,
@@ -5576,7 +5685,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-16",
-          "pe_ttm": 44.38605,
+          "pe_ttm": 45.5,
           "pe_forward": 21.858201,
           "pb": 9.660973,
           "us10y_yield": 0.035,
@@ -5606,7 +5715,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-19",
-          "pe_ttm": 45.154318,
+          "pe_ttm": 43.71,
           "pe_forward": 22.23654,
           "pb": 9.828193,
           "us10y_yield": 0.035,
@@ -5636,7 +5745,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-20",
-          "pe_ttm": 44.981594,
+          "pe_ttm": 44.53,
           "pe_forward": 22.151481,
           "pb": 9.790598,
           "us10y_yield": 0.035,
@@ -5666,7 +5775,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-21",
-          "pe_ttm": 45.912692,
+          "pe_ttm": 44.26,
           "pe_forward": 22.610006,
           "pb": 9.993259,
           "us10y_yield": 0.035,
@@ -5696,7 +5805,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-22",
-          "pe_ttm": 42.793732,
+          "pe_ttm": 44.96,
           "pe_forward": 21.074054,
           "pb": 9.314393,
           "us10y_yield": 0.035,
@@ -5726,7 +5835,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-23",
-          "pe_ttm": 43.019536,
+          "pe_ttm": 45.1972,
           "pe_forward": 21.185253,
           "pb": 9.363541,
           "us10y_yield": 0.035,
@@ -5737,6 +5846,15 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pe_ttm_estimate": {
+            "method": "dated-ttm-etf-price-carry",
+            "anchorDate": "2026-10-22",
+            "anchorPe": 44.96,
+            "anchorClose": 475.69000244140625,
+            "close": 478.20001220703125,
+            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1784160000&period2=1792800000&interval=1d",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1784160000&period2=1792800000&interval=1d"
           }
         }
       }

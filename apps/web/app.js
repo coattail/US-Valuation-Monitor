@@ -783,6 +783,7 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
       date: point.date,
       ...(valuationBasis ? { valuationBasis, forwardEstimate: point.pe_forward_estimate } : {}),
       ...(metric === "pe_ttm" && point.pe_ttm_estimate ? { ttmEstimate: point.pe_ttm_estimate } : {}),
+      ...(metric === "pe_ttm" && point.pe_ttm_snapshot ? { ttmSnapshot: point.pe_ttm_snapshot } : {}),
       value,
       percentile_5y: pct5,
       percentile_10y: pct10,
@@ -1333,6 +1334,9 @@ function forwardSourceLabel(row) {
 
 function ttmSourceLabel(row) {
   const estimate = row?.ttmEstimate;
+  if (estimate?.method === 'undated-ttm-etf-price-carry') return `按ETF收盘涨跌估算（基准：${estimate.anchorDate} 首次采集快照，${fmt(estimate.anchorPe, 2)} 倍；源未标注估值日期）`;
+  if (estimate?.method === 'dated-ttm-etf-price-carry') return `按ETF收盘涨跌估算（基准：${estimate.anchorDate} 原始报价，${fmt(estimate.anchorPe, 2)} 倍）`;
+  if (row?.ttmSnapshot?.dateBasis === 'first-seen') return '第三方页面快照（首次采集日；源未标注估值日期）';
   return estimate ? `按标普500收盘涨跌估算（基准：${estimate.anchorDate}，${fmt(estimate.anchorPe, 2)} 倍）` : "历史报价";
 }
 

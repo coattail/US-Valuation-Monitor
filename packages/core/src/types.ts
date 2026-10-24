@@ -15,7 +15,7 @@ export interface ForwardPeEstimate {
 }
 
 export interface TtmPeEstimate {
-  method: 'wsj-ttm-spx-price-carry';
+  method: 'wsj-ttm-spx-price-carry' | 'undated-ttm-etf-price-carry' | 'dated-ttm-etf-price-carry';
   anchorDate: string;
   anchorPe: number;
   anchorClose: number;
@@ -39,6 +39,7 @@ export interface RawValuationPoint {
   pe_forward: number | null;
   pe_forward_estimate?: ForwardPeEstimate;
   pe_ttm_estimate?: TtmPeEstimate;
+  pe_ttm_snapshot?: { source: string; dateBasis: 'first-seen' };
   pb: number | null;
   us10y_yield: number;
 }
