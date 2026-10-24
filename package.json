@@ -9,9 +9,9 @@
     "cloudfunctions"
   ],
   "scripts": {
-    "refresh:wsj:index": "node scripts/sync-wsj-valuations.mjs && npm run refresh:etf-ttm:index && node packages/data-pipeline/src/split-index-dataset.ts",
-    "refresh:close:index": "node scripts/refresh-market-close.mjs index && npm run refresh:etf-ttm:index && node packages/data-pipeline/src/split-index-dataset.ts",
-    "build:data:index": "node packages/data-pipeline/src/build-snapshot.ts && node scripts/repair-data-gaps.mjs index && npm run refresh:etf-ttm:index && node packages/data-pipeline/src/split-index-dataset.ts",
+    "refresh:wsj:index": "node scripts/sync-wsj-valuations.mjs && npm run refresh:daily:index && node packages/data-pipeline/src/split-index-dataset.ts",
+    "refresh:close:index": "node scripts/refresh-market-close.mjs index && npm run refresh:daily:index && node packages/data-pipeline/src/split-index-dataset.ts",
+    "build:data:index": "node packages/data-pipeline/src/build-snapshot.ts && node scripts/repair-data-gaps.mjs index && npm run refresh:daily:index && node packages/data-pipeline/src/split-index-dataset.ts",
     "build:data:company": "node packages/data-pipeline/src/build-company-snapshot.ts && node packages/data-pipeline/src/split-company-dataset.ts",
     "validate:data:company": "node scripts/validate-company-series.mjs",
     "build:data": "npm run build:data:index && npm run build:data:company",
@@ -26,6 +26,7 @@
     "test": "node --test packages/core/tests/*.test.ts packages/data-pipeline/tests/*.test.ts cloudfunctions/tests/*.test.ts apps/web/*.test.mjs scripts/*.test.mjs",
     "dev": "node cloudfunctions/server.ts",
     "validate:data:freshness": "node scripts/validate-data-freshness.mjs index && node scripts/validate-data-freshness.mjs company",
-    "refresh:etf-ttm:index": "node scripts/repair-etf-ttm-history.mjs --write"
+    "refresh:etf-ttm:index": "node scripts/repair-etf-ttm-history.mjs --write",
+    "refresh:daily:index": "npm run refresh:etf-ttm:index && node scripts/reconcile-index-forward.mjs --write"
   }
 }

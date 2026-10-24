@@ -781,7 +781,9 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
 
     result.push({
       date: point.date,
-      ...(valuationBasis ? { valuationBasis, forwardEstimate: point.pe_forward_estimate } : {}),
+      ...(valuationBasis ? { valuationBasis } : {}),
+      ...(metric === "pe_forward" && point.pe_forward_estimate ? {forwardEstimate:point.pe_forward_estimate} : {}),
+      ...(metric === "pe_forward" && point.pe_forward_snapshot ? {forwardSnapshot:point.pe_forward_snapshot} : {}),
       ...(metric === "pe_ttm" && point.pe_ttm_estimate ? { ttmEstimate: point.pe_ttm_estimate } : {}),
       ...(metric === "pe_ttm" && point.pe_ttm_snapshot ? { ttmSnapshot: point.pe_ttm_snapshot } : {}),
       value,
@@ -1329,11 +1331,18 @@ function forwardSourceLabel(row) {
   if (!row) return "";
   if (row.valuationBasis === "historical-estimate") return "历史估算（不同口径）";
   const estimate = row.forwardEstimate;
+  if(estimate?.method === 'source-forward-price-carry') {
+    const label = estimate.priceSymbol === '^DJI' ? '道琼斯指数' : estimate.priceSymbol === '^RUT' ? '罗素2000指数' : 'ETF';
+    const basis = estimate.anchorSource === 'previous-published-estimate' ? '历史估算基准' : '源报价';
+    return `按${label}收盘涨跌估算（${basis}：${estimate.anchorDate}，${fmt(estimate.anchorPe,2)} 倍）`;
+  }
+  if(row.forwardSnapshot?.dateBasis === 'first-seen') return '第三方页面快照（首次采集日；源未标注估值日期）';
   return estimate ? `按纳指100收盘涨跌估算（基准：${estimate.anchorDate}，${fmt(estimate.anchorPe, 2)} 倍）` : "原始报价";
 }
 
 function ttmSourceLabel(row) {
   const estimate = row?.ttmEstimate;
+  if(estimate?.method === 'snapshot-implied-earnings-interpolation') return `事后反推估算（${estimate.anchorDate} 至 ${estimate.endAnchorDate} 源快照与实际收盘价；区间隐含盈利插值，使用后验数据）`;
   if (estimate?.method === 'undated-ttm-etf-price-carry') return `按ETF收盘涨跌估算（基准：${estimate.anchorDate} 首次采集快照，${fmt(estimate.anchorPe, 2)} 倍；源未标注估值日期）`;
   if (estimate?.method === 'dated-ttm-etf-price-carry') return `按ETF收盘涨跌估算（基准：${estimate.anchorDate} 原始报价，${fmt(estimate.anchorPe, 2)} 倍）`;
   if (row?.ttmSnapshot?.dateBasis === 'first-seen') return '第三方页面快照（首次采集日；源未标注估值日期）';
@@ -1383,8 +1392,8 @@ function renderDetailChart(indexMeta, rows) {
           return [
             axisDate,
             `${metricCfg.label}: <strong>${price ? metricFormatter(price.data[1]) : "--"}</strong>`,
-            ...(isNasdaqForward ? [forwardSourceLabel(rows.find(row => row.date === axisDate))] : []),
-            ...(indexMeta.id === "sp500" && state.detail.metric === "pe_ttm" ? [ttmSourceLabel(rows.find(row => row.date === axisDate))] : []),
+            ...(state.detail.metric === "pe_forward" ? [forwardSourceLabel(rows.find(row => row.date === axisDate))] : []),
+            ...(state.detail.metric === "pe_ttm" ? [ttmSourceLabel(rows.find(row => row.date === axisDate))] : []),
           ].join("<br/>");
         },
       },

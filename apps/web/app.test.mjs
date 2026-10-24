@@ -250,6 +250,13 @@ test('ETF TTM tooltips identify estimates and undated first-seen snapshots', () 
   assert.doesNotMatch(ttmSourceLabelForTest(rows[1]), /标普/);
 });
 
+test('all forward series retain provenance and DRAM reconstruction discloses hindsight',()=>{
+  const f = getMetricSeriesForTest({id:'dow30',points:[{date:'2026-10-19',pe_forward:19.8,pe_forward_estimate:{method:'source-forward-price-carry',priceSymbol:'^DJI',anchorSource:'wsj-latest',anchorDate:'2026-10-16',anchorPe:19.78}}]},'pe_forward')[0];
+  assert.match(forwardSourceLabelForTest(f),/道琼斯.*估算.*2026-10-16/);
+  const t = getMetricSeriesForTest({id:'dram',points:[{date:'2026-10-13',pe_ttm:25.3038,pe_ttm_estimate:{method:'snapshot-implied-earnings-interpolation',anchorDate:'2026-07-16',endAnchorDate:'2026-10-14'}}]},'pe_ttm')[0];
+  assert.match(ttmSourceLabelForTest(t),/事后反推估算.*后验数据/);
+});
+
 
 test('live detail stats preserve the existing rolling statistics and rank convention', () => {
   const rows = Array.from({length: 3000}, (_, i) => ({date: new Date(Date.UTC(2010, 0, i + 1)).toISOString().slice(0, 10), value: 10 + (i * 7919 % 997) / 100}));

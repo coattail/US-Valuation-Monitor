@@ -696,6 +696,7 @@ interface OfficialIndexSnapshot {
   pe_forward: number | null;
   pb: number | null;
   source: string;
+  sourceUrl?: string;
 }
 
 interface IndexRatioAnchor {
@@ -3135,7 +3136,8 @@ function extractSectionChunk(html: string, title: string, maxChars = 8_000): str
   const source = String(html || "");
   const index = source.toLowerCase().indexOf(title.toLowerCase());
   if (index < 0) return "";
-  return source.slice(index, Math.min(source.length, index + maxChars));
+  const end = source.indexOf('</section>', index);
+  return source.slice(index, end >= 0 ? end : Math.min(source.length, index + maxChars));
 }
 
 function parseSsgaSectionMetricRows(html: string): Map<string, number> {
@@ -3145,7 +3147,8 @@ function parseSsgaSectionMetricRows(html: string): Map<string, number> {
   let match: RegExpExecArray | null;
 
   while ((match = rowRegex.exec(html)) !== null) {
-    const label = normalizeLookupText(stripHtmlText(match[1]));
+    // Ignore tooltip definitions, which repeat the label and contain numbers.
+    const label = normalizeLookupText(stripHtmlText(match[1].split(/<span\b[^>]*class=["'][^"']*\binfo\b/i)[0]));
     const value = parseNumericText(stripHtmlText(match[2]));
     if (!label || !Number.isFinite(value)) continue;
     rows.set(label, Number(value));
@@ -3482,7 +3485,7 @@ export async function fetchWsjPeSnapshot(
   return combined;
 }
 
-async function fetchOfficialIndexLatestSnapshot(indexId: string): Promise<OfficialIndexSnapshot | null> {
+export async function fetchOfficialIndexLatestSnapshot(indexId: string): Promise<OfficialIndexSnapshot | null> {
   const routes = OFFICIAL_INDEX_SNAPSHOT_ROUTES[indexId];
   if (!routes?.length) return null;
 
@@ -3500,6 +3503,7 @@ async function fetchOfficialIndexLatestSnapshot(indexId: string): Promise<Offici
         return {
           ...parsed,
           source: route.source,
+          sourceUrl: url,
         };
       } catch {
         // try next route
@@ -6480,7 +6484,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         if (
           !prefersWsjLatestSnapshot &&
           !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
-          isPlausibleForwardPair(officialTrailing, officialForward) &&
+          isReasonableForwardPe(officialForward) &&
           canApplyOfficialForward
         ) {
           forwardSeries = upsertSeriesValueAtDate(forwardSeries, officialEffectiveDate, Number(officialForward));
@@ -6504,7 +6508,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
             pe_forward:
               !prefersWsjLatestSnapshot &&
               !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
-              isPlausibleForwardPair(officialTrailing, officialForward) &&
+              isReasonableForwardPe(officialForward) &&
               canApplyOfficialForward &&
               isReasonableForwardPe(officialForward)
                 ? officialForward

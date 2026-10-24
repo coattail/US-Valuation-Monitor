@@ -1238,6 +1238,16 @@ test("parseSsgaIndexMetricsForTest accepts XLC style index characteristics with 
   });
 });
 
+test('SSGA tooltip labels and different section dates cannot corrupt FY1 or PB',()=>{
+  const html = `<section><h2>Fund Characteristics <span>as of Oct 22 2026</span></h2>
+    <tr><th class="label">Price/Book Ratio <span class="info"><div>Price/Book Ratio last twelve months 12</div></span></th><td class="data">2.66</td></tr>
+    <tr><th class="label">Price/Earnings Ratio FY1 <span class="info"><div>Price/Earnings Ratio FY1 forecasted one year</div></span></th><td class="data">33.90</td></tr>
+    </section><section><h2>Index Characteristics as of Oct 22 2026</h2>
+    <tr><th class="label">Price/Earnings</th><td class="data">31.63</td></tr>
+    </section><section>Other values as of Oct 23 2026<tr><td class="label">Price/Earnings Ratio FY1</td><td class="data">999</td></tr></section>`;
+  assert.deepEqual(parseSsgaIndexMetricsForTest(html),{date:'2026-10-22',pe_ttm:31.63,pe_forward:33.9,pb:2.66,source:'ssga-official-latest'});
+});
+
 test("parseIsharesPortfolioMetricsForTest extracts TTM PE, PB, and date from iShares HTML", () => {
   const html = `
     <div data-componentName="Fundamentals And Risk" class="fund-component fund-component-parent clearfix ppv3" id="fundamentalsAndRisk">

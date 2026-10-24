@@ -61,7 +61,7 @@ test('missing prices and a broken history lock block publication without rewriti
 test('the declared daily refresh commands all run ETF TTM reconciliation before splitting publication data', async () => {
   const {scripts} = JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
   for (const name of ['build:data:index','refresh:close:index','refresh:wsj:index']) {
-    assert.match(scripts[name],/refresh:etf-ttm:index.*split-index-dataset/);
+    assert.match(scripts[name],/refresh:daily:index.*split-index-dataset/);
   }
 });
 

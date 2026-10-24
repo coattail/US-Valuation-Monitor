@@ -7,6 +7,7 @@ import { assertDatasetMatchesIndexHistoryLock, buildIndexHistoryLock } from '../
 import { applySp500TtmPricePolicy } from '../packages/data-pipeline/src/sp500-ttm-policy.ts';
 import { applyNasdaqForwardPricePolicy } from '../packages/data-pipeline/src/nasdaq-forward-policy.ts';
 import { lastCompletedSession, isTradingDate, shiftDate } from '../packages/data-pipeline/src/market-calendar.ts';
+import { forwardPlan, applyIndexForwardPolicy } from '../packages/data-pipeline/src/index-forward-policy.ts';
 
 const ids = ['sp500', 'nasdaq100', 'dow30', 'russell2000'];
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -67,7 +68,7 @@ export function reconcileWsj(dataset, metrics, observations, { now = new Date(),
   return { dataset: next, metrics: cache, changes, changed };
 }
 
-export function validateWsjFreshness(dataset, metrics, now = new Date()) {
+export function validateWsjFreshness(dataset, metrics, now = new Date(), { forwardInputs } = {}) {
   // Allow the publisher an overnight update window; then verify source dates,
   // not just the presence of a trading-day row.
   const target = lastCompletedSession(new Date(now.getTime() - 12 * 3600000));
@@ -82,7 +83,10 @@ export function validateWsjFreshness(dataset, metrics, now = new Date()) {
     if (!row || row.date < expected) problems.push(`${id}: WSJ ${row?.date || 'missing'}, expected >= ${expected}`);
     if (row) {
       const point = index.points.find(p => p.date === row.date);
-      if (point?.pe_ttm !== row.pe_ttm || point?.pe_forward !== row.pe_forward) problems.push(`${id}: published values disagree with WSJ ${row.date}`);
+      const plan = index && forwardPlan(index), inputs = forwardInputs?.indices?.[id];
+      const expectedForward = point && plan?.weekly && inputs
+        ? applyIndexForwardPolicy([point],metrics.symbols[index.symbol] || [],inputs,true)[0].pe_forward : row.pe_forward;
+      if (point?.pe_ttm !== row.pe_ttm || point?.pe_forward !== expectedForward) problems.push(`${id}: published values disagree with WSJ ${row.date}`);
     }
   }
   if (problems.length) throw new Error(`WSJ source validation failed:\n${problems.join('\n')}`);
@@ -93,7 +97,11 @@ export async function syncWsj({ dir = path.join(root, 'data/standardized'), now 
   const write = async (name, value) => writeFile(path.join(dir, name), JSON.stringify(value, null, 2) + '\n');
   const dataset = await read('valuation-history.json'), metrics = await read('index-yahoo-daily-metrics.json');
   assertDatasetMatchesIndexHistoryLock(dataset, await read('index-history-lock.json'));
-  if (check) return validateWsjFreshness(dataset, metrics, now);
+  if (check) {
+    let forwardInputs;
+    try { forwardInputs = await read('index-forward-inputs.json'); } catch(error) { if(error.code !== 'ENOENT') throw error; }
+    return validateWsjFreshness(dataset, metrics, now, {forwardInputs});
+  }
   const observations = await fetchSnapshots(undefined, lastCompletedSession(now));
   if (!observations.size) throw new Error('No dated WSJ observations available; retain existing published data');
   const result = reconcileWsj(dataset, metrics, observations, { now,

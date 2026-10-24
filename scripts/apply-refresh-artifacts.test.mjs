@@ -42,6 +42,8 @@ test('index artifacts must include and publish the reproducible NDX price cache'
     await writeFile(path.join(source, 'sp500-ttm-closes.json'), JSON.stringify({symbol:'^GSPC',observations:[]}));
     await assert.rejects(applyArtifacts(root, artifact), /etf-ttm-closes/);
     await writeFile(path.join(source, 'etf-ttm-closes.json'), JSON.stringify({version:1,symbols:{}}));
+    await assert.rejects(applyArtifacts(root, artifact), /index-forward-inputs/);
+    await writeFile(path.join(source,'index-forward-inputs.json'),JSON.stringify({version:1,indices:{}}));
     assert.deepEqual(await applyArtifacts(root, artifact), ['index']);
     assert.equal(await readFile(path.join(root, 'data/standardized/nasdaq100-forward-closes.json'), 'utf8'), prices);
     assert.deepEqual(JSON.parse(await readFile(path.join(root, 'data/standardized/etf-ttm-closes.json'), 'utf8')), {version:1,symbols:{}});
