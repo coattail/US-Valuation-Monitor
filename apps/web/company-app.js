@@ -1,6 +1,6 @@
 import { detailChartFrame } from "./detail-chart-ui.js?v=20261014-simple-chart-layout-v1";
 import { percentileColor, regimeFromPercentile, regimeLabel, snapshotPercentile, snapshotBadge } from "./valuation-policy.js";
-import { initAnalysisUI, formatAxisTick, createSeriesColors, resolveDetailRange, detailRangeCaption } from "./analysis-ui.js?v=20260910-detail-layout-v1";
+import { initAnalysisUI, formatAxisTick, createSeriesColors, resolveDetailRange, detailRangeCaption } from "./analysis-ui.js?v=20261025-object-list";
 let analysisUI;
 const SNAPSHOT_PATH_CANDIDATES = [
   "/data/standardized/company-valuation-snapshot.json",
@@ -1073,7 +1073,7 @@ function openDetailIndex(indexId) {
   state.detail.indexId = indexId;
   syncDetailSelectors();
   switchView("detail");
-  elements.detailIndex.focus({ preventScroll: true });
+  document.querySelector('#detail-switcher summary').focus({ preventScroll: true });
   document.getElementById("view-detail").scrollIntoView({ block: "start" });
   renderDetail();
 }

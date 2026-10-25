@@ -42,6 +42,8 @@ export function initAnalysisUI({ state, charts, compareColor, renderCompareChart
   const byId = (id) => document.getElementById(id);
   const detailSelect = byId("detail-index");
   const search = byId("detail-search");
+  const switcher = byId('detail-switcher');
+  const detailOptions = byId('detail-index-options');
   let compareTimer;
   const scheduleCompare = () => {
     clearTimeout(compareTimer);
@@ -91,30 +93,81 @@ export function initAnalysisUI({ state, charts, compareColor, renderCompareChart
   const filterDetailOptions = () => {
     const keyword = search.value.trim().toLowerCase();
     const matches = state.metaRows.filter((item) => `${item.displayName} ${item.symbol || ""}`.toLowerCase().includes(keyword));
-    detailSelect.replaceChildren(...matches.map((item) => new Option(`${item.displayName} · ${item.symbol || item.id}`, item.id, false, item.id === state.detail.indexId)));
-    // Never silently select the first search result.
+    // The native select is only the shared state/event bridge. Render actual
+    // buttons so iOS WebViews cannot collapse a size=6 list into a second picker.
+    detailOptions.replaceChildren(...matches.map(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'object-switcher-option';
+      button.dataset.indexId = item.id;
+      button.setAttribute('aria-label', `${item.displayName} · ${item.symbol || item.id}${item.id === state.detail.indexId ? '，当前' : ''}`);
+      const name = document.createElement('span');
+      name.className = 'object-option-name';
+      name.textContent = item.displayName;
+      const symbol = document.createElement('span');
+      symbol.className = 'object-option-symbol';
+      symbol.textContent = item.symbol || item.id;
+      button.append(name, symbol);
+      if (item.id === state.detail.indexId) {
+        button.setAttribute('aria-current', 'true');
+        const current = document.createElement('span');
+        current.className = 'object-option-current';
+        current.textContent = '当前';
+        button.append(current);
+      }
+      button.addEventListener('click', () => {
+        detailSelect.value = item.id;
+        detailSelect.dispatchEvent(new Event('change', {bubbles: true}));
+      });
+      return button;
+    }));
+    // Searching alone must never change the selected object.
     detailSelect.value = state.detail.indexId;
     byId("detail-search-status").textContent = matches.length ? `${matches.length} 个匹配结果` : "没有匹配结果，请尝试其他名称或代码";
   };
   search.addEventListener("input", filterDetailOptions);
   search.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowDown") { event.preventDefault(); detailSelect.focus(); }
-    if (event.key === "Enter" && detailSelect.options.length === 1) {
+    if (event.isComposing) return;
+    if (event.key === "ArrowDown") { event.preventDefault(); detailOptions.querySelector('button')?.focus(); }
+    if (event.key === "Enter" && detailOptions.children.length === 1) {
       event.preventDefault();
-      detailSelect.value = detailSelect.options[0].value;
-      detailSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      detailOptions.querySelector('button').click();
     }
   });
-  byId("detail-switcher").addEventListener("toggle", () => {
-    if (byId("detail-switcher").open) { filterDetailOptions(); search.focus(); }
+  detailOptions.addEventListener('keydown', event => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const buttons = [...detailOptions.querySelectorAll('button')];
+    const index = buttons.indexOf(document.activeElement);
+    if (index < 0) return;
+    event.preventDefault();
+    if (event.key === 'ArrowUp' && index === 0) { search.focus(); return; }
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+      : Math.min(buttons.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1));
+    buttons[next].focus();
   });
-  byId("detail-switcher").addEventListener("keydown", (event) => {
-    if (event.key === "Escape") { byId("detail-switcher").open = false; byId("detail-switcher").querySelector("summary").focus(); }
+  switcher.addEventListener("toggle", () => {
+    if (switcher.open) {
+      search.value = '';
+      filterDetailOptions();
+      detailOptions.scrollTop = 0;
+      // Touch users should see the list immediately, without the keyboard
+      // taking half the screen. They can tap search when they need it.
+      if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) search.focus({preventScroll: true});
+    }
+  });
+  switcher.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { switcher.open = false; switcher.querySelector("summary").focus(); }
+  });
+  document.addEventListener('pointerdown', event => {
+    if (switcher.open && !switcher.contains(event.target)) switcher.open = false;
+  });
+  document.addEventListener('focusin', event => {
+    if (switcher.open && !switcher.contains(event.target)) switcher.open = false;
   });
   detailSelect.addEventListener("change", () => {
-    byId("detail-switcher").open = false;
+    switcher.open = false;
     search.value = "";
-    byId("detail-switcher").querySelector("summary").focus();
+    switcher.querySelector("summary").focus({preventScroll: true});
   });
   const syncDetail = () => {
     const meta = state.metaRows.find((item) => item.id === state.detail.indexId);

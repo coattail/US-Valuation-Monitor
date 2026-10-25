@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>US Valuation Monitor</title>
-    <link rel="stylesheet" href="./styles.css?v=20261020-mobile" />
+    <link rel="stylesheet" href="./styles.css?v=20261025-object-list" />
   </head>
   <body data-theme="terminal">
     <a class="skip-link" href="#main-content">跳转到主要内容</a>
@@ -117,7 +117,9 @@
               <summary>切换指数</summary>
               <div class="object-switcher-body">
                 <label>搜索指数<input id="detail-search" type="search" placeholder="名称或代码…" autocomplete="off" /></label>
-                <label>选择指数<select id="detail-index" size="6"></select></label>
+                <span id="detail-options-label" class="hint">选择指数</span>
+                <div id="detail-index-options" class="object-switcher-list" role="group" aria-labelledby="detail-options-label"></div>
+                <select id="detail-index" class="native-control" tabindex="-1" aria-hidden="true"></select>
                 <span id="detail-search-status" class="hint" role="status"></span>
               </div>
             </details>
@@ -266,6 +268,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./app.js?v=20261021-live-range-v1"></script>
+    <script type="module" src="./app.js?v=20261025-object-list"></script>
   </body>
 </html>
