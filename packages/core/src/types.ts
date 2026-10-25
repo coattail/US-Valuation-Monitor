@@ -50,6 +50,7 @@ export interface RawValuationPoint {
   pe_ttm_estimate?: TtmPeEstimate;
   pe_ttm_snapshot?: { source: string; dateBasis: 'first-seen' };
   pb: number | null;
+  pb_basis?: { method: 'index-price-to-book'; bookValueDate: string; bookValue: number };
   us10y_yield: number;
 }
 

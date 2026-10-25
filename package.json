@@ -27,6 +27,6 @@
     "dev": "node cloudfunctions/server.ts",
     "validate:data:freshness": "node scripts/validate-data-freshness.mjs index && node scripts/validate-data-freshness.mjs company",
     "refresh:etf-ttm:index": "node scripts/repair-etf-ttm-history.mjs --write",
-    "refresh:daily:index": "npm run refresh:etf-ttm:index && node scripts/reconcile-index-forward.mjs --write"
+    "refresh:daily:index": "npm run refresh:etf-ttm:index && node scripts/reconcile-index-forward.mjs --write && node scripts/reconcile-sp500-pb.mjs --write"
   }
 }

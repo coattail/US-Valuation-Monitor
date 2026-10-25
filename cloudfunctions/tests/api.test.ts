@@ -60,7 +60,7 @@ test("series payload exposes metric-specific PB history", async () => {
   assert.equal(payload.rows.length, payload.availableRange.pointCount);
   assert.equal(payload.availableRange.startDate, "1999-12-31");
   assert.equal(payload.rows[0].date, "1999-12-31");
-  assert.equal(payload.rows[0].value, 5.19);
+  assert.equal(payload.rows[0].value, Number((1469.25 / 290.68).toFixed(6)));
 });
 
 test("series payload starts S&P 500 forward PE at Yardeni/Refinitiv prefix", async () => {

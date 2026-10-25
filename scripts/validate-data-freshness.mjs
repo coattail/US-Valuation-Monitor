@@ -5,6 +5,7 @@ import { lastCompletedSession, tradingDates } from '../packages/data-pipeline/sr
 import { applyEtfTtmPricePolicy, ETF_TTM_SYMBOLS } from '../packages/data-pipeline/src/etf-ttm-policy.ts';
 import { reconstructDramTtm } from '../packages/data-pipeline/src/dram-ttm-reconstruction.ts';
 import { forwardPlan, applyIndexForwardPolicy } from '../packages/data-pipeline/src/index-forward-policy.ts';
+import {applySp500PbPolicy} from '../packages/data-pipeline/src/sp500-pb-policy.ts';
 
 export function findMissingSessions(series, target, since = '2026-09-18') {
   const present = new Set(series.points.map(p => p.date));
@@ -20,7 +21,7 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
   const expectedCount = kind === 'index' ? 21 : 100;
   if (files.length !== expectedCount) throw new Error(`${kind}: expected ${expectedCount} series, found ${files.length}`);
   const problems = [];
-  let etfCloses, metrics, forwardInputs;
+  let etfCloses, metrics, forwardInputs, pbInputs;
   if (kind === 'index') {
     etfCloses = JSON.parse(await readFile(path.join(dir, '../etf-ttm-closes.json'), 'utf8'));
     metrics = JSON.parse(await readFile(path.join(dir, '../index-yahoo-daily-metrics.json'), 'utf8'));
@@ -31,6 +32,14 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
     const series = JSON.parse(await readFile(path.join(dir, file), 'utf8'));
     const missing = findMissingSessions(series, target);
     if (missing.length) problems.push(`${series.symbol}: ${missing.join(', ')}`);
+    if(kind === 'index' && series.id === 'sp500') {
+      try {
+        pbInputs ??= JSON.parse(await readFile(path.join(dataDir,'sp500-pb-inputs.json'),'utf8'));
+        const expected = applySp500PbPolicy(series.points,pbInputs);
+        const stale = series.points.filter((point,i) => point.pb !== expected[i].pb || JSON.stringify(point.pb_basis) !== JSON.stringify(expected[i].pb_basis));
+        if(stale.length) problems.push(`SPY: inconsistent PB on ${stale.map(row => row.date).join(', ')}`);
+      } catch(error) {problems.push(`SPY PB: ${error.message}`);}
+    }
     if (kind === 'index' && ETF_TTM_SYMBOLS.has(series.symbol)) {
       try {
         let expected = applyEtfTtmPricePolicy(series.points, metrics.symbols[series.symbol] || [], etfCloses.symbols[series.symbol] || []);

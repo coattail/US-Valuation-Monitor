@@ -786,6 +786,7 @@ function buildMetricSeriesFromIndexData(indexData, metric) {
       ...(metric === "pe_forward" && point.pe_forward_snapshot ? {forwardSnapshot:point.pe_forward_snapshot} : {}),
       ...(metric === "pe_ttm" && point.pe_ttm_estimate ? { ttmEstimate: point.pe_ttm_estimate } : {}),
       ...(metric === "pe_ttm" && point.pe_ttm_snapshot ? { ttmSnapshot: point.pe_ttm_snapshot } : {}),
+      ...(metric === "pb" && point.pb_basis ? {pbBasis: point.pb_basis} : {}),
       value,
       percentile_5y: pct5,
       percentile_10y: pct10,
@@ -1285,6 +1286,12 @@ function renderDetailPercentileTrack(latest) {
 }
 
 function renderDetailStats(fullRows, viewRows) {
+  const pbBasis = document.getElementById('detail-pb-basis');
+  const bookDate = state.detail.metric === 'pb' ? viewRows.at(-1)?.pbBasis?.bookValueDate : undefined;
+  if (pbBasis) {
+    pbBasis.hidden = !bookDate;
+    pbBasis.textContent = bookDate ? `净资产基准：${bookDate}` : '';
+  }
   if (!viewRows.length) {
     elements.detailStats.innerHTML = [METRIC_CONFIG[state.detail.metric].label, "百分位(当前区间)", "估值状态 · 当前区间", "区间变动"]
       .map(label => `<div class="stat-pill primary-stat"><div class="k">${label}</div><div class="v">--</div></div>`).join("");
@@ -1580,6 +1587,7 @@ async function renderDetail() {
   document.getElementById("detail-secondary-stats").innerHTML = "";
   elements.detailPercentileTrack.innerHTML = "";
   elements.detailRange.textContent = "正在加载数据区间…";
+  document.getElementById('detail-pb-basis').hidden = true;
   charts.detail?.clear();
   charts.detailPercentile?.clear();
   const indexId = state.detail.indexId;

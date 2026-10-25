@@ -3812,7 +3812,7 @@
           "date": "2026-10-01",
           "pe_ttm": 23.2466,
           "pe_forward": 19.749757,
-          "pb": 6.080825,
+          "pb": 6.035054,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -3828,6 +3828,11 @@
             "close": 7666.4501953125,
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1790985600&interval=1d"
+          },
+          "pb_basis": {
+            "method": "index-price-to-book",
+            "bookValueDate": "2025-09-30",
+            "bookValue": 1270.32
           }
         }
       },
@@ -3849,7 +3854,7 @@
           "date": "2026-10-14",
           "pe_ttm": 23.3005,
           "pe_forward": 19.334615,
-          "pb": 6.123088,
+          "pb": 6.076374,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -3867,6 +3872,11 @@
             "close": 7718.93994140625,
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1791590400&interval=1d",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792022400&interval=1d"
+          },
+          "pb_basis": {
+            "method": "index-price-to-book",
+            "bookValueDate": "2025-09-30",
+            "bookValue": 1270.32
           }
         }
       },
@@ -3888,7 +3898,7 @@
           "date": "2026-10-15",
           "pe_ttm": 23.3763,
           "pe_forward": 19.389634,
-          "pb": 6.140512,
+          "pb": 6.096149,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -3906,6 +3916,11 @@
             "close": 7744.06005859375,
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1791590400&interval=1d",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792108800&interval=1d"
+          },
+          "pb_basis": {
+            "method": "index-price-to-book",
+            "bookValueDate": "2025-09-30",
+            "bookValue": 1270.32
           }
         }
       },
@@ -3927,7 +3942,7 @@
           "date": "2026-10-16",
           "pe_ttm": 23.51,
           "pe_forward": 19.25,
-          "pb": 6.072566,
+          "pb": 6.029536,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -3936,6 +3951,11 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-15",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pb_basis": {
+            "method": "index-price-to-book",
+            "bookValueDate": "2025-09-30",
+            "bookValue": 1270.32
           }
         }
       },
@@ -3957,7 +3977,7 @@
           "date": "2026-10-19",
           "pe_ttm": 23.606,
           "pe_forward": 19.331464,
-          "pb": 6.098264,
+          "pb": 6.054167,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -3975,6 +3995,11 @@
             "close": 7690.72998046875,
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792195200&interval=1d",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792454400&interval=1d"
+          },
+          "pb_basis": {
+            "method": "index-price-to-book",
+            "bookValueDate": "2025-09-30",
+            "bookValue": 1270.32
           }
         }
       },
@@ -3996,7 +4021,7 @@
           "date": "2026-10-20",
           "pe_ttm": 23.6731,
           "pe_forward": 19.396282,
-          "pb": 6.118711,
+          "pb": 6.07136,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -4014,6 +4039,11 @@
             "close": 7712.56982421875,
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792195200&interval=1d",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792540800&interval=1d"
+          },
+          "pb_basis": {
+            "method": "index-price-to-book",
+            "bookValueDate": "2025-09-30",
+            "bookValue": 1270.32
           }
         }
       },
@@ -4035,7 +4065,7 @@
           "date": "2026-10-21",
           "pe_ttm": 23.81,
           "pe_forward": 19.498176,
-          "pb": 6.150854,
+          "pb": 6.106469,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -4053,6 +4083,11 @@
             "close": 7757.169921875,
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792195200&interval=1d",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792627200&interval=1d"
+          },
+          "pb_basis": {
+            "method": "index-price-to-book",
+            "bookValueDate": "2025-09-30",
+            "bookValue": 1270.32
           }
         }
       },
@@ -4074,7 +4109,7 @@
           "date": "2026-10-22",
           "pe_ttm": 23.5222,
           "pe_forward": 19.267907,
-          "pb": 6.078214,
+          "pb": 6.032677,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -4092,6 +4127,11 @@
             "close": 7663.43017578125,
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792195200&interval=1d",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792713600&interval=1d"
+          },
+          "pb_basis": {
+            "method": "index-price-to-book",
+            "bookValueDate": "2025-09-30",
+            "bookValue": 1270.32
           }
         }
       },
@@ -4113,7 +4153,7 @@
           "date": "2026-10-23",
           "pe_ttm": 23.27,
           "pe_forward": 19.15,
-          "pb": 6.046468,
+          "pb": 6.001386,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -4122,6 +4162,11 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-22",
             "us10yYieldSource": "previous-published-us10y-yield"
+          },
+          "pb_basis": {
+            "method": "index-price-to-book",
+            "bookValueDate": "2025-09-30",
+            "bookValue": 1270.32
           }
         }
       }

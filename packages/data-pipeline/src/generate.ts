@@ -1,5 +1,6 @@
 import { applySp500TtmPricePolicy, sp500TtmPriceCorrections, assertSp500TtmCoverage, SP500_TTM_WSJ_START, type Sp500Close } from "./sp500-ttm-policy.ts";
 import { loadSp500TtmCloses, refreshSp500TtmCloses } from "./sp500-ttm-closes.ts";
+import {applySp500PbPolicy, loadSp500PbInputs} from './sp500-pb-policy.ts';
 import { lastCompletedSession as getLastCompletedUsMarketDate } from "./market-calendar.ts";
 import { createTextFetcher } from "./fetch-text.ts";
 import { applyNasdaqForwardPricePolicy, nasdaqForwardPriceCorrections, assertNasdaqForwardCoverage, NASDAQ_FORWARD_WSJ_START, type NasdaqClose } from "./nasdaq-forward-policy.ts";
@@ -5915,6 +5916,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   const vendorIndexForwardHistory = await loadVendorIndexForwardPeHistory();
   const ndxForwardCloses = await refreshNasdaqForwardCloses(effectiveEnd);
   const spxTtmCloses = await refreshSp500TtmCloses(effectiveEnd);
+  const spxPbInputs = await loadSp500PbInputs();
   let wsjPeSnapshot = new Map<string, LatestPeSnapshot>();
 
   try {
@@ -7186,6 +7188,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         spxTtmCloses
       );
       if (meta.id === "nasdaq100") assertNasdaqForwardCoverage(points);
+      if (meta.id === "sp500") points = applySp500PbPolicy(points, spxPbInputs, false);
       if (meta.id === "sp500") assertSp500TtmCoverage(points);
       if (effectiveEnd > liveSourceCutoverDate) {
         const latestPointDate = points[points.length - 1]?.date || "";
@@ -7257,7 +7260,10 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
             repairedHistoryPoints, meta.id, indexYahooDailyMetricsBySymbol.get(meta.symbol) || [], ndxForwardCloses, spxTtmCloses
           );
           if (meta.id === "nasdaq100") assertNasdaqForwardCoverage(repairedHistoryPoints);
-          else assertSp500TtmCoverage(repairedHistoryPoints);
+          else {
+            repairedHistoryPoints = applySp500PbPolicy(repairedHistoryPoints, spxPbInputs, false);
+            assertSp500TtmCoverage(repairedHistoryPoints);
+          }
         }
         generatedPointsByIndexId.set(meta.id, repairedHistoryPoints);
         indices.push({
@@ -7419,6 +7425,7 @@ export async function loadAuthoritativePublishedMetricCorrections(): Promise<Aut
   const result: AuthoritativePublishedMetricCorrections = new Map();
   const ndxCloses = await loadNasdaqForwardCloses();
   const spxCloses = await loadSp500TtmCloses();
+  const spxPbInputs = await loadSp500PbInputs();
   const history = JSON.parse(await readFile(path.join(OUTPUT_DIR, "valuation-history.json"), "utf8"));
   const sp500Points = history.indices.find((row: { id: string }) => row.id === "sp500")?.points || [];
 
@@ -7435,6 +7442,9 @@ export async function loadAuthoritativePublishedMetricCorrections(): Promise<Aut
     if (meta.id === "sp500") {
       for (const [date, value] of sp500TtmPriceCorrections(sp500Points, snapshotsBySymbol.get(meta.symbol) || [], spxCloses)) {
         corrections.set(date, { ...corrections.get(date), ...value });
+      }
+      for (const point of applySp500PbPolicy(sp500Points, spxPbInputs, false)) {
+        if (point.pb_basis) corrections.set(point.date, {...corrections.get(point.date), pb: point.pb});
       }
     }
     if (corrections.size) result.set(meta.id, corrections);
