@@ -1392,8 +1392,6 @@ function renderDetailChart(indexMeta, rows) {
           return [
             axisDate,
             `${metricCfg.label}: <strong>${price ? metricFormatter(price.data[1]) : "--"}</strong>`,
-            ...(state.detail.metric === "pe_forward" ? [forwardSourceLabel(rows.find(row => row.date === axisDate))] : []),
-            ...(state.detail.metric === "pe_ttm" ? [ttmSourceLabel(rows.find(row => row.date === axisDate))] : []),
           ].join("<br/>");
         },
       },

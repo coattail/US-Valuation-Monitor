@@ -81,7 +81,7 @@ test('time-axis zoom uses dates for sparse observations and never treats a gap a
   assert.ok(range.min > 23 && range.max < 26);
 });
 
-test('daily Forward PE estimates remain in the WSJ basis and are identified in tooltips', () => {
+test('daily Forward PE estimates retain their WSJ basis and source metadata', () => {
   const estimate = { method: 'wsj-forward-ndx-price-carry', anchorDate: '2026-04-17', anchorPe: 24.62 };
   const rows = getMetricSeriesForTest({ id: 'nasdaq100', points: [
     { date: '2026-04-17', pe_forward: 24.62 },
@@ -232,14 +232,14 @@ test('Nasdaq range selectors rank against the full chosen sample, including date
   assert.equal(new Set(percentiles).size,6);
 });
 
-test('TTM recovery provenance is retained in detail tooltips',()=>{
+test('TTM recovery provenance is retained in detail series metadata',()=>{
   const estimate={anchorDate:'2026-05-08',anchorPe:26.4};
   const rows=getMetricSeriesForTest({id:'sp500',points:[{date:'2026-05-11',pe_ttm:26.664,pe_ttm_estimate:estimate}]},'pe_ttm');
   assert.equal(rows[0].ttmEstimate,estimate);
   assert.match(ttmSourceLabelForTest(rows[0]),/估算.*2026-05-08/);
 });
 
-test('ETF TTM tooltips identify estimates and undated first-seen snapshots', () => {
+test('ETF TTM source metadata distinguishes estimates and undated first-seen snapshots', () => {
   const points = [
     { date: '2026-07-21', pe_ttm: 32, pe_ttm_snapshot: { source: 'stockanalysis-latest', dateBasis: 'first-seen' } },
     { date: '2026-07-22', pe_ttm: 33, pe_ttm_estimate: { method: 'undated-ttm-etf-price-carry', anchorDate: '2026-07-21', anchorPe: 32 } },
@@ -250,7 +250,7 @@ test('ETF TTM tooltips identify estimates and undated first-seen snapshots', () 
   assert.doesNotMatch(ttmSourceLabelForTest(rows[1]), /标普/);
 });
 
-test('all forward series retain provenance and DRAM reconstruction discloses hindsight',()=>{
+test('all forward series retain provenance and DRAM reconstruction metadata records hindsight',()=>{
   const f = getMetricSeriesForTest({id:'dow30',points:[{date:'2026-10-19',pe_forward:19.8,pe_forward_estimate:{method:'source-forward-price-carry',priceSymbol:'^DJI',anchorSource:'wsj-latest',anchorDate:'2026-10-16',anchorPe:19.78}}]},'pe_forward')[0];
   assert.match(forwardSourceLabelForTest(f),/道琼斯.*估算.*2026-10-16/);
   const t = getMetricSeriesForTest({id:'dram',points:[{date:'2026-10-13',pe_ttm:25.3038,pe_ttm_estimate:{method:'snapshot-implied-earnings-interpolation',anchorDate:'2026-07-16',endAnchorDate:'2026-10-14'}}]},'pe_ttm')[0];
