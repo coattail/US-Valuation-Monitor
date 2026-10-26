@@ -422,7 +422,8 @@
   ],
   "priceSources": [
     "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=946598400&period2=946771200&interval=1d",
-    "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=946684800&period2=1792800000&interval=1d"
+    "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=946684800&period2=1792800000&interval=1d",
+    "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1792972800&period2=1793059200&interval=1d"
   ],
   "closes": [
     {
@@ -27400,6 +27401,10 @@
     {
       "date": "2026-10-23",
       "close": 7623.68017578125
+    },
+    {
+      "date": "2026-10-26",
+      "close": 7676.77001953125
     }
   ]
 }
