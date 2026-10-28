@@ -77,6 +77,9 @@ interface CompanyDatasetIndex {
   marketCap?: number;
   peg?: number | null;
   points: CompanyValuationPoint[];
+  latestEarnings?: Record<string, unknown>;
+  annualFinancials?: Array<Record<string, unknown>>;
+  valuationStatus?: string;
   quarterlyNetIncome?: Array<{ date: string; netIncome: number; source?: string }>;
   quarterlyEps?: Array<{ date: string; eps: number; source?: string }>;
 }
@@ -307,7 +310,7 @@ export async function loadCompanyDataset(rootDir: string): Promise<CompanyValuat
       ...item,
       peg: resolveLatestCompanyPeg(item.points, item.peg),
     }))
-    .filter((item) => item.id && item.symbol && item.displayName && item.points.length)
+    .filter((item) => item.id && item.symbol && item.displayName && (item.points.length || item.latestEarnings))
     .sort((a, b) => {
       const capDiff = toFiniteNumber(b.marketCap, 0) - toFiniteNumber(a.marketCap, 0);
       if (capDiff !== 0) return capDiff;

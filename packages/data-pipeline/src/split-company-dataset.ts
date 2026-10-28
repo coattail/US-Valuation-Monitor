@@ -1,3 +1,4 @@
+import { applyOfficialEarnings } from "./official-earnings.mjs";
 import { lastCompletedSession, tradingDates } from "./market-calendar.ts";
 import { repairCompanyMetricHistory } from "./company-data-corrections.mjs";
 import path from "node:path";
@@ -26,7 +27,10 @@ interface CompanyIndexInput {
   peg?: number | null;
   forwardStartDate?: string;
   points?: CompanyValuationPoint[];
-  quarterlyEps?: Array<{ date: string; eps?: number; source?: string }>;
+  valuationStatus?: string;
+  latestEarnings?: Record<string, unknown>;
+  annualFinancials?: Array<Record<string, unknown>>;
+  quarterlyEps?: Array<{ date: string; eps?: number; source?: string; availableDate?: string; currency?: string }>;
   quarterlyNetIncome?: Array<{ date: string; netIncome?: number; source?: string }>;
 }
 
@@ -202,6 +206,7 @@ function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
     startDate: String(points[0]?.date || ""),
     endDate: String(points[points.length - 1]?.date || ""),
     pointCount: points.length,
+    ...(item.latestEarnings ? { valuationStatus: item.valuationStatus, latestEarnings: item.latestEarnings } : {}),
     date: peStats.latestDate || String(latestPoint.date || ""),
     pe_ttm: toFiniteNumber(latestPoint.pe_ttm),
     pe_forward: toFiniteNumber(latestPoint.pe_forward),
@@ -263,7 +268,7 @@ async function main(): Promise<void> {
   const indicesRaw = Array.isArray(dataset.indices) ? dataset.indices : [];
   const usTradingDates = await loadUsTradingDates();
 
-  const indices = indicesRaw.map((item) => ({ ...item, points: repairCompanyMetricHistory(item.symbol, item.points || []) }))
+  const indices = indicesRaw.map(applyOfficialEarnings).map((item) => ({ ...item, points: repairCompanyMetricHistory(item.symbol, item.points || []) }))
     .filter((item) => item && typeof item === "object")
     .map((item) => ({
       ...item,
@@ -316,6 +321,7 @@ async function main(): Promise<void> {
       marketCap: Number(item.marketCap || 0),
       forwardStartDate: String(item.forwardStartDate || item.points[item.points.length - 1]?.date || ""),
       points: stripGrowthOnlyFieldsFromPoints(item.points),
+      ...(item.latestEarnings ? { valuationStatus: item.valuationStatus, latestEarnings: item.latestEarnings, annualFinancials: item.annualFinancials, quarterlyEps: item.quarterlyEps, quarterlyNetIncome: item.quarterlyNetIncome } : {}),
     };
     return writeFile(filePath, `${JSON.stringify(payload)}\n`, "utf8");
   });

@@ -10,3 +10,9 @@ The URL convention was verified against the logo displayed on https://companiesm
 
 SpaceX uses its official website icon; see `64/SPCX.source.md`.
 All marks belong to their respective owners and identify the companies represented by the dashboard.
+
+- SKHY.svg: SK hynix transparent brand mark, https://cdn.worldvectorlogo.com/logos/sk-hynix.svg (copied from the audited Earnings-Image-Studio logo catalog).
+
+- DHR.png: original PNG from https://companiesmarketcap.com/img/company-logos/256/DHR.png; restores the missing published-universe asset required by CI.
+
+- NOW.png: original PNG from https://companiesmarketcap.com/img/company-logos/256/NOW.png; restores the missing ServiceNow published-universe asset required by CI.

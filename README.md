@@ -100,3 +100,9 @@ us-valuation-monitor/
 - For detailed setup, troubleshooting, and full endpoint docs, see:
   - [README.zh-CN.md](./README.zh-CN.md)
   - [README.en.md](./README.en.md)
+
+### 官方财报补录（2026-10-28）
+
+`data/earnings/official-quarterly.json` 保存 Visa FY2026 Q4／全年及 SK 海力士 FY2026 Q3 官方财报。公司详情展示原币营收、营业利润、净利润、已披露稀释 EPS 和官方来源；Visa 为美元，SK 海力士为韩元。季度基本面与发布日期在构建、拆分后保留，后续自动刷新会再次应用官方记录。
+
+SK 海力士美股代码为 SKHY，公司列表根据 `sk-hynix` 标识映射，避免韩股 `000660.KS` 被美股过滤规则排除。未取得可靠行情观察时，SKHY 仅发布财报，估值显示等待同步；不推算历史倍数，不把普通股韩元 EPS 当作 ADR 美元 EPS。新财报不会重写发布前的历史收盘估值。

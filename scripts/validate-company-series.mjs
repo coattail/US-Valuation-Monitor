@@ -48,6 +48,11 @@ export function validateCompanySeriesPayloads(
   for (const payload of companyPayloads || []) {
     const symbol = String(payload?.symbol || "").trim().toUpperCase();
     const points = Array.isArray(payload?.points) ? payload.points : [];
+    const report = payload?.latestEarnings;
+    const awaitingProvider = symbol && !points.length && payload?.valuationStatus === "awaiting-provider"
+      && report?.sourceUrl?.startsWith("https://") && /^\d{4}-\d{2}-\d{2}$/.test(report?.reportDate || "")
+      && Number.isFinite(report?.revenue) && Number.isFinite(report?.netIncome);
+    if (awaitingProvider) continue;
     if (!symbol || !points.length) {
       errors.push(`invalid company series payload: symbol=${symbol || "missing"} points=${points.length}`);
       continue;

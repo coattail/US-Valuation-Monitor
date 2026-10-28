@@ -1,0 +1,84 @@
+{
+  "updatedAt": "2026-10-28",
+  "note": "Amounts in original statement currency. Quarterly EPS is diluted GAAP EPS per listed share; no KRW ordinary-share EPS is used as USD ADR EPS. Financial disclosures do not override dated provider valuations. Visa Q4 was released after the October 27 US close, so that closing PE remains a pre-release observation. SK hynix Q3 was released October 28 Korea time, after the October 27 US close.",
+  "companies": {
+    "V": {
+      "currency": "USD",
+      "accountingStandard": "US GAAP",
+      "quarters": [
+        {
+          "fiscalPeriod": "FY2026 Q1",
+          "periodEnd": "2025-12-31",
+          "reportDate": "2026-01-29",
+          "revenue": 10901000000,
+          "operatingIncome": 6737000000,
+          "netIncome": 5853000000,
+          "sourceUrl": "https://investor.visa.com/news/news-details/2026/Visa-Fiscal-Fourth-Quarter-and-Full-Year-2026-Financial-Results/default.aspx",
+          "preliminary": true
+        },
+        {
+          "fiscalPeriod": "FY2026 Q2",
+          "periodEnd": "2026-03-31",
+          "reportDate": "2026-04-28",
+          "revenue": 11230000000,
+          "operatingIncome": 7234000000,
+          "netIncome": 6021000000,
+          "sourceUrl": "https://investor.visa.com/news/news-details/2026/Visa-Fiscal-Fourth-Quarter-and-Full-Year-2026-Financial-Results/default.aspx",
+          "preliminary": true
+        },
+        {
+          "fiscalPeriod": "FY2026 Q3",
+          "periodEnd": "2026-06-30",
+          "reportDate": "2026-07-28",
+          "revenue": 11633000000,
+          "operatingIncome": 6877000000,
+          "netIncome": 5628000000,
+          "sourceUrl": "https://investor.visa.com/news/news-details/2026/Visa-Fiscal-Fourth-Quarter-and-Full-Year-2026-Financial-Results/default.aspx",
+          "preliminary": true
+        },
+        {
+          "fiscalPeriod": "FY2026 Q4",
+          "periodEnd": "2026-09-30",
+          "reportDate": "2026-10-27",
+          "revenue": 12139000000,
+          "operatingIncome": 7262000000,
+          "netIncome": 6002000000,
+          "eps": 3.19,
+          "sourceUrl": "https://investor.visa.com/news/news-details/2026/Visa-Fiscal-Fourth-Quarter-and-Full-Year-2026-Financial-Results/default.aspx",
+          "preliminary": true
+        }
+      ],
+      "annualFinancials": [
+        {
+          "fiscalPeriod": "FY2026",
+          "periodEnd": "2026-09-30",
+          "reportDate": "2026-10-27",
+          "revenue": 45903000000,
+          "operatingIncome": 28110000000,
+          "netIncome": 23504000000,
+          "eps": 12.32,
+          "adjustedEps": 13.27,
+          "adjustedNetIncome": 25314000000,
+          "sourceUrl": "https://investor.visa.com/news/news-details/2026/Visa-Fiscal-Fourth-Quarter-and-Full-Year-2026-Financial-Results/default.aspx"
+        }
+      ]
+    },
+    "SKHY": {
+      "currency": "KRW",
+      "accountingStandard": "K-IFRS",
+      "quarters": [
+        {
+          "fiscalPeriod": "FY2026 Q3",
+          "periodEnd": "2026-09-30",
+          "reportDate": "2026-10-28",
+          "revenue": 104615500000000,
+          "operatingIncome": 83333800000000,
+          "netIncome": 39775600000000,
+          "sourceUrl": "https://news.skhynix.com/en/q3-2026-business-results/",
+          "preliminary": true,
+          "note": "Consolidated net income as published in the preliminary release. ADR diluted EPS is not provided in the release."
+        }
+      ]
+    }
+  }
+}
