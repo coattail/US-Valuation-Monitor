@@ -1,3 +1,4 @@
+import { applyOfficialEarnings, normalizeListedCompany } from "./official-earnings.mjs";
 import { lastCompletedSession as getLastCompletedUsMarketDate, shiftDate, tradingDates } from "./market-calendar.ts";
 import { capCompanyPublicationToYahoo, restoreCompanyPublishedArchive } from "./company-yahoo-publication.ts";
 import { repairCompanyMetricHistory, preserveSpcxUnavailableMetrics } from "./company-data-corrections.mjs";
@@ -775,7 +776,7 @@ function parseTopCompanies(html: string): CompanySeed[] {
     if (!Number.isFinite(marketCap) || marketCap <= 0) continue;
 
     seen.add(symbol);
-    companies.push({ rank, symbol, slug, displayName, marketCap });
+    companies.push(normalizeListedCompany({ rank, symbol, slug, displayName, marketCap }));
   }
 
   return companies.sort((a, b) => a.rank - b.rank);
@@ -7832,13 +7833,15 @@ async function main(): Promise<void> {
     marketCap: item.marketCap,
     peg: sanitizeSignedRatio(item.peg ?? null),
     forwardStartDate: item.forwardStartDate,
+    quarterlyEps: item.quarterlyEps,
+    quarterlyNetIncome: item.quarterlyNetIncome,
     points: stripGrowthOnlyFieldsFromSnapshotPoints(capCompanyPublicationToYahoo(
       item.points,
       previousSeriesBySymbol.get(item.symbol)?.points || [],
       yahooDailyMetricsBySymbol.get(item.symbol) || [],
       companySeriesCapDate
     )),
-  }));
+  })).map(applyOfficialEarnings);
 
   const dataset = {
     generatedAt: new Date().toISOString(),

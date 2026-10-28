@@ -21,6 +21,7 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
   const expectedCount = kind === 'index' ? 21 : 100;
   if (files.length !== expectedCount) throw new Error(`${kind}: expected ${expectedCount} series, found ${files.length}`);
   const problems = [];
+  let awaitingProviderCount = 0;
   let etfCloses, metrics, forwardInputs, pbInputs;
   if (kind === 'index') {
     etfCloses = JSON.parse(await readFile(path.join(dir, '../etf-ttm-closes.json'), 'utf8'));
@@ -30,6 +31,11 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
   }
   for (const file of files) {
     const series = JSON.parse(await readFile(path.join(dir, file), 'utf8'));
+    if (kind === 'company' && series.valuationStatus === 'awaiting-provider' && !series.points?.length && series.latestEarnings?.sourceUrl) {
+      awaitingProviderCount += 1;
+      console.warn(`[freshness] ${series.symbol}: financials updated; valuation publication awaiting provider`);
+      continue;
+    }
     const missing = findMissingSessions(series, target);
     if (missing.length) problems.push(`${series.symbol}: ${missing.join(', ')}`);
     if(kind === 'index' && series.id === 'sp500') {
@@ -63,7 +69,7 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
     }
   }
   if (problems.length) throw new Error(`Incomplete ${kind} data through ${target}:\n${problems.join('\n')}`);
-  console.log(`[freshness] ${kind}: all ${files.length} series complete through ${target}`);
+  console.log(`[freshness] ${kind}: ${files.length - awaitingProviderCount} valuation series complete through ${target}; ${awaitingProviderCount} financial-only entries awaiting provider`);
 }
 if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
   validateFreshness(process.argv[2]).catch(error => { console.error(error.message); process.exitCode = 1; });

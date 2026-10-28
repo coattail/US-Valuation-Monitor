@@ -117,7 +117,7 @@ function ensureEchartsLoaded() {
 function getCompanyLogoUrl(symbol) {
   const normalizedSymbol = String(symbol || "").trim().toUpperCase();
   if (!normalizedSymbol) return COMPANY_LOGO_FALLBACK_URL;
-  return new URL(`${encodeURIComponent(normalizedSymbol)}.${normalizedSymbol === "SPCX" ? "ico" : "png"}`, COMPANY_LOGO_BASE_URL).href;
+  return new URL(`${encodeURIComponent(normalizedSymbol)}.${normalizedSymbol === "SPCX" ? "ico" : normalizedSymbol === "SKHY" ? "svg" : "png"}`, COMPANY_LOGO_BASE_URL).href;
 }
 
 const savedOverviewFilters = safeJsonParse(localStorage.getItem(STORAGE_KEYS.overviewFilters), {});
@@ -655,6 +655,8 @@ function normalizeSnapshotDataset(payload) {
           ? Number(item.pe_ttm_change_1y)
           : null,
         regime: String(item.regime || ""),
+        latestEarnings: item.latestEarnings || null,
+        valuationStatus: item.valuationStatus || "available",
         points,
       };
     })
@@ -697,13 +699,16 @@ function normalizeSeriesPayload(payload, indexId = "") {
 
   const points = stripGrowthOnlyFieldsFromPoints(payload.points);
   const id = String(payload.indexId || payload.id || indexId || "").trim();
-  if (!id || !points.length) return null;
+  if (!id || (!points.length && !payload.latestEarnings)) return null;
 
   return {
     id,
     symbol: String(payload.symbol || "").trim().toUpperCase(),
     displayName: String(payload.displayName || ""),
     description: String(payload.description || ""),
+    latestEarnings: payload.latestEarnings || null,
+    annualFinancials: payload.annualFinancials || [],
+    valuationStatus: payload.valuationStatus || "available",
     forwardStartDate: String(payload.forwardStartDate || ""),
     points,
   };
@@ -751,6 +756,9 @@ async function ensureIndexSeriesLoaded(indexId) {
     const target = getDatasetIndex(indexId);
     if (!target) return null;
 
+    target.latestEarnings = payload.latestEarnings;
+    target.annualFinancials = payload.annualFinancials;
+    target.valuationStatus = payload.valuationStatus;
     target.forwardStartDate = payload.forwardStartDate || target.forwardStartDate || "";
     target.points = stripGrowthOnlyFieldsFromPoints(payload.points);
 
@@ -1872,12 +1880,53 @@ function renderDetailPercentileChart(rows) {
   );
 }
 
+function renderOfficialEarnings(company) {
+  const element = document.getElementById("detail-earnings");
+  if (!element) return;
+  const report = company?.latestEarnings;
+  element.replaceChildren();
+  element.hidden = !report;
+  if (!report) return;
+  const heading = document.createElement("h3");
+  heading.textContent = `最新财报 · ${report.fiscalPeriod}`;
+  element.append(heading);
+  const date = document.createElement("p");
+  date.className = "hint";
+  date.textContent = `截至 ${report.periodEnd} · 发布 ${report.reportDate} · ${report.accountingStandard} · ${report.currency}${report.preliminary ? " · 未经审计" : ""}`;
+  element.append(date);
+  const grid = document.createElement("dl");
+  grid.className = "earnings-grid";
+  const amount = value => Number.isFinite(value) ? `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value / 1e8)} 亿${report.currency === "KRW" ? "韩元" : "美元"}` : "未披露";
+  const values = [["营收", amount(report.revenue)], ["营业利润", amount(report.operatingIncome)], ["净利润", amount(report.netIncome)], ["稀释每股收益", Number.isFinite(report.eps) ? `${report.eps.toFixed(2)} ${report.currency}` : "未披露 ADR 口径"]];
+  for (const [label, value] of values) {
+    const cell = document.createElement("div");
+    const term = document.createElement("dt"); term.textContent = label;
+    const definition = document.createElement("dd"); definition.textContent = value;
+    cell.append(term, definition); grid.append(cell);
+  }
+  element.append(grid);
+  const annual = company.annualFinancials?.at(-1);
+  if (annual) {
+    const summary = document.createElement("p");
+    summary.textContent = `${annual.fiscalPeriod} 全年：营收 ${amount(annual.revenue)}，净利润 ${amount(annual.netIncome)}，稀释每股收益 ${annual.eps.toFixed(2)} ${report.currency}。`;
+    element.append(summary);
+  }
+  const link = document.createElement("a");
+  const url = new URL(report.sourceUrl);
+  if (url.protocol === "https:") { link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer"; link.textContent = "查看官方财报 ↗"; element.append(link); }
+  if (company.valuationStatus === "awaiting-provider") {
+    const pending = document.createElement("p"); pending.className = "hint";
+    pending.textContent = "财报已更新，估值等待行情数据源同步。"; element.append(pending);
+  }
+}
+
 async function renderDetail() {
   state.detail.effectiveRange = state.detail.range;
   analysisUI?.syncDetail();
   document.getElementById("detail-secondary-stats").innerHTML = "";
   elements.detailPercentileTrack.innerHTML = "";
   elements.detailRange.textContent = "正在加载数据区间…";
+  renderOfficialEarnings(null);
   charts.detail?.clear();
   charts.detailPercentile?.clear();
   const indexId = state.detail.indexId;
@@ -1896,6 +1945,7 @@ async function renderDetail() {
     return;
   }
   if (renderToken !== state.runtime.detailRenderToken) return;
+  renderOfficialEarnings(getDatasetIndex(indexId));
 
   try {
     await ensureEchartsLoaded();

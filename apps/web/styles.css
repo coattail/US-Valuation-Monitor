@@ -493,3 +493,12 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
   .compare-picker { max-height: 280px; }
   .chart-large, .chart-medium { touch-action: pan-y; }
 }
+
+.official-earnings { margin: 18px 0; padding: 18px; border: 1px solid var(--border, #283950); border-radius: 14px; background: rgba(120,160,220,.04); }
+.official-earnings[hidden] { display: none; }
+.official-earnings h3 { margin: 0 0 6px; }
+.official-earnings p { line-height: 1.6; }
+.earnings-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+.earnings-grid dt { color: #9ab3d3; font-size: 12px; }
+.earnings-grid dd { margin: 6px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 680px) { .earnings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
