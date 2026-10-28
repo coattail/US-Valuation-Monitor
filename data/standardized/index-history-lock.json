@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-10-28T11:29:30.767Z",
+  "generatedAt": "2026-10-28T16:08:45.207Z",
   "indices": {
     "dow30": {
       "pointCount": 7238,
@@ -26,7 +26,7 @@
       "pointCount": 6358,
       "firstDate": "2001-07-17",
       "lastDate": "2026-10-27",
-      "sha256": "f1dab64a403982da8544139965348aa46a06b241f315b92a77b2b8619343bb6e"
+      "sha256": "026aeb739c85d70de271ec20136bedb10c18988908e14fdeda8cb9311e7a49d2"
     },
     "nasdaq100": {
       "pointCount": 6951,
@@ -38,7 +38,7 @@
       "pointCount": 6492,
       "firstDate": "2001-01-03",
       "lastDate": "2026-10-27",
-      "sha256": "0eee4f6b8950c8a3c1d338c7cc8e1710daba44f8cf690b6e9b00e56f911908f4"
+      "sha256": "391fca58fa2fabd24787e0ab1f99f607c871b01051bcc26f1c06eaf671fd8638"
     },
     "sector_communication": {
       "pointCount": 2101,
@@ -56,7 +56,7 @@
       "pointCount": 5451,
       "firstDate": "2005-02-25",
       "lastDate": "2026-10-27",
-      "sha256": "611e36d473292bafe83703cd685f44fa8495ef0211c61ebbe525278b6b6c5ac7"
+      "sha256": "d3c2b93291d0a59699386dae92ebc7b7d38cad2566057e48c221f829dfcb198d"
     },
     "sector_energy": {
       "pointCount": 6997,
@@ -116,13 +116,13 @@
       "pointCount": 6360,
       "firstDate": "2001-07-13",
       "lastDate": "2026-10-27",
-      "sha256": "ed1832781b3c39190bcefc5b6c12ab35bd1227d86bfb4a9786234f61564a90ce"
+      "sha256": "b99ca056aa24dd788931b2cab836d11cf11f9b65c154de14316d699f478643de"
     },
     "sp400": {
       "pointCount": 5451,
       "firstDate": "2005-02-25",
       "lastDate": "2026-10-27",
-      "sha256": "7cadaa4c1803e0cd31414954c139670c394a632d9a042ffed5dd7f15ce3b2ecf"
+      "sha256": "18438f5defdba291ce3993a104c242f6a841264c49e648bd8d8ce603dae52229"
     },
     "sp500": {
       "pointCount": 6746,
@@ -134,7 +134,7 @@
       "pointCount": 5451,
       "firstDate": "2005-02-25",
       "lastDate": "2026-10-27",
-      "sha256": "0db2f1054cde300d8f02026d5f40cee68dbcda0e7967785dc1a3253a7f6d188f"
+      "sha256": "93a3dfbdad3d3c8199caf12404f12e57b747bf0d7d98d8361dbdfea3175971e9"
     }
   }
 }
