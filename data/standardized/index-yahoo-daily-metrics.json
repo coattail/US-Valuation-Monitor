@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T16:13:58.670Z",
+  "generatedAt": "2026-10-29T23:55:19.439Z",
   "symbols": {
     "DIA": [
       {
@@ -1033,6 +1033,14 @@
         "pb": 5.53,
         "source": "wsj-latest",
         "capturedAt": "2026-10-29T16:13:58.670Z"
+      },
+      {
+        "date": "2026-10-29",
+        "pe_ttm": 20.7,
+        "pe_forward": 19.86,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-10-29T23:55:19.439Z"
       }
     ],
     "DRAM": [
