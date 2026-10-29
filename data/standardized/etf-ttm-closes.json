@@ -366,6 +366,11 @@
         "date": "2026-10-27",
         "close": 111.77999877929688,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1793059200&period2=1793145600&interval=1d"
+      },
+      {
+        "date": "2026-10-28",
+        "close": 111.91000366210938,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1793145600&period2=1793232000&interval=1d"
       }
     ],
     "IJH": [
@@ -733,6 +738,11 @@
         "date": "2026-10-27",
         "close": 73.22000122070312,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1793059200&period2=1793145600&interval=1d"
+      },
+      {
+        "date": "2026-10-28",
+        "close": 73.3499984741211,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1793145600&period2=1793232000&interval=1d"
       }
     ],
     "SMH": [
@@ -1100,6 +1110,11 @@
         "date": "2026-10-27",
         "close": 557.97998046875,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1793059200&period2=1793145600&interval=1d"
+      },
+      {
+        "date": "2026-10-28",
+        "close": 567.6699829101562,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1793145600&period2=1793232000&interval=1d"
       }
     ],
     "DRAM": [
@@ -1467,6 +1482,11 @@
         "date": "2026-10-27",
         "close": 50.52000045776367,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/DRAM?period1=1793059200&period2=1793145600&interval=1d"
+      },
+      {
+        "date": "2026-10-28",
+        "close": 54.119998931884766,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/DRAM?period1=1793145600&period2=1793232000&interval=1d"
       }
     ],
     "SOXX": [
@@ -1834,6 +1854,11 @@
         "date": "2026-10-27",
         "close": 511.05999755859375,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1793059200&period2=1793145600&interval=1d"
+      },
+      {
+        "date": "2026-10-28",
+        "close": 521.9400024414062,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1793145600&period2=1793232000&interval=1d"
       }
     ],
     "VTI": [
@@ -2201,6 +2226,11 @@
         "date": "2026-10-27",
         "close": 377.9200134277344,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1793059200&period2=1793145600&interval=1d"
+      },
+      {
+        "date": "2026-10-28",
+        "close": 379.1700134277344,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1793145600&period2=1793232000&interval=1d"
       }
     ]
   }
