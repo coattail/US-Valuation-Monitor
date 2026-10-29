@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T11:40:49.640Z",
+  "generatedAt": "2026-10-29T16:14:02.610Z",
   "source": "free-live-proxy-v6+stockanalysis-pe-2+stockmarketperatio-pe-1+multpl-pb-1+wsj-pe-4+stockanalysis-snap-6+curated-public-fpe-8+vendor-index-fpe-2+ndx-bloomberg-fpe-1+ndx-official-ttm-monthly-1+rut-index-close-1+stockanalysis-fpe-5+sp500-pb-prefix-1+sp500-wsj-carry-1+sp500-yardeni-refinitiv-fpe-prefix-1+fallback10y+wsj-reconciled",
   "indices": [
     {
@@ -230508,7 +230508,7 @@
           "date": "2026-10-28",
           "pe_ttm": 35.448152,
           "pe_forward": 26.4299,
-          "pb": 2.068161,
+          "pb": 2.08,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -269558,8 +269558,8 @@
         },
         {
           "date": "2026-10-28",
-          "pe_ttm": 21.9389,
-          "pe_forward": 15.04,
+          "pe_ttm": 21.95,
+          "pe_forward": 15.2,
           "pb": 2.683292,
           "us10y_yield": 0.035,
           "recovery": {
@@ -269570,14 +269570,9 @@
             "us10yYieldDate": "2026-10-27",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "dated-ttm-etf-price-carry",
-            "anchorDate": "2026-10-27",
-            "anchorPe": 21.9,
-            "anchorClose": 73.22000122070312,
-            "close": 73.3499984741211,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1793059200&period2=1793145600&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1793145600&period2=1793232000&interval=1d"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           },
           "pe_forward_snapshot": {
             "source": "stockanalysis-latest",
@@ -308612,7 +308607,7 @@
         },
         {
           "date": "2026-10-28",
-          "pe_ttm": 28.3133,
+          "pe_ttm": 28.29,
           "pe_forward": 19.29,
           "pb": 5.081188,
           "us10y_yield": 0.035,
@@ -308624,14 +308619,9 @@
             "us10yYieldDate": "2026-10-27",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "dated-ttm-etf-price-carry",
-            "anchorDate": "2026-10-27",
-            "anchorPe": 28.22,
-            "anchorClose": 377.9200134277344,
-            "close": 379.1700134277344,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1793059200&period2=1793145600&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1793145600&period2=1793232000&interval=1d"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           },
           "pe_forward_snapshot": {
             "source": "stockanalysis-latest",
@@ -323658,9 +323648,9 @@
         },
         {
           "date": "2026-10-28",
-          "pe_ttm": 15.065729,
-          "pe_forward": 12.6958,
-          "pb": 3.066916,
+          "pe_ttm": 15.15,
+          "pe_forward": 12.69,
+          "pb": 3.06,
           "us10y_yield": 0.035,
           "recovery": {
             "method": "observed-close-ratio-with-previous-published-fundamentals",
@@ -323669,17 +323659,6 @@
             "estimated": true,
             "us10yYieldDate": "2026-10-27",
             "us10yYieldSource": "previous-published-us10y-yield"
-          },
-          "pe_forward_estimate": {
-            "method": "source-forward-price-carry",
-            "anchorDate": "2026-10-27",
-            "anchorPe": 12.75,
-            "anchorClose": 103.58000183105469,
-            "close": 103.13999938964844,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1793059200&period2=1793145600&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1793145600&period2=1793232000&interval=1d",
-            "priceSymbol": "XLC",
-            "anchorSource": "ssga-official-latest"
           }
         }
       ]
@@ -769906,8 +769885,8 @@
         },
         {
           "date": "2026-10-28",
-          "pe_ttm": 37.4835,
-          "pe_forward": 25.16,
+          "pe_ttm": 36.88,
+          "pe_forward": 25.28,
           "pb": 7.542681,
           "us10y_yield": 0.035,
           "recovery": {
@@ -769918,14 +769897,9 @@
             "us10yYieldDate": "2026-10-27",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "dated-ttm-etf-price-carry",
-            "anchorDate": "2026-10-27",
-            "anchorPe": 37.44,
-            "anchorClose": 111.77999877929688,
-            "close": 111.91000366210938,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1793059200&period2=1793145600&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1793145600&period2=1793232000&interval=1d"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           },
           "pe_forward_snapshot": {
             "source": "stockanalysis-latest",
@@ -815302,7 +815276,7 @@
         },
         {
           "date": "2026-10-28",
-          "pe_ttm": 44.855,
+          "pe_ttm": 44.7,
           "pe_forward": 18.3,
           "pb": 10.220005,
           "us10y_yield": 0.035,
@@ -815314,14 +815288,9 @@
             "us10yYieldDate": "2026-10-27",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "dated-ttm-etf-price-carry",
-            "anchorDate": "2026-10-27",
-            "anchorPe": 43.92,
-            "anchorClose": 511.05999755859375,
-            "close": 521.9400024414062,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1793059200&period2=1793145600&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1793145600&period2=1793232000&interval=1d"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           },
           "pe_forward_snapshot": {
             "source": "stockanalysis-latest",

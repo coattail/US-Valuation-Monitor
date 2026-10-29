@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-10-29T11:40:49.640Z",
+  "generatedAt": "2026-10-29T16:14:02.610Z",
   "indices": {
     "dow30": {
       "pointCount": 7239,
@@ -26,7 +26,7 @@
       "pointCount": 6359,
       "firstDate": "2001-07-17",
       "lastDate": "2026-10-28",
-      "sha256": "b06ee5ac7d8903263bfe7e00d492d6650ee28455eb43d938be762b789a2cc42a"
+      "sha256": "7a7475b9c915f2133f65f835a2bfc00d855746add6ebed5bd47554fb14ccfb2f"
     },
     "nasdaq100": {
       "pointCount": 6952,
@@ -38,13 +38,13 @@
       "pointCount": 6493,
       "firstDate": "2001-01-03",
       "lastDate": "2026-10-28",
-      "sha256": "9710265676c856f97ba5133eada5ce590e448165c06a602aab4bf1123ace33cc"
+      "sha256": "17e166716df31687186204a47668ff017e3eebc87820c63f0534279ccbeb1849"
     },
     "sector_communication": {
       "pointCount": 2102,
       "firstDate": "2018-06-19",
       "lastDate": "2026-10-28",
-      "sha256": "6c0606282e14161a656602177a18dafda247904d785ee77fa4adda35e47eed09"
+      "sha256": "979a3d6d2782c98c76cc268578b885668d6c38ab4dfa56ece80e629121a70b2e"
     },
     "sector_consumer_discretionary": {
       "pointCount": 5452,
@@ -116,13 +116,13 @@
       "pointCount": 6361,
       "firstDate": "2001-07-13",
       "lastDate": "2026-10-28",
-      "sha256": "0bf0a636bb665d08faab23fb884ace4dd882305abd50462ee5d25fb2f7557894"
+      "sha256": "07e2021cdd3dca4257519a2438a70340328a8705019fcbb7bed7a680a8c1f776"
     },
     "sp400": {
       "pointCount": 5452,
       "firstDate": "2005-02-25",
       "lastDate": "2026-10-28",
-      "sha256": "94c91bd6905f1a9622b601447be17e5eb92e1a77d8bae0eca49cca6ff33e05b5"
+      "sha256": "0cb1f9af1b79e91236d37f83c41ab8b8199a14f66b2cab0ade8827b8bf5387aa"
     },
     "sp500": {
       "pointCount": 6747,
@@ -134,7 +134,7 @@
       "pointCount": 5452,
       "firstDate": "2005-02-25",
       "lastDate": "2026-10-28",
-      "sha256": "ffa509fb5ec67bc874b9e9fe2601f31fedd778e3d15b88b703cdc12ae8bab0b3"
+      "sha256": "0fcf6aeb400d1d02aed2629494537c3f50d4a1535f9c604a98f1d1cb99692592"
     }
   }
 }
