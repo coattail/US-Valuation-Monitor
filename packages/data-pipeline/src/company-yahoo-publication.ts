@@ -24,7 +24,10 @@ export function capCompanyPublicationToYahoo<T extends Point>(
   }
   for (const row of observations) {
     const hasMetric = [row.pe_ttm, row.pe_forward, row.pb].some(value => typeof value === 'number' && Number.isFinite(value) && value !== 0);
-    const verifiedCurrent = Object.entries(row.metricSources || {}).some(([metric, source]) => source.includes(':current-table') && typeof row[metric] === 'number' && Number.isFinite(row[metric]));
+    const verifiedCurrent = (['pe_ttm', 'pe_forward', 'pb'] as const).some(metric => {
+      const value = row[metric];
+      return row.metricSources?.[metric]?.includes(':current-table') && typeof value === 'number' && Number.isFinite(value) && value !== 0;
+    });
     if ((!requireCurrentTable || verifiedCurrent) && row.source?.includes('yahoo') && hasMetric && row.date <= completedDate && row.date > through) through = row.date;
   }
   const published = new Map(points.filter(point => point.date <= through).map(point => [point.date, point]));
