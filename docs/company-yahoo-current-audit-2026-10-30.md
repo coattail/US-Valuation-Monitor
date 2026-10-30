@@ -1,5 +1,7 @@
 # Company Yahoo valuation field audit — 2026-10-30
 
+Policy update: the user subsequently requested the original quote-field TTM PE priority. TTM now prefers Yahoo quote-page/API `PE Ratio (TTM)` again; Current-table synchronization does not overwrite it. Forward PE, PB and PEG retain their independent source policy. The following audit describes the earlier Current-table rollout and its captured observations.
+
 The reported Alphabet value, 14.74 on 2026-10-29, is present verbatim in `company-yahoo-daily-metrics.json` under **GOOG**, captured at `2026-10-30T07:16:21.609Z`, with source `yahoo-quote-page-latest:finance.yahoo.com`. The UI did not miscalculate it.
 
 The supplied comparison is Yahoo's **GOOGL** key-statistics **Trailing P/E / Current** value, 16.97. GOOG and GOOGL are different share classes. Neither the ticker difference nor a presumed formula error alone explains the difference: the previous pipeline explicitly preferred the quote page's `PE Ratio (TTM)` and could stop HTML fetching before visiting the independent statistics page. Yahoo fields and page dates can differ around earnings updates. A cache-to-output check could pass while the independent statistics page disagreed.

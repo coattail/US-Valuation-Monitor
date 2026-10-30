@@ -43,7 +43,7 @@ export function publishYahooValuationObservations(points, observations, symbol) 
     for (const metric of valuationMetrics) {
       const value = number(row[metric]);
       const source = row.metricSources?.[metric] || row.source || '';
-      const explicitMissing = row[metric] == null && isCurrentTable(source) && !source.includes('+');
+      const explicitMissing = Object.hasOwn(row, metric) && row[metric] === null && isCurrentTable(source) && !source.includes('+');
       if ((!explicitMissing && value === null) || !source.includes('yahoo')) continue;
       next[metric] = value;
       next.valuationSources[metric] = {

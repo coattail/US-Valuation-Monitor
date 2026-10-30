@@ -18,22 +18,22 @@ test('explicit Current cells survive nested markup and footnotes; missing Curren
   assert.equal(parseYahooCurrentValuationTable(`<script>${table()}</script>`), null);
 });
 
-test('Current table wins over a conflicting quote and stale timeseries through storage and final publication', () => {
+test('quote TTM wins over Current while Forward PE and PB keep their independent Current values', () => {
   const canonical = parseYahooValuationMeasuresFromHtml(table());
   const quote = { anchors: [], latest: { pe_ttm: 14.74, pe_forward: null, pb: null, peg: null }, source: 'yahoo-quote-page-latest:finance.yahoo.com' };
   const selected = merge([quote], canonical);
-  assert.equal(selected.latest.pe_ttm, 16.97);
-  assert.equal(selected.comparisons.pe_ttm.fallback, 14.74);
+  assert.equal(selected.latest.pe_ttm, 14.74);
+  assert.equal(selected.comparisons?.pe_ttm, undefined);
   const observations = createYahooDailyMetricSnapshots(selected, '2026-10-29', { pe_ttm: '2026-10-27', pe_forward: '2026-10-27' }, { pe_ttm: 99, pe_forward: 88 });
   const saved = store([], observations, { pe_ttm: '2026-10-27', pe_forward: '2026-10-27' }, { pe_ttm: ['2026-10-27'], pe_forward: ['2026-10-27'] }, '2026-10-29');
   assert.equal(saved.at(-1).date, '2026-10-29');
-  assert.equal(saved.at(-1).pe_ttm, 16.97);
+  assert.equal(saved.at(-1).pe_ttm, 14.74);
   assert.equal(saved.at(-1).pe_forward, 20.76);
   const repaired = publishYahooValuationObservations([{ date: '2026-10-28', pe_ttm: 14.87 }, { date: '2026-10-29', pe_ttm: 14.74, pb: 5 }], saved, 'GOOGL');
   assert.equal(repaired[0].pe_ttm, 14.87);
   assert.equal(repaired[1].pb, 6.02);
   assert.equal(repaired[1].valuationSources.pe_ttm.symbol, 'GOOGL');
-  assert.equal(repaired[1].valuationSources.pe_ttm.basis, 'current-table');
+  assert.equal(repaired[1].valuationSources.pe_ttm.basis, 'quote');
 });
 
 test('a dated old Current observation never replaces the latest quote', () => {
@@ -44,26 +44,35 @@ test('a dated old Current observation never replaces the latest quote', () => {
   assert.equal(snapshots.find(row => row.date === '2026-10-29').pe_ttm, 14.74);
 });
 
-test('a later quote-only refresh cannot overwrite a verified Current observation on the same date', () => {
+test('a later quote refresh replaces the old Current TTM observation on the same date', () => {
   const canonical = parseYahooValuationMeasuresFromHtml(table());
   const observations = createYahooDailyMetricSnapshots(merge([], canonical), '2026-10-29', {}, {});
   const quote = { date: '2026-10-29', pe_ttm: 14.74, pe_forward: null, pb: null, peg: null, source: 'yahoo-quote-page-latest' };
   const saved = store(observations, [quote], {}, {}, '2026-10-29');
-  assert.equal(saved[0].pe_ttm, 16.97);
-  assert.match(saved[0].metricSources.pe_ttm, /current-table/);
+  assert.equal(saved[0].pe_ttm, 14.74);
+  assert.match(saved[0].metricSources.pe_ttm, /yahoo-quote-page/);
+  assert.equal(saved[0].pb, 6.02);
 });
 
-test('an explicit unavailable Current value clears fallback PE and retains its capture evidence', () => {
-  const canonical = parseYahooValuationMeasuresFromHtml(table('--'));
+test('missing Current PE never clears quote TTM; unavailable Current PB still remains missing', () => {
+  const canonical = parseYahooValuationMeasuresFromHtml(table('--').replace('6.02', '--'));
   const quote = { anchors: [], latest: { pe_ttm: 14.74, pe_forward: null, pb: null, peg: null }, source: 'yahoo-quote-page-latest' };
   const rows = createYahooDailyMetricSnapshots(merge([quote], canonical), '2026-10-29', {}, {});
-  const saved = store([{ date: '2026-10-29', pe_ttm: 14.74, pe_forward: 15, pb: 5, peg: 1, source: quote.source }], rows, {}, {}, '2026-10-29');
-  assert.equal(saved[0].pe_ttm, null);
-  const published = publishYahooValuationObservations([{ date: '2026-10-29', pe_ttm: 14.74 }], saved, 'CRWD');
-  assert.equal(published[0].pe_ttm, null);
-  const later = store(saved, [{ date: '2026-10-29', pe_ttm: 14.74, pe_forward: null, pb: null, peg: null, source: quote.source, capturedAt: '2099-01-01T00:00:00Z' }], {}, {}, '2026-10-29');
-  assert.equal(later[0].pe_ttm, null);
-  assert.notEqual(later[0].metricCapturedAt.pe_ttm, '2099-01-01T00:00:00Z');
+  const saved = store([], rows, {}, {}, '2026-10-29');
+  assert.equal(saved[0].pe_ttm, 14.74);
+  assert.equal(saved[0].pb, null);
+  const published = publishYahooValuationObservations([{ date: '2026-10-29', pe_ttm: 99, pb: 5 }], saved, 'TEST');
+  assert.equal(published[0].pe_ttm, 14.74);
+  assert.equal(published[0].pb, null);
+});
+
+test('a later Current-only refresh cannot replace an already recorded quote TTM', () => {
+  const canonical = parseYahooValuationMeasuresFromHtml(table());
+  const current = createYahooDailyMetricSnapshots(merge([], canonical), '2026-10-29', {}, {});
+  const quote = { date: '2026-10-29', pe_ttm: 14.74, pe_forward: null, pb: null, peg: null, source: 'yahoo-quote-page-latest', capturedAt: '2026-10-30T07:16:21Z' };
+  const saved = store([quote], current, {}, {}, '2026-10-29');
+  assert.equal(saved[0].pe_ttm, 14.74);
+  assert.match(saved[0].metricSources.pe_ttm, /yahoo-quote-page-latest/);
 });
 
 test('an entirely unavailable Current table does not silently revive quote values', () => {
@@ -81,4 +90,21 @@ test('a new Current observation is not assigned to a stale company price tail', 
   const canonical = parseYahooValuationMeasuresFromHtml(table());
   const selected = merge([], canonical);
   assert.deepEqual(createYahooDailyMetricSnapshots(selected, '2026-10-28', {}, {}, '2026-10-29'), []);
+});
+
+test('refreshing another Current metric leaves the quote TTM value untouched', () => {
+  const [point] = publishYahooValuationObservations([{ date: '2026-10-29', pe_ttm: 14.74, pb: 5 }], [{ date: '2026-10-29', pb: 6.02, source: 'yahoo-key-statistics-valuation-measures:current-table' }], 'GOOG');
+  assert.equal(point.pe_ttm, 14.74);
+  assert.equal(point.pb, 6.02);
+  assert.equal(point.valuationSources.pe_ttm, undefined);
+});
+
+test('a sparse Current refresh preserves the original quote TTM source across later refreshes', () => {
+  const quote = { date: '2026-10-29', pe_ttm: 14.74, pe_forward: null, pb: null, peg: null, source: 'yahoo-quote-page-latest', capturedAt: '2026-10-30T07:16:21Z' };
+  const missing = createYahooDailyMetricSnapshots(merge([], parseYahooValuationMeasuresFromHtml(table('--'))), '2026-10-29', {}, {});
+  const saved = store([quote], missing, {}, {}, '2026-10-29');
+  assert.equal(saved[0].pe_ttm, 14.74);
+  assert.match(saved[0].metricSources.pe_ttm, /yahoo-quote-page-latest/);
+  const another = createYahooDailyMetricSnapshots(merge([], parseYahooValuationMeasuresFromHtml(table())), '2026-10-29', {}, {});
+  assert.equal(store(saved, another, {}, {}, '2026-10-29')[0].pe_ttm, 14.74);
 });
