@@ -25,3 +25,8 @@ test('quote TTM synchronization reads the requested quote field instead of a Cur
   assert.match(result.source, /yahoo-quote-page-latest/);
   assert.equal(await readQuoteTtm('GOOG', async () => table), null);
 });
+
+test('an unavailable quote TTM cannot borrow the EPS or date value that follows it', async () => {
+  const unavailable = '<li><span title="PE Ratio (TTM)">PE Ratio (TTM)</span><span>--</span></li><li><span>EPS (TTM)</span><fin-streamer data-value="-11" data-field="epsTrailingTwelveMonths">-11</fin-streamer></li>';
+  assert.equal(await readQuoteTtm('CRWD', async () => unavailable), null);
+});

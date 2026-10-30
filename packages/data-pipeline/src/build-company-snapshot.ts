@@ -2011,6 +2011,9 @@ function parseYahooQuotePageRatioPayload(rawText: string): RatioPayload | null {
   const raw = String(rawText || "");
   if (!raw.trim()) return null;
 
+  const visibleText = decodeHtml(stripTags(stripScriptsAndStyles(raw))).replace(/\s+/g, " ").trim();
+  if (/PE Ratio\s*\(TTM\)\s*(?:--|—|N\/A)(?=\s|$)/i.test(visibleText)) return null;
+
   const candidates = [raw, raw.replace(/\\"/g, '"'), decodeHtml(raw)]
     .map((item) => String(item || ""))
     .filter(Boolean);
@@ -3606,7 +3609,7 @@ function mergeCurrentYahooSnapshotsIntoHistory(
     }
 
     const current = byDate.get(snapshot.date);
-    const metricSources = current?.metricSources || snapshot.metricSources ? { ...current?.metricSources } : null;
+    const metricSources = current?.metricSources || snapshot.metricSources ? { ...Object.fromEntries((["pe_ttm", "pe_forward", "pb", "peg"] as RatioMetricKey[]).filter(metric => current?.[metric] != null).map(metric => [metric, current?.source || ""])), ...current?.metricSources } : null;
     const comparisons = { ...current?.comparisons };
     const metricCapturedAt = metricSources ? Object.fromEntries(Object.keys(current?.metricSources || {}).map(metric => [metric, current?.metricCapturedAt?.[metric as RatioMetricKey] || current?.capturedAt || ""])) : null;
     for (const metric of ["pe_ttm", "pe_forward", "pb", "peg"] as RatioMetricKey[]) {

@@ -98,3 +98,13 @@ test('refreshing another Current metric leaves the quote TTM value untouched', (
   assert.equal(point.pb, 6.02);
   assert.equal(point.valuationSources.pe_ttm, undefined);
 });
+
+test('a sparse Current refresh preserves the original quote TTM source across later refreshes', () => {
+  const quote = { date: '2026-10-29', pe_ttm: 14.74, pe_forward: null, pb: null, peg: null, source: 'yahoo-quote-page-latest', capturedAt: '2026-10-30T07:16:21Z' };
+  const missing = createYahooDailyMetricSnapshots(merge([], parseYahooValuationMeasuresFromHtml(table('--'))), '2026-10-29', {}, {});
+  const saved = store([quote], missing, {}, {}, '2026-10-29');
+  assert.equal(saved[0].pe_ttm, 14.74);
+  assert.match(saved[0].metricSources.pe_ttm, /yahoo-quote-page-latest/);
+  const another = createYahooDailyMetricSnapshots(merge([], parseYahooValuationMeasuresFromHtml(table())), '2026-10-29', {}, {});
+  assert.equal(store(saved, another, {}, {}, '2026-10-29')[0].pe_ttm, 14.74);
+});
