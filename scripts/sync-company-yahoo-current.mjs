@@ -78,7 +78,12 @@ async function main() {
             if (published && values[metric] != null && Math.abs(values[metric] / published - 1) > 0.02) observation.comparisons[metric] = { current: values[metric], fallback: published, fallbackSource: prior?.metricSources?.[metric] || prior?.source || 'previous-publication' };
           }
           daily.symbols[item.symbol] = [...(daily.symbols[item.symbol] || []).filter(row => row.date !== target), observation].sort((a, b) => a.date.localeCompare(b.date));
-          item.points = publishYahooValuationObservations(item.points, [observation], item.symbol);
+          const selectedObservation = { date: target, source: provider.source, capturedAt: provider.capturedAt,
+            metricSources: Object.fromEntries(selectedMetrics.map(metric => [metric, observation.metricSources[metric]])),
+            metricCapturedAt: Object.fromEntries(selectedMetrics.map(metric => [metric, observation.metricCapturedAt[metric]])),
+            comparisons: Object.fromEntries(selectedMetrics.filter(metric => observation.comparisons[metric]).map(metric => [metric, observation.comparisons[metric]])),
+            ...Object.fromEntries(selectedMetrics.map(metric => [metric, observation[metric]])) };
+          item.points = publishYahooValuationObservations(item.points, [selectedObservation], item.symbol);
         }
       }
       audit.companies.push(record);

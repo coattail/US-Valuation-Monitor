@@ -91,3 +91,10 @@ test('a new Current observation is not assigned to a stale company price tail', 
   const selected = merge([], canonical);
   assert.deepEqual(createYahooDailyMetricSnapshots(selected, '2026-10-28', {}, {}, '2026-10-29'), []);
 });
+
+test('refreshing another Current metric leaves the quote TTM value untouched', () => {
+  const [point] = publishYahooValuationObservations([{ date: '2026-10-29', pe_ttm: 14.74, pb: 5 }], [{ date: '2026-10-29', pb: 6.02, source: 'yahoo-key-statistics-valuation-measures:current-table' }], 'GOOG');
+  assert.equal(point.pe_ttm, 14.74);
+  assert.equal(point.pb, 6.02);
+  assert.equal(point.valuationSources.pe_ttm, undefined);
+});
