@@ -8,7 +8,7 @@ The supplied comparison is Yahoo's **GOOGL** key-statistics **Trailing P/E / Cur
 
 - Fetch each company's own `/key-statistics/` before `/quote/`; reject explicit canonical redirects to another symbol.
 - Prefer structurally identified `Current` cells for TTM PE, Forward PE, PB and PEG. Missing Current cells never borrow a historical column, a neighboring row or an embedded script value.
-- Keep dated observations on their own dates. A fresh explicit Current observation takes precedence over rolling timeseries date hints and same-date quote fallbacks.
+- Keep dated observations on their own dates. New publication dates require a Current observation; a quote-only source outage preserves the last verified valuation date. A fresh explicit Current observation takes precedence over rolling timeseries date hints and same-date quote fallbacks.
 - Preserve metric-level sources and differences from fallback fields. Apply stored observations after every transformation, including fallback/reuse branches.
 - Validate TTM PE, Forward PE and PB, use strict equality tolerance for Current observations, and verify snapshot/series identity, dates and values before publishing.
 - Show the selected symbol, source, date and capture time in company details. Historical or fallback points without Current evidence are identified as such.
@@ -23,7 +23,7 @@ GitHub workflow dispatch: `mode=company`, `company_current_only=true`. Branch di
 
 ## Verification
 
-The regression suite covers conflicting quote versus Current values, nested HTML, superscripts, unavailable Current cells, dated observations, sparse timeseries hints, repeated refreshes, wrong-symbol responses, PB agreement, and snapshot/series divergence. The complete local test suite passed (312 tests); static site construction and validation of the existing 100-company publication also passed.
+The regression suite covers conflicting quote versus Current values, nested HTML, superscripts, unavailable Current cells, dated observations, sparse timeseries hints, repeated refreshes, wrong-symbol responses, PB agreement, and snapshot/series divergence. The complete local test suite passed (313 tests); static site construction and validation of the existing 100-company publication also passed.
 
 Local Yahoo HTTP responses were region-blocked, so no current numerical correction was inferred from cached search results or the supplied GOOGL screenshot. Independent runner results are retained in `company-valuation-audit.json` and the workflow artifacts.
 

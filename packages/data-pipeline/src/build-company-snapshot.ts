@@ -7909,7 +7909,8 @@ async function main(): Promise<void> {
       item.points,
       previousSeriesBySymbol.get(item.symbol)?.points || [],
       yahooDailyMetricsBySymbol.get(item.symbol) || [],
-      companySeriesCapDate
+      companySeriesCapDate,
+      true
     ), yahooDailyMetricsBySymbol.get(item.symbol) || [], item.symbol)),
   })).map(applyOfficialEarnings);
 
