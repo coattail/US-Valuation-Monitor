@@ -974,8 +974,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-29",
-          "pe_ttm": 22.2044,
-          "pe_forward": 15.29,
+          "pe_ttm": 21.88,
+          "pe_forward": 15.18,
           "pb": 2.714387,
           "us10y_yield": 0.035,
           "recovery": {
@@ -986,14 +986,9 @@
             "us10yYieldDate": "2026-10-28",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "dated-ttm-etf-price-carry",
-            "anchorDate": "2026-10-28",
-            "anchorPe": 21.95,
-            "anchorClose": 73.3499984741211,
-            "close": 74.19999694824219,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1793145600&period2=1793232000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1793232000&period2=1793318400&interval=1d"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           },
           "pe_forward_snapshot": {
             "source": "stockanalysis-latest",
@@ -1436,7 +1431,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-29",
-          "pe_ttm": 28.2206,
+          "pe_ttm": 28.27,
           "pe_forward": 19.13,
           "pb": 5.068725,
           "us10y_yield": 0.035,
@@ -1448,14 +1443,9 @@
             "us10yYieldDate": "2026-10-28",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "dated-ttm-etf-price-carry",
-            "anchorDate": "2026-10-28",
-            "anchorPe": 28.29,
-            "anchorClose": 379.1700134277344,
-            "close": 378.239990234375,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1793145600&period2=1793232000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1793232000&period2=1793318400&interval=1d"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           },
           "pe_forward_snapshot": {
             "source": "stockanalysis-latest",
@@ -7869,8 +7859,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-29",
-          "pe_ttm": 35.5816,
-          "pe_forward": 24.33,
+          "pe_ttm": 36.92,
+          "pe_forward": 25.98,
           "pb": 7.277127,
           "us10y_yield": 0.035,
           "recovery": {
@@ -7881,14 +7871,9 @@
             "us10yYieldDate": "2026-10-28",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "dated-ttm-etf-price-carry",
-            "anchorDate": "2026-10-28",
-            "anchorPe": 36.88,
-            "anchorClose": 111.91000366210938,
-            "close": 107.97000122070312,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1793145600&period2=1793232000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1793232000&period2=1793318400&interval=1d"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           },
           "pe_forward_snapshot": {
             "source": "stockanalysis-latest",
@@ -9112,8 +9097,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-10-29",
-          "pe_ttm": 44.008,
-          "pe_forward": 17.61,
+          "pe_ttm": 46.4,
+          "pe_forward": 18.16,
           "pb": 10.061792,
           "us10y_yield": 0.035,
           "recovery": {
@@ -9124,14 +9109,9 @@
             "us10yYieldDate": "2026-10-28",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "dated-ttm-etf-price-carry",
-            "anchorDate": "2026-10-28",
-            "anchorPe": 44.7,
-            "anchorClose": 521.9400024414062,
-            "close": 513.8599853515625,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1793145600&period2=1793232000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1793232000&period2=1793318400&interval=1d"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           },
           "pe_forward_snapshot": {
             "source": "stockanalysis-latest",
