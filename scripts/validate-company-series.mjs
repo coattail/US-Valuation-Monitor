@@ -43,6 +43,7 @@ export function validateCompanySeriesPayloads(
   const errors = [];
   let recentYahooAnchorCount = 0;
   let recentYahooForwardAnchorCount = 0;
+  let recentYahooPbAnchorCount = 0;
   const payloadBySymbol = new Map();
 
   for (const payload of companyPayloads || []) {
@@ -64,9 +65,16 @@ export function validateCompanySeriesPayloads(
     const yahooRows = Array.isArray(yahooMetricsBySymbol?.[symbol])
       ? yahooMetricsBySymbol[symbol]
       : [];
+    for (const row of yahooRows) {
+      if (row.date !== latestDate) continue;
+      for (const key of ['pe_ttm', 'pe_forward', 'pb', 'peg']) {
+        if (row.metricSources?.[key]?.includes(':current-table') && row[key] == null && points.at(-1)?.[key] != null) errors.push(`${symbol} unavailable Current ${key} was filled by fallback on ${row.date}`);
+      }
+    }
     for (const { key, label } of [
       { key: "pe_ttm", label: "TTM PE" },
       { key: "pe_forward", label: "Forward PE" },
+      { key: "pb", label: "PB" },
     ]) {
       const latestYahooMetric = yahooRows
         .map((row) => ({ ...row, value: finiteNonZero(row?.[key]) }))
@@ -90,12 +98,15 @@ export function validateCompanySeriesPayloads(
       }
 
       if (key === "pe_ttm") recentYahooAnchorCount += 1;
-      else recentYahooForwardAnchorCount += 1;
+      else if (key === "pe_forward") recentYahooForwardAnchorCount += 1;
+      else recentYahooPbAnchorCount += 1;
 
       const published = publishedByDate.get(String(latestYahooMetric.date));
       const publishedPe = finiteNonZero(published?.[key]);
       const factor = ratioDistance(publishedPe, latestYahooMetric.value);
-      if (factor > 1 + yahooAnchorMaxRelativeError) {
+      const source = latestYahooMetric.metricSources?.[key] || latestYahooMetric.source || "";
+      const tolerance = source.includes(":current-table") ? 1e-6 : yahooAnchorMaxRelativeError;
+      if (factor > 1 + tolerance) {
         errors.push(
           `${symbol} Yahoo ${label} mismatch on ${latestYahooMetric.date}: ` +
             `published=${publishedPe ?? "missing"} yahoo=${latestYahooMetric.value} factor=${
@@ -187,7 +198,27 @@ export function validateCompanySeriesPayloads(
     companyCount: payloadBySymbol.size,
     recentYahooAnchorCount,
     recentYahooForwardAnchorCount,
+    recentYahooPbAnchorCount,
   };
+}
+
+export function validateCompanySnapshotAgreement(companyPayloads, snapshot) {
+  const byId = new Map(companyPayloads.map(payload => [payload.indexId, payload]));
+  if (snapshot.indices?.length !== byId.size) throw new Error('Company snapshot/series universe mismatch');
+  const seen = new Set();
+  for (const row of snapshot.indices || []) {
+    const payload = byId.get(row.id);
+    if (seen.has(row.id) || !payload || payload.symbol !== row.symbol) throw new Error(`Company identity mismatch: ${row.id}`);
+    seen.add(row.id);
+    const point = payload.points.at(-1);
+    if (!point && payload.valuationStatus === 'awaiting-provider') continue;
+    if (!point || row.date !== point.date) throw new Error(`Company snapshot date mismatch: ${row.symbol}`);
+    for (const key of ['pe_ttm', 'pe_forward', 'pb']) {
+      if (finiteNonZero(row[key]) !== finiteNonZero(point[key])) throw new Error(`Company snapshot ${key} mismatch: ${row.symbol}`);
+      const evidence = point.valuationSources?.[key];
+      if (evidence && (evidence.symbol !== payload.symbol || evidence.date !== point.date)) throw new Error(`Company provenance mismatch: ${row.symbol} ${key}`);
+    }
+  }
 }
 
 async function main() {
@@ -198,6 +229,7 @@ async function main() {
     names.map(async (name) => JSON.parse(await readFile(path.join(companySeriesDir, name), "utf8")))
   );
   const yahooPayload = JSON.parse(await readFile(yahooDailyMetricsPath, "utf8"));
+  validateCompanySnapshotAgreement(companyPayloads, JSON.parse(await readFile(path.join(repoRoot, "data/standardized/company-valuation-snapshot.json"), "utf8")));
   const summary = validateCompanySeriesPayloads(
     companyPayloads,
     yahooPayload?.symbols || {},

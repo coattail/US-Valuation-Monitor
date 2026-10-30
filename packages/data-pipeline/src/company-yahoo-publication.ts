@@ -1,5 +1,5 @@
 interface Point { date: string; recovery?: { estimated?: boolean } }
-interface YahooObservation { date: string; source?: string; pe_ttm?: unknown; pe_forward?: unknown; pb?: unknown }
+interface YahooObservation { date: string; source?: string; metricSources?: Record<string, string>; pe_ttm?: unknown; pe_forward?: unknown; pb?: unknown }
 
 export function restoreCompanyPublishedArchive<T extends Point>(points: T[], archive: { date: string; point: T }[]): T[] {
   const through = points.reduce((date, point) => point.date > date ? point.date : date, '');
@@ -16,7 +16,7 @@ export function restoreCompanyPublishedArchive<T extends Point>(points: T[], arc
 // Keep settled history, but wait for a dated Yahoo valuation observation before
 // appending a session. Earlier provisional close estimates are not settled data.
 export function capCompanyPublicationToYahoo<T extends Point>(
-  points: T[], previousPoints: T[], observations: YahooObservation[], completedDate: string
+  points: T[], previousPoints: T[], observations: YahooObservation[], completedDate: string, requireCurrentTable = false
 ): T[] {
   let through = '';
   for (const point of previousPoints) {
@@ -24,7 +24,11 @@ export function capCompanyPublicationToYahoo<T extends Point>(
   }
   for (const row of observations) {
     const hasMetric = [row.pe_ttm, row.pe_forward, row.pb].some(value => typeof value === 'number' && Number.isFinite(value) && value !== 0);
-    if (row.source?.includes('yahoo') && hasMetric && row.date <= completedDate && row.date > through) through = row.date;
+    const verifiedCurrent = (['pe_ttm', 'pe_forward', 'pb'] as const).some(metric => {
+      const value = row[metric];
+      return row.metricSources?.[metric]?.includes(':current-table') && typeof value === 'number' && Number.isFinite(value) && value !== 0;
+    });
+    if ((!requireCurrentTable || verifiedCurrent) && row.source?.includes('yahoo') && hasMetric && row.date <= completedDate && row.date > through) through = row.date;
   }
   const published = new Map(points.filter(point => point.date <= through).map(point => [point.date, point]));
   // Sparse responses must not erase already-published historical dates. Reuse

@@ -13,6 +13,9 @@ export async function applyArtifacts(root, artifacts) {
     const actual = (await readdir(path.join(source, `${kind}-series`))).sort();
     if (!expected.length || JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error(`Incomplete ${kind} artifact`);
     const files = [snapshot, `${kind}-yahoo-daily-metrics.json`, ...(kind === 'index' ? ['valuation-history.json', 'index-history-lock.json', 'nasdaq100-forward-closes.json', 'sp500-ttm-closes.json', 'etf-ttm-closes.json', 'index-forward-inputs.json', 'sp500-pb-inputs.json'] : [])];
+    if (kind === 'company') {
+      try { await access(path.join(source, 'company-valuation-audit.json')); files.push('company-valuation-audit.json'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
     for (const file of files) await access(path.join(source, file));
     try { await access(path.join(source, `${kind}-gap-repairs.json`)); files.push(`${kind}-gap-repairs.json`); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     groups.push({ kind, files });

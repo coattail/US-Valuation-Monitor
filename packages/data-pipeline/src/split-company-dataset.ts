@@ -87,7 +87,7 @@ function toFiniteNumber(value: unknown): number | null {
 
 function resolveLatestPeg(points: CompanyValuationPoint[], fallback?: unknown): number | null {
   const latestPoint = Array.isArray(points) && points.length ? points[points.length - 1] : null;
-  return toFiniteNumber(latestPoint?.peg ?? fallback);
+  return toFiniteNumber(latestPoint && Object.hasOwn(latestPoint, "peg") ? latestPoint.peg : fallback);
 }
 
 function valuationRankValue(value: number): number {
@@ -193,7 +193,7 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
 function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
   const points = Array.isArray(item.points) ? item.points : [];
   const latestPoint = points[points.length - 1] || {};
-  const peStats = computeLatestPeStats(points);
+  const peStats = computeLatestPeStats(toFiniteNumber(latestPoint.pe_ttm) === null ? [] : points);
 
   return {
     id: String(item.id || ""),
@@ -207,7 +207,8 @@ function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
     endDate: String(points[points.length - 1]?.date || ""),
     pointCount: points.length,
     ...(item.latestEarnings ? { valuationStatus: item.valuationStatus, latestEarnings: item.latestEarnings } : {}),
-    date: peStats.latestDate || String(latestPoint.date || ""),
+    valuationSources: latestPoint.valuationSources || {},
+    date: String(latestPoint.date || ""),
     pe_ttm: toFiniteNumber(latestPoint.pe_ttm),
     pe_forward: toFiniteNumber(latestPoint.pe_forward),
     pb: toFiniteNumber(latestPoint.pb),

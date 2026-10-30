@@ -48,3 +48,10 @@ test('the frozen company archive restores only interior dates and cannot replay 
   ]);
   assert.deepEqual(restored, [retained, ...previous]);
 });
+
+test('Current publication policy waits for its own field instead of advancing on quote-only PE', () => {
+  const through = '2026-10-14';
+  assert.deepEqual(capCompanyPublicationToYahoo(points, previous, [yahoo(through)], through, true), previous);
+  const verified = { ...yahoo(through), metricSources: { pe_ttm: 'yahoo-key-statistics-valuation-measures:current-table' } };
+  assert.deepEqual(capCompanyPublicationToYahoo(points, previous, [verified], through, true), points);
+});
