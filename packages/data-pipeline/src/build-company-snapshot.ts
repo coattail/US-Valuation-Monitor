@@ -2564,7 +2564,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
 
             if (!matchesYahooPageSymbol(html, candidate)) throw new Error("Unexpected Yahoo page symbol");
             const quotePageRatioPayload = parseYahooQuotePageRatioPayload(html);
-            if (!quotePagePayload && quotePageRatioPayload) {
+            if (quotePageRatioPayload && (!quotePagePayload || url.endsWith(`/${encodeURIComponent(candidate)}/`))) {
               quotePagePayload = {
                 ...quotePageRatioPayload,
                 source: `${quotePageRatioPayload.source}:${host.replace(/^https?:\/\//i, "")}`,
@@ -3612,7 +3612,14 @@ function mergeCurrentYahooSnapshotsIntoHistory(
     for (const metric of ["pe_ttm", "pe_forward", "pb", "peg"] as RatioMetricKey[]) {
       if (snapshot[metric] == null && !isCurrentTable(snapshot.metricSources?.[metric] || "")) continue;
       const incomingSource = snapshot.metricSources?.[metric] || snapshot.source || "";
-      if (isCurrentTable(current?.metricSources?.[metric] || "") && !isCurrentTable(snapshot.metricSources?.[metric] || "")) {
+      const previousSource = current?.metricSources?.[metric] || current?.source || "";
+      if (metric === "pe_ttm" && /yahoo-quote-(?:page|api|summary)-latest/.test(previousSource) && isCurrentTable(incomingSource)) {
+        snapshot[metric] = current![metric];
+        if (metricSources) metricSources[metric] = previousSource;
+        if (metricCapturedAt) metricCapturedAt[metric] = current?.metricCapturedAt?.[metric] || current?.capturedAt || "";
+        continue;
+      }
+      if (metric !== "pe_ttm" && isCurrentTable(current?.metricSources?.[metric] || "") && !isCurrentTable(snapshot.metricSources?.[metric] || "")) {
         snapshot[metric] = current![metric];
         continue;
       }
@@ -4139,6 +4146,13 @@ function carryForwardMissingPeTtmByPreviousClose(
 function mergeYahooLatestQuotePayloads(payloads: RatioPayload[], currentTable: RatioPayload | null = null): RatioPayload | null {
   const merged = mergeRatioPayloadList(currentTable ? [currentTable, ...payloads] : payloads);
   if (!merged) return null;
+  // Restore the original TTM selection order independently of Current-table metrics.
+  const legacyTtm = mergeRatioPayloadList(payloads);
+  if (legacyTtm) {
+    merged.latest.pe_ttm = legacyTtm.latest.pe_ttm;
+    const selected = payloads.find(payload => payload.latest.pe_ttm === legacyTtm.latest.pe_ttm && payload.latest.pe_ttm !== null);
+    if (selected) merged.metricSources = { ...merged.metricSources, pe_ttm: selected.source };
+  }
 
   for (let i = payloads.length - 1; i >= 0; i -= 1) {
     const payload = payloads[i];
@@ -4150,12 +4164,13 @@ function mergeYahooLatestQuotePayloads(payloads: RatioPayload[], currentTable: R
     const quotePeTtm = sanitizeYahooMetricValue("pe_ttm", payload.latest.pe_ttm, source);
     if (quotePeTtm !== null) {
       merged.latest.pe_ttm = quotePeTtm;
+      merged.metricSources = { ...merged.metricSources, pe_ttm: source };
       break;
     }
   }
 
   if (currentTable) {
-    for (const metric of ["pe_ttm", "pe_forward", "pb", "peg"] as RatioMetricKey[]) {
+    for (const metric of ["pe_forward", "pb", "peg"] as RatioMetricKey[]) {
       const sameDateAnchor = currentTable.anchors.find(anchor => anchor.date === getLastCompletedUsMarketDate());
       const current = sanitizeYahooMetricValue(metric, currentTable.latest[metric] ?? sameDateAnchor?.[metric], currentTable.source);
       const fallbackPayload = (metric === "pe_ttm" ? [...payloads].reverse() : payloads)
@@ -7909,8 +7924,7 @@ async function main(): Promise<void> {
       item.points,
       previousSeriesBySymbol.get(item.symbol)?.points || [],
       yahooDailyMetricsBySymbol.get(item.symbol) || [],
-      companySeriesCapDate,
-      true
+      companySeriesCapDate
     ), yahooDailyMetricsBySymbol.get(item.symbol) || [], item.symbol)),
   })).map(applyOfficialEarnings);
 
@@ -8000,6 +8014,7 @@ export {
   repairRecentTransientPeTtmPulses as repairRecentTransientPeTtmPulsesForTest,
   parseVendorCompanyForwardPeCsv as parseVendorCompanyForwardPeCsvForTest,
   parseYahooValuationMeasuresFromHtml,
+  parseYahooQuotePageRatioPayload,
   parseYahooQuotePageRatioPayload as parseYahooQuotePageRatioPayloadForTest,
   buildYahooPageForwardPeOverride as buildYahooPageForwardPeOverrideForTest,
   selectLatestYahooRatioOverride as selectLatestYahooRatioOverrideForTest,

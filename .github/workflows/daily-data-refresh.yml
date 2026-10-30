@@ -20,8 +20,12 @@ on:
         type: choice
         options: [full, close, company]
         default: full
+      company_quote_ttm:
+        description: "Use quote-page PE Ratio (TTM) in source-only company mode"
+        type: boolean
+        default: false
       company_current_only:
-        description: "Independently reconcile company Current tables (company mode only)"
+        description: "Independently reconcile company source fields (company mode only)"
         type: boolean
         default: false
 
@@ -78,9 +82,9 @@ jobs:
         if: (needs.plan.outputs.mode == 'full' || matrix.dataset == 'company') && !(inputs.company_current_only && needs.plan.outputs.mode == 'company' && matrix.dataset == 'company')
         timeout-minutes: 20
         run: npm run build:data:${{ matrix.dataset }}
-      - name: Independently reconcile company Current tables
+      - name: Independently reconcile company source fields
         if: inputs.company_current_only && needs.plan.outputs.mode == 'company' && matrix.dataset == 'company'
-        run: npm run refresh:yahoo:company
+        run: npm run refresh:yahoo:company -- ${{ inputs.company_quote_ttm && '--quote-ttm' || '' }}
       - uses: actions/upload-artifact@v4
         if: always() && matrix.dataset == 'company'
         with:
