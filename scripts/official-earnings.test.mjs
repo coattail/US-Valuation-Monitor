@@ -31,12 +31,13 @@ test('SK hynix maps to its ADR ticker and retains KRW statements without ordinar
   assert.throws(()=>validateCompanySeriesPayloads([{...c,latestEarnings:null}],{}),/invalid company/);
 });
 
-test('published records preserve official quarterly amounts and keep old Visa closing PE', async () => {
+test('published records preserve official amounts and reconcile Visa PE to its dated Yahoo observation', async () => {
   const root = new URL('../data/standardized/company-series/',import.meta.url);
   const visa = JSON.parse(await readFile(new URL('company_v.json',root)));
   const sk = JSON.parse(await readFile(new URL('company_skhy.json',root)));
   assert.equal(visa.latestEarnings.eps,3.19);
-  assert.equal(visa.points.find(p=>p.date==='2026-10-27').pe_ttm,34.2);
+  const yahoo = JSON.parse(await readFile(new URL('../company-yahoo-daily-metrics.json', root)));
+  assert.equal(visa.points.find(p=>p.date==='2026-10-27').pe_ttm, yahoo.symbols.V.find(p=>p.date==='2026-10-27').pe_ttm);
   assert.equal(sk.latestEarnings.revenue,104615500000000);
   assert.equal(sk.quarterlyNetIncome.find(q=>q.date==='2026-09-30').source,'actual');
 });

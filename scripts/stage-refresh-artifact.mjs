@@ -7,6 +7,9 @@ if (!['index', 'company'].includes(kind)) throw new Error('Expected index or com
 const names = kind === 'index'
   ? ['valuation-history.json', 'valuation-snapshot.json', 'index-series', 'index-history-lock.json', 'index-yahoo-daily-metrics.json', 'nasdaq100-forward-closes.json', 'sp500-ttm-closes.json', 'etf-ttm-closes.json', 'index-forward-inputs.json', 'sp500-pb-inputs.json']
   : ['company-valuation-snapshot.json', 'company-series', 'company-yahoo-daily-metrics.json'];
+if (kind === 'company') {
+  try { await access(path.join(root, 'data/standardized/company-valuation-audit.json')); names.push('company-valuation-audit.json'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
 const ledger = `${kind}-gap-repairs.json`;
 try { await access(path.join(root, 'data/standardized', ledger)); names.push(ledger); } catch (error) { if (error.code !== 'ENOENT') throw error; }
 const out = path.join(root, 'refresh-artifact/data/standardized');

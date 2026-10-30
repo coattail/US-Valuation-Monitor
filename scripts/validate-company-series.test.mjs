@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { validateCompanySeriesPayloads } from "./validate-company-series.mjs";
+import { validateCompanySnapshotAgreement, validateCompanySeriesPayloads } from "./validate-company-series.mjs";
 
 test("company validation accepts a recent published Yahoo TTM anchor", () => {
   const summary = validateCompanySeriesPayloads(
@@ -153,4 +153,19 @@ test("company validation rejects an extreme short-window TSM forward PE jump", (
       ),
     /TSM forward PE validation failed:/
   );
+});
+
+test('company validation checks PB and requires exact Current table equality', () => {
+  assert.throws(() => validateCompanySeriesPayloads([{ symbol: 'GOOG', points: [{ date: '2026-10-29', pe_ttm: 16.96, pb: 6.02 }] }], { GOOG: [{ date: '2026-10-29', pe_ttm: 16.97, source: 'yahoo-key-statistics-valuation-measures:current-table' }] }), /TTM PE mismatch/);
+  assert.throws(() => validateCompanySeriesPayloads([{ symbol: 'XYZ', points: [{ date: '2026-10-29', pb: 8 }] }], { XYZ: [{ date: '2026-10-29', pb: 6.02 }] }), /PB mismatch/);
+});
+
+
+test('publication validation rejects wrong symbols, dates, duplicates and snapshot/series divergence', () => {
+  const payload = { indexId: 'company_goog', symbol: 'GOOG', points: [{ date: '2026-10-29', pe_ttm: 17 }] };
+  const row = { id: 'company_goog', symbol: 'GOOG', date: '2026-10-29', pe_ttm: 17 };
+  assert.doesNotThrow(() => validateCompanySnapshotAgreement([payload], { indices: [row] }));
+  for (const changed of [{ ...row, symbol: 'GOOGL' }, { ...row, date: '2026-10-28' }, { ...row, pe_ttm: 14.74 }]) {
+    assert.throws(() => validateCompanySnapshotAgreement([payload], { indices: [changed] }), /mismatch/);
+  }
 });

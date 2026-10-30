@@ -207,6 +207,7 @@ function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
     endDate: String(points[points.length - 1]?.date || ""),
     pointCount: points.length,
     ...(item.latestEarnings ? { valuationStatus: item.valuationStatus, latestEarnings: item.latestEarnings } : {}),
+    valuationSources: latestPoint.valuationSources || {},
     date: peStats.latestDate || String(latestPoint.date || ""),
     pe_ttm: toFiniteNumber(latestPoint.pe_ttm),
     pe_forward: toFiniteNumber(latestPoint.pe_forward),

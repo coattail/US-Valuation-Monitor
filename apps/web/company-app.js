@@ -1657,6 +1657,21 @@ function renderDetailStats(fullRows, viewRows) {
   elements.detailStats.children[2].style.setProperty("--stat-color", percentileColor(latest.value > 0 ? latest.percentile_full : null));
   document.getElementById("detail-secondary-stats").innerHTML = [2, 3, 4, 6, 7, 9].map((i) => pill(stats[i])).join("");
 
+  const sourceNote = document.getElementById("detail-valuation-source");
+  sourceNote.replaceChildren();
+  const company = getDatasetIndex(state.detail.indexId);
+  const point = company?.points?.find(row => row.date === latest.date);
+  const evidence = point?.valuationSources?.[state.detail.metric];
+  const symbol = company?.symbol || "";
+  if (evidence) {
+    const link = document.createElement("a");
+    link.href = `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.replaceAll(".", "-"))}/${evidence.basis === "current-table" ? "key-statistics/" : ""}`;
+    link.target = "_blank"; link.rel = "noopener noreferrer";
+    link.textContent = `${symbol} · Yahoo ${evidence.basis === "current-table" ? "统计页 Current" : evidence.basis === "quote" ? "行情页" : "历史数据"}`;
+    sourceNote.append(link, document.createTextNode(` · 数据日期 ${evidence.date}${evidence.capturedAt ? ` · 采集于 ${evidence.capturedAt}` : ""}${evidence.comparison ? " · Yahoo 不同字段存在差异，已采用统计页 Current" : ""}`));
+  } else {
+    sourceNote.textContent = `${symbol} · ${latest.date} · 历史或备用数据；暂无该日统计页 Current 的核验记录`;
+  }
   renderDetailPercentileTrack(latest);
 }
 
@@ -1926,6 +1941,7 @@ async function renderDetail() {
   document.getElementById("detail-secondary-stats").innerHTML = "";
   elements.detailPercentileTrack.innerHTML = "";
   elements.detailRange.textContent = "正在加载数据区间…";
+  document.getElementById("detail-valuation-source").replaceChildren();
   renderOfficialEarnings(null);
   charts.detail?.clear();
   charts.detailPercentile?.clear();
