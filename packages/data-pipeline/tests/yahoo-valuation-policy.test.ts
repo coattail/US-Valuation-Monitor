@@ -52,3 +52,33 @@ test('a later quote-only refresh cannot overwrite a verified Current observation
   assert.equal(saved[0].pe_ttm, 16.97);
   assert.match(saved[0].metricSources.pe_ttm, /current-table/);
 });
+
+test('an explicit unavailable Current value clears fallback PE and retains its capture evidence', () => {
+  const canonical = parseYahooValuationMeasuresFromHtml(table('--'));
+  const quote = { anchors: [], latest: { pe_ttm: 14.74, pe_forward: null, pb: null, peg: null }, source: 'yahoo-quote-page-latest' };
+  const rows = createYahooDailyMetricSnapshots(merge([quote], canonical), '2026-10-29', {}, {});
+  const saved = store([{ date: '2026-10-29', pe_ttm: 14.74, pe_forward: 15, pb: 5, peg: 1, source: quote.source }], rows, {}, {}, '2026-10-29');
+  assert.equal(saved[0].pe_ttm, null);
+  const published = publishYahooValuationObservations([{ date: '2026-10-29', pe_ttm: 14.74 }], saved, 'CRWD');
+  assert.equal(published[0].pe_ttm, null);
+  const later = store(saved, [{ date: '2026-10-29', pe_ttm: 14.74, pe_forward: null, pb: null, peg: null, source: quote.source, capturedAt: '2099-01-01T00:00:00Z' }], {}, {}, '2026-10-29');
+  assert.equal(later[0].pe_ttm, null);
+  assert.notEqual(later[0].metricCapturedAt.pe_ttm, '2099-01-01T00:00:00Z');
+});
+
+test('an entirely unavailable Current table does not silently revive quote values', () => {
+  const html = table('--').replace('20.76', '--').replace('6.02', '--').replace('0.57', '--');
+  const canonical = parseYahooValuationMeasuresFromHtml(html);
+  const selected = merge([], canonical);
+  assert.ok(selected);
+  const rows = createYahooDailyMetricSnapshots(selected, '2026-10-29', {}, {});
+  const saved = store([], rows, {}, {}, '2026-10-29');
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].pe_ttm, null);
+});
+
+test('a new Current observation is not assigned to a stale company price tail', () => {
+  const canonical = parseYahooValuationMeasuresFromHtml(table());
+  const selected = merge([], canonical);
+  assert.deepEqual(createYahooDailyMetricSnapshots(selected, '2026-10-28', {}, {}, '2026-10-29'), []);
+});

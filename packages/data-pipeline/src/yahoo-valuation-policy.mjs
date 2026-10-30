@@ -43,10 +43,11 @@ export function publishYahooValuationObservations(points, observations, symbol) 
     for (const metric of valuationMetrics) {
       const value = number(row[metric]);
       const source = row.metricSources?.[metric] || row.source || '';
-      if (value === null || !source.includes('yahoo')) continue;
+      const explicitMissing = row[metric] == null && isCurrentTable(source) && !source.includes('+');
+      if ((!explicitMissing && value === null) || !source.includes('yahoo')) continue;
       next[metric] = value;
       next.valuationSources[metric] = {
-        symbol, source, date: row.date, capturedAt: row.capturedAt || '',
+        symbol, source, date: row.date, capturedAt: row.metricCapturedAt?.[metric] || row.capturedAt || '',
         basis: isCurrentTable(source) && !source.includes('+') ? 'current-table' : source.includes('quote-') ? 'quote' : 'provider-observation',
         url: `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.replaceAll('.', '-'))}/${isCurrentTable(source) ? 'key-statistics/' : ''}`,
         ...(row.comparisons?.[metric] ? { comparison: row.comparisons[metric] } : {}),

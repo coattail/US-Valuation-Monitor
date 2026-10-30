@@ -256,7 +256,7 @@ function toFiniteNumber(value) {
 }
 
 function resolveLatestPointPeg(point, fallback) {
-  return toFiniteNumber(point?.peg ?? fallback);
+  return toFiniteNumber(point && Object.hasOwn(point, "peg") ? point.peg : fallback);
 }
 
 function fmt(value, digits = 2) {
@@ -1007,7 +1007,7 @@ function buildSnapshotRows() {
           pe_ttm_change_1y: Number(indexData.pe_ttm_change_1y || 0),
           regime: regimeFromPercentile(clamp(Number(indexData.percentile_10y), 0, 1)),
         }
-      : computeLatestPeStats(points);
+      : computeLatestPeStats(toFiniteNumber(latestRaw.pe_ttm) === null ? [] : points);
 
     return {
       indexId: indexData.id,
@@ -1019,7 +1019,7 @@ function buildSnapshotRows() {
       date: String(indexData.date || latestRaw.date || indexData.endDate || ""),
       pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm),
       pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward),
-      pb: toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb) ?? 0,
+      pb: toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb),
       peg: resolveLatestPointPeg(latestRaw, indexData.peg),
       percentile_5y: latestPe.percentile_5y,
       percentile_10y: latestPe.percentile_10y,
@@ -1663,7 +1663,13 @@ function renderDetailStats(fullRows, viewRows) {
   const point = company?.points?.find(row => row.date === latest.date);
   const evidence = point?.valuationSources?.[state.detail.metric];
   const symbol = company?.symbol || "";
-  if (evidence) {
+  const current = company?.points?.at(-1);
+  if (current && current.date > latest.date && toFiniteNumber(current[state.detail.metric]) === null && latest.date === latestFull.date) {
+    elements.detailStats.children[0].querySelector('.v').textContent = '--';
+    elements.detailStats.children[1].querySelector('.v').textContent = '--';
+    elements.detailStats.children[2].querySelector('.v').textContent = '暂无可靠数据';
+    sourceNote.textContent = `${symbol} · ${current.date} 的当前指标缺失；图中最后有效值截至 ${latest.date}`;
+  } else if (evidence) {
     const link = document.createElement("a");
     link.href = `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.replaceAll(".", "-"))}/${evidence.basis === "current-table" ? "key-statistics/" : ""}`;
     link.target = "_blank"; link.rel = "noopener noreferrer";

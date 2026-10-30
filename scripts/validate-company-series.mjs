@@ -65,6 +65,12 @@ export function validateCompanySeriesPayloads(
     const yahooRows = Array.isArray(yahooMetricsBySymbol?.[symbol])
       ? yahooMetricsBySymbol[symbol]
       : [];
+    for (const row of yahooRows) {
+      if (row.date !== latestDate) continue;
+      for (const key of ['pe_ttm', 'pe_forward', 'pb', 'peg']) {
+        if (row.metricSources?.[key]?.includes(':current-table') && row[key] == null && points.at(-1)?.[key] != null) errors.push(`${symbol} unavailable Current ${key} was filled by fallback on ${row.date}`);
+      }
+    }
     for (const { key, label } of [
       { key: "pe_ttm", label: "TTM PE" },
       { key: "pe_forward", label: "Forward PE" },

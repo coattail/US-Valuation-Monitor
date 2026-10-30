@@ -23,6 +23,19 @@ GitHub workflow dispatch: `mode=company`, `company_current_only=true`. Branch di
 
 ## Verification
 
-The regression suite covers conflicting quote versus Current values, nested HTML, superscripts, unavailable Current cells, dated observations, sparse timeseries hints, repeated refreshes, wrong-symbol responses, PB agreement, and snapshot/series divergence. The complete local test suite passed (308 tests before the final audit run); static site construction and validation of the existing 100-company publication also passed.
+The regression suite covers conflicting quote versus Current values, nested HTML, superscripts, unavailable Current cells, dated observations, sparse timeseries hints, repeated refreshes, wrong-symbol responses, PB agreement, and snapshot/series divergence. The complete local test suite passed (312 tests); static site construction and validation of the existing 100-company publication also passed.
 
 Local Yahoo HTTP responses were region-blocked, so no current numerical correction was inferred from cached search results or the supplied GOOGL screenshot. Independent runner results are retained in `company-valuation-audit.json` and the workflow artifacts.
+
+## Independent runner results
+
+The [branch source audit](https://github.com/coattail/US-Valuation-Monitor/actions/runs/41037834102) read all 100 companies successfully on 2026-10-30. At least one metric differed by over 2% for 98 companies. Finite Current observations were available for TTM PE on 97 companies, Forward PE on 99, PB on 96, and PEG on 95. Explicit unavailable Current cells are published as null; CRWD, GILD and INTC have no current TTM PE. Their old PE values do not produce a current valuation judgment.
+
+| Same-run Yahoo Current field | GOOG (platform) | GOOGL (comparison only) |
+| --- | ---: | ---: |
+| Trailing P/E | 16.81 | 16.97 |
+| Forward P/E | 20.57 | 20.76 |
+| Price/Book | 5.97 | 6.02 |
+| PEG | 0.56 | 0.57 |
+
+GOOG was captured at 2026-10-30T10:03:49.484Z; GOOGL at 10:03:55.411Z. The source report and reconciled dataset were downloaded from that run. Snapshot statistics were regenerated after applying those observations, including explicit nulls. Earlier dates were preserved. Browser verification confirmed GOOG PE 16.81, its Current-source link and conflict notice, and a missing-value state for CRWD, without JavaScript errors.

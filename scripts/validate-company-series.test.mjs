@@ -169,3 +169,7 @@ test('publication validation rejects wrong symbols, dates, duplicates and snapsh
     assert.throws(() => validateCompanySnapshotAgreement([payload], { indices: [changed] }), /mismatch/);
   }
 });
+
+test('an unavailable Current value cannot be filled with a historical or quote fallback', () => {
+  assert.throws(() => validateCompanySeriesPayloads([{ symbol: 'CRWD', points: [{ date: '2026-10-29', pe_ttm: 100 }] }], { CRWD: [{ date: '2026-10-29', pe_ttm: null, metricSources: { pe_ttm: 'yahoo-key-statistics-valuation-measures:current-table' } }] }), /unavailable Current/);
+});

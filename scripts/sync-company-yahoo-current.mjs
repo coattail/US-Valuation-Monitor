@@ -48,19 +48,18 @@ async function main() {
       if (provider) {
         record.status = latest?.date === target && sourceDate === target ? 'verified' : 'date-mismatch';
         for (const metric of valuationMetrics) {
-          if (values[metric] == null) continue;
           const published = latest?.[metric] ?? null;
-          record.metrics[metric] = { published, current: values[metric], relativeDifference: published ? Math.abs(values[metric] / published - 1) : null };
+          record.metrics[metric] = { published, current: values[metric], relativeDifference: published && values[metric] != null ? Math.abs(values[metric] / published - 1) : null };
         }
         if (record.status === 'verified' && write) {
           const prior = (daily.symbols[item.symbol] || []).find(row => row.date === target);
-          const observation = { ...prior, date: target, source: provider.source, capturedAt: provider.capturedAt, metricSources: { ...prior?.metricSources }, comparisons: {} };
+          const observation = { ...prior, date: target, source: provider.source, capturedAt: provider.capturedAt, metricSources: { ...prior?.metricSources }, metricCapturedAt: { ...prior?.metricCapturedAt }, comparisons: {} };
           for (const metric of valuationMetrics) {
-            if (values[metric] == null) continue;
             observation[metric] = values[metric];
             observation.metricSources[metric] = provider.source;
+            observation.metricCapturedAt[metric] = provider.capturedAt;
             const published = latest[metric];
-            if (published && Math.abs(values[metric] / published - 1) > 0.02) observation.comparisons[metric] = { current: values[metric], fallback: published, fallbackSource: prior?.metricSources?.[metric] || prior?.source || 'previous-publication' };
+            if (published && values[metric] != null && Math.abs(values[metric] / published - 1) > 0.02) observation.comparisons[metric] = { current: values[metric], fallback: published, fallbackSource: prior?.metricSources?.[metric] || prior?.source || 'previous-publication' };
           }
           daily.symbols[item.symbol] = [...(daily.symbols[item.symbol] || []).filter(row => row.date !== target), observation].sort((a, b) => a.date.localeCompare(b.date));
           item.points = publishYahooValuationObservations(item.points, [observation], item.symbol);
