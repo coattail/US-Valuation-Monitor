@@ -1,35 +1,20 @@
 {
-  "generatedAt": "2026-10-30T10:03:46.470Z",
+  "generatedAt": "2026-10-30T13:22:22.164Z",
   "target": "2026-10-29",
-  "policy": "same-symbol-key-statistics-current",
+  "policy": "same-symbol-quote-ttm",
   "companies": [
     {
       "symbol": "AAPL",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/AAPL/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/AAPL/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:46.750Z",
+      "capturedAt": "2026-10-30T13:22:22.800Z",
       "metrics": {
         "pe_ttm": {
-          "published": 40.01,
-          "current": 39.43,
-          "relativeDifference": 0.014496375906023484
-        },
-        "pe_forward": {
-          "published": 36.6699,
-          "current": 35.82,
-          "relativeDifference": 0.023177047114936178
-        },
-        "pb": {
-          "published": 47.422,
-          "current": 46.72,
-          "relativeDifference": 0.014803255872801624
-        },
-        "peg": {
-          "published": 2.706,
-          "current": 3.51,
-          "relativeDifference": 0.29711751662971175
+          "published": 39.43,
+          "current": 40.01,
+          "relativeDifference": 0.014709611970580738
         }
       }
     },
@@ -37,29 +22,14 @@
       "symbol": "ABBV",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/ABBV/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/ABBV/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:46.821Z",
+      "capturedAt": "2026-10-30T13:22:22.718Z",
       "metrics": {
         "pe_ttm": {
-          "published": 82.14,
-          "current": 80.79,
-          "relativeDifference": 0.016435354273192093
-        },
-        "pe_forward": {
-          "published": 20.8718,
-          "current": 17.94,
-          "relativeDifference": 0.14046704165428947
-        },
-        "peg": {
-          "published": 0.5401,
-          "current": 1.18,
-          "relativeDifference": 1.1847805961858913
-        },
-        "pb": {
-          "published": -87.2724,
-          "current": null,
-          "relativeDifference": null
+          "published": 80.79,
+          "current": 82.14,
+          "relativeDifference": 0.016709988860007297
         }
       }
     },
@@ -67,29 +37,14 @@
       "symbol": "ABT",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/ABT/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/ABT/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:46.898Z",
+      "capturedAt": "2026-10-30T13:22:22.749Z",
       "metrics": {
         "pe_ttm": {
           "published": 38.87,
           "current": 38.87,
           "relativeDifference": 0
-        },
-        "pe_forward": {
-          "published": 17.5552,
-          "current": 17.62,
-          "relativeDifference": 0.0036912139992710813
-        },
-        "pb": {
-          "published": 3.9001,
-          "current": 3.54,
-          "relativeDifference": 0.09233096587266998
-        },
-        "peg": {
-          "published": 1.876,
-          "current": 16.66,
-          "relativeDifference": 7.880597014925375
         }
       }
     },
@@ -97,29 +52,14 @@
       "symbol": "ADI",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/ADI/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/ADI/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:46.844Z",
+      "capturedAt": "2026-10-30T13:22:22.776Z",
       "metrics": {
         "pe_ttm": {
-          "published": 51.46,
-          "current": 50.86,
-          "relativeDifference": 0.01165954139137193
-        },
-        "pe_forward": {
-          "published": 6.0225,
-          "current": 25.5,
-          "relativeDifference": 3.2341220423412205
-        },
-        "pb": {
-          "published": 6.3596,
-          "current": 6.22,
-          "relativeDifference": 0.021951066104786587
-        },
-        "peg": {
-          "published": 0.5395,
-          "current": 3.91,
-          "relativeDifference": 6.247451343836887
+          "published": 50.86,
+          "current": 51.46,
+          "relativeDifference": 0.01179709005112084
         }
       }
     },
@@ -127,29 +67,14 @@
       "symbol": "AMAT",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/AMAT/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/AMAT/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.003Z",
+      "capturedAt": "2026-10-30T13:22:23.305Z",
       "metrics": {
         "pe_ttm": {
-          "published": 36.38,
-          "current": 35.89,
-          "relativeDifference": 0.013468938977460154
-        },
-        "pe_forward": {
-          "published": 25.4696,
-          "current": 23.32,
-          "relativeDifference": 0.08439865565222848
-        },
-        "pb": {
-          "published": 13.9107,
-          "current": 12.88,
-          "relativeDifference": 0.07409404271531983
-        },
-        "peg": {
-          "published": 0.8297,
-          "current": 2.39,
-          "relativeDifference": 1.880559238278896
+          "published": 35.89,
+          "current": 36.38,
+          "relativeDifference": 0.013652828085817914
         }
       }
     },
@@ -157,29 +82,14 @@
       "symbol": "AMD",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/AMD/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/AMD/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.159Z",
+      "capturedAt": "2026-10-30T13:22:23.279Z",
       "metrics": {
         "pe_ttm": {
           "published": 144.49,
           "current": 144.49,
           "relativeDifference": 0
-        },
-        "pe_forward": {
-          "published": 72.7031,
-          "current": 35.7,
-          "relativeDifference": 0.5089617911753419
-        },
-        "pb": {
-          "published": 13.0614,
-          "current": 13.75,
-          "relativeDifference": 0.052720229071921754
-        },
-        "peg": {
-          "published": 0.5552,
-          "current": 21.22,
-          "relativeDifference": 37.22046109510086
         }
       }
     },
@@ -187,29 +97,14 @@
       "symbol": "AMGN",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/AMGN/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/AMGN/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.110Z",
+      "capturedAt": "2026-10-30T13:22:23.243Z",
       "metrics": {
         "pe_ttm": {
-          "published": 28.62,
-          "current": 28.06,
-          "relativeDifference": 0.01956673654786867
-        },
-        "pe_forward": {
-          "published": 19.7752,
-          "current": 18.32,
-          "relativeDifference": 0.07358711922003325
-        },
-        "pb": {
-          "published": 21.4074,
-          "current": 20.9,
-          "relativeDifference": 0.023702084325980755
-        },
-        "peg": {
-          "published": 2.2655,
-          "current": 2.72,
-          "relativeDifference": 0.20061796512911068
+          "published": 28.06,
+          "current": 28.62,
+          "relativeDifference": 0.019957234497505416
         }
       }
     },
@@ -217,29 +112,14 @@
       "symbol": "AMZN",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/AMZN/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/AMZN/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.197Z",
+      "capturedAt": "2026-10-30T13:22:23.356Z",
       "metrics": {
         "pe_ttm": {
-          "published": 19.61,
-          "current": 20.48,
-          "relativeDifference": 0.04436511983681801
-        },
-        "pe_forward": {
-          "published": 20.8123,
-          "current": 23.61,
-          "relativeDifference": 0.13442531579883044
-        },
-        "pb": {
-          "published": 4.7769,
-          "current": 4.98,
-          "relativeDifference": 0.042517113609244594
-        },
-        "peg": {
-          "published": 1.4394,
-          "current": 0.6,
-          "relativeDifference": 0.5831596498541058
+          "published": 20.48,
+          "current": 19.61,
+          "relativeDifference": 0.04248046875
         }
       }
     },
@@ -247,29 +127,14 @@
       "symbol": "ANET",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/ANET/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/ANET/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.358Z",
+      "capturedAt": "2026-10-30T13:22:23.726Z",
       "metrics": {
         "pe_ttm": {
           "published": 58.11,
           "current": 58.11,
           "relativeDifference": 0
-        },
-        "pe_forward": {
-          "published": 43.7714,
-          "current": 35.16,
-          "relativeDifference": 0.1967357681042874
-        },
-        "pb": {
-          "published": 16.1105,
-          "current": 15.7,
-          "relativeDifference": 0.025480276838086846
-        },
-        "peg": {
-          "published": 1.493,
-          "current": 1.42,
-          "relativeDifference": 0.04889484259879451
         }
       }
     },
@@ -277,29 +142,14 @@
       "symbol": "APH",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/APH/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/APH/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.471Z",
+      "capturedAt": "2026-10-30T13:22:23.859Z",
       "metrics": {
         "pe_ttm": {
-          "published": 35.69,
-          "current": 35.12,
-          "relativeDifference": 0.015970860184925773
-        },
-        "pe_forward": {
-          "published": 15.3161,
-          "current": 24.39,
-          "relativeDifference": 0.5924419401805943
-        },
-        "pb": {
-          "published": 6.6282,
-          "current": 11.66,
-          "relativeDifference": 0.7591502972149302
-        },
-        "peg": {
-          "published": 0.879,
-          "current": 1.12,
-          "relativeDifference": 0.27417519908987487
+          "published": 35.12,
+          "current": 35.69,
+          "relativeDifference": 0.01623006833712992
         }
       }
     },
@@ -307,29 +157,14 @@
       "symbol": "ARM",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/ARM/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/ARM/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.436Z",
+      "capturedAt": "2026-10-30T13:22:23.828Z",
       "metrics": {
         "pe_ttm": {
-          "published": 235.85,
-          "current": 243.2,
-          "relativeDifference": 0.031163875344498493
-        },
-        "pe_forward": {
-          "published": 113.027,
-          "current": 106.74,
-          "relativeDifference": 0.055623877480602046
-        },
-        "pb": {
-          "published": 32.0943,
-          "current": 29.19,
-          "relativeDifference": 0.09049270431198053
-        },
-        "peg": {
-          "published": 2.1754,
-          "current": 24.56,
-          "relativeDifference": 10.289877723637034
+          "published": 243.2,
+          "current": 235.85,
+          "relativeDifference": 0.03022203947368418
         }
       }
     },
@@ -337,29 +172,14 @@
       "symbol": "ASML",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/ASML/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/ASML/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.530Z",
+      "capturedAt": "2026-10-30T13:22:23.971Z",
       "metrics": {
         "pe_ttm": {
           "published": 41.23,
           "current": 41.23,
           "relativeDifference": 0
-        },
-        "pe_forward": {
-          "published": 40.4065,
-          "current": 26.17,
-          "relativeDifference": 0.3523319267939564
-        },
-        "pb": {
-          "published": 23.9804,
-          "current": 25.72,
-          "relativeDifference": 0.0725425764374239
-        },
-        "peg": {
-          "published": 1.4632,
-          "current": 1.92,
-          "relativeDifference": 0.3121924548933843
         }
       }
     },
@@ -367,29 +187,14 @@
       "symbol": "AVGO",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/AVGO/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/AVGO/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.595Z",
+      "capturedAt": "2026-10-30T13:22:24.300Z",
       "metrics": {
         "pe_ttm": {
           "published": 44.06,
-          "current": 44.93,
-          "relativeDifference": 0.019745801180208744
-        },
-        "pe_forward": {
-          "published": 18.3669,
-          "current": 18.74,
-          "relativeDifference": 0.020313716522657455
-        },
-        "pb": {
-          "published": 18.8805,
-          "current": 16.79,
-          "relativeDifference": 0.11072270331823852
-        },
-        "peg": {
-          "published": 0.3439,
-          "current": 1.06,
-          "relativeDifference": 2.0822913637685376
+          "current": 44.06,
+          "relativeDifference": 0
         }
       }
     },
@@ -397,29 +202,14 @@
       "symbol": "AXP",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/AXP/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/AXP/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.683Z",
+      "capturedAt": "2026-10-30T13:22:24.643Z",
       "metrics": {
         "pe_ttm": {
-          "published": 18.24,
-          "current": 17.91,
-          "relativeDifference": 0.018092105263157854
-        },
-        "pe_forward": {
-          "published": 18.928,
-          "current": 15.82,
-          "relativeDifference": 0.16420118343195267
-        },
-        "pb": {
-          "published": 6.501,
-          "current": 5.96,
-          "relativeDifference": 0.08321796646669744
-        },
-        "peg": {
-          "published": 1.2662,
-          "current": 1.36,
-          "relativeDifference": 0.07407992418259357
+          "published": 17.91,
+          "current": 18.24,
+          "relativeDifference": 0.018425460636515734
         }
       }
     },
@@ -427,29 +217,14 @@
       "symbol": "AZN",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/AZN/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/AZN/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.720Z",
+      "capturedAt": "2026-10-30T13:22:24.330Z",
       "metrics": {
         "pe_ttm": {
           "published": 26.07,
-          "current": 25.34,
-          "relativeDifference": 0.028001534330648226
-        },
-        "pe_forward": {
-          "published": 14.9885,
-          "current": 14.8,
-          "relativeDifference": 0.012576308503185696
-        },
-        "pb": {
-          "published": 5.2875,
-          "current": 5.23,
-          "relativeDifference": 0.010874704491725673
-        },
-        "peg": {
-          "published": 1.1906,
-          "current": 1.37,
-          "relativeDifference": 0.15068032924575836
+          "current": 26.07,
+          "relativeDifference": 0
         }
       }
     },
@@ -457,29 +232,14 @@
       "symbol": "BABA",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/BABA/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/BABA/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.897Z",
+      "capturedAt": "2026-10-30T13:22:24.521Z",
       "metrics": {
         "pe_ttm": {
-          "published": 24.1,
-          "current": 24.12,
-          "relativeDifference": 0.0008298755186721962
-        },
-        "pe_forward": {
-          "published": 16.8349,
-          "current": 16.02,
-          "relativeDifference": 0.04840539593344784
-        },
-        "pb": {
-          "published": 1.5777,
-          "current": 1.55,
-          "relativeDifference": 0.017557203524117382
-        },
-        "peg": {
-          "published": 0.5039,
-          "current": 14.17,
-          "relativeDifference": 27.120658860885094
+          "published": 24.12,
+          "current": 24.1,
+          "relativeDifference": 0.0008291873963515162
         }
       }
     },
@@ -487,29 +247,14 @@
       "symbol": "BAC",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/BAC/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/BAC/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.864Z",
+      "capturedAt": "2026-10-30T13:22:24.833Z",
       "metrics": {
         "pe_ttm": {
-          "published": 12.21,
-          "current": 12.14,
-          "relativeDifference": 0.005733005733005725
-        },
-        "pe_forward": {
-          "published": 16.9282,
-          "current": 9.83,
-          "relativeDifference": 0.4193121536843847
-        },
-        "pb": {
-          "published": 1.2984,
-          "current": 1.31,
-          "relativeDifference": 0.00893407270486768
-        },
-        "peg": {
-          "published": 0.8751,
-          "current": 2.62,
-          "relativeDifference": 1.9939435493086508
+          "published": 12.14,
+          "current": 12.21,
+          "relativeDifference": 0.005766062602965416
         }
       }
     },
@@ -517,29 +262,14 @@
       "symbol": "BHP",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/BHP/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/BHP/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:47.931Z",
+      "capturedAt": "2026-10-30T13:22:24.792Z",
       "metrics": {
         "pe_ttm": {
-          "published": 21.09,
-          "current": 21.28,
-          "relativeDifference": 0.009009009009009139
-        },
-        "pe_forward": {
-          "published": 16.7269,
-          "current": 16.31,
-          "relativeDifference": 0.024923924935283948
-        },
-        "pb": {
-          "published": 4.3907,
-          "current": 4.25,
-          "relativeDifference": 0.032045004213451134
-        },
-        "peg": {
-          "published": -1,
-          "current": 2.77,
-          "relativeDifference": 3.77
+          "published": 21.28,
+          "current": 21.2,
+          "relativeDifference": 0.00375939849624074
         }
       }
     },
@@ -547,29 +277,14 @@
       "symbol": "BLK",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/BLK/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/BLK/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.034Z",
+      "capturedAt": "2026-10-30T13:22:25.004Z",
       "metrics": {
         "pe_ttm": {
-          "published": 27.21,
-          "current": 26.36,
-          "relativeDifference": 0.031238515251745702
-        },
-        "pe_forward": {
-          "published": 20.6252,
-          "current": 17.76,
-          "relativeDifference": 0.138917440800574
-        },
-        "pb": {
-          "published": 3.0814,
-          "current": 3.12,
-          "relativeDifference": 0.01252677354449272
-        },
-        "peg": {
-          "published": 0.8835,
-          "current": 8.32,
-          "relativeDifference": 8.417091114883984
+          "published": 26.36,
+          "current": 26.78,
+          "relativeDifference": 0.01593323216995457
         }
       }
     },
@@ -577,29 +292,14 @@
       "symbol": "BRK-B",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/BRK-B/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/BRK-B/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.170Z",
+      "capturedAt": "2026-10-30T13:22:25.193Z",
       "metrics": {
         "pe_ttm": {
-          "published": 13.63,
-          "current": 13.59,
-          "relativeDifference": 0.0029347028613353476
-        },
-        "pe_forward": {
-          "published": 25.2566,
-          "current": 26.32,
-          "relativeDifference": 0.04210384612338958
-        },
-        "pb": {
-          "published": 1.5242,
-          "current": 1.55,
-          "relativeDifference": 0.01692691247867728
-        },
-        "peg": {
-          "published": 10.0559,
-          "current": 1.12,
-          "relativeDifference": 0.8886225996678566
+          "published": 13.59,
+          "current": 13.63,
+          "relativeDifference": 0.0029433406916852256
         }
       }
     },
@@ -607,29 +307,14 @@
       "symbol": "BUD",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/BUD/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/BUD/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.239Z",
+      "capturedAt": "2026-10-30T13:22:25.297Z",
       "metrics": {
         "pe_ttm": {
-          "published": 16.16,
-          "current": 17.44,
-          "relativeDifference": 0.07920792079207928
-        },
-        "pe_forward": {
-          "published": 18.1222,
-          "current": 16.59,
-          "relativeDifference": 0.0845482336581651
-        },
-        "pb": {
-          "published": 1.6691,
-          "current": 1.71,
-          "relativeDifference": 0.024504223833203387
-        },
-        "peg": {
-          "published": 1.633,
-          "current": 1.69,
-          "relativeDifference": 0.03490508266993264
+          "published": 17.44,
+          "current": 16.16,
+          "relativeDifference": 0.07339449541284415
         }
       }
     },
@@ -637,29 +322,14 @@
       "symbol": "C",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/C/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/C/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.213Z",
+      "capturedAt": "2026-10-30T13:22:25.394Z",
       "metrics": {
         "pe_ttm": {
-          "published": 12.26,
-          "current": 12.1,
-          "relativeDifference": 0.013050570962479635
-        },
-        "pe_forward": {
-          "published": 18.0521,
-          "current": 9.38,
-          "relativeDifference": 0.4803928628802189
-        },
-        "pb": {
-          "published": 1.0718,
-          "current": 1.07,
-          "relativeDifference": 0.0016794178018286754
-        },
-        "peg": {
-          "published": 0.6023,
-          "current": 5.81,
-          "relativeDifference": 8.646355636725884
+          "published": 12.1,
+          "current": 12.26,
+          "relativeDifference": 0.013223140495867813
         }
       }
     },
@@ -667,29 +337,14 @@
       "symbol": "CAT",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/CAT/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/CAT/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.282Z",
+      "capturedAt": "2026-10-30T13:22:25.497Z",
       "metrics": {
         "pe_ttm": {
-          "published": 27.87,
-          "current": 30.71,
-          "relativeDifference": 0.10190168640114816
-        },
-        "pe_forward": {
-          "published": 3.9382,
-          "current": 22.16,
-          "relativeDifference": 4.6269361637296225
-        },
-        "pb": {
-          "published": 15.3371,
-          "current": 16.91,
-          "relativeDifference": 0.1025552418644986
-        },
-        "peg": {
-          "published": 1.3697,
-          "current": 1.29,
-          "relativeDifference": 0.05818792436299913
+          "published": 30.71,
+          "current": 27.87,
+          "relativeDifference": 0.09247802018886353
         }
       }
     },
@@ -697,29 +352,14 @@
       "symbol": "COP",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/COP/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/COP/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.456Z",
+      "capturedAt": "2026-10-30T13:22:25.682Z",
       "metrics": {
         "pe_ttm": {
-          "published": 19.87,
-          "current": 19.74,
-          "relativeDifference": 0.006542526421741468
-        },
-        "pe_forward": {
-          "published": 13.8523,
-          "current": 14.01,
-          "relativeDifference": 0.011384391039755082
-        },
-        "pb": {
-          "published": 2.8933,
-          "current": 2.74,
-          "relativeDifference": 0.052984481388034355
-        },
-        "peg": {
-          "published": 1.1213,
-          "current": 0.44,
-          "relativeDifference": 0.6075983233746545
+          "published": 19.74,
+          "current": 19.87,
+          "relativeDifference": 0.006585612968591725
         }
       }
     },
@@ -727,29 +367,14 @@
       "symbol": "COST",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/COST/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/COST/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.504Z",
+      "capturedAt": "2026-10-30T13:22:25.796Z",
       "metrics": {
         "pe_ttm": {
-          "published": 47.98,
-          "current": 47.34,
-          "relativeDifference": 0.013338891204668468
-        },
-        "pe_forward": {
-          "published": 44.1408,
-          "current": 43.06,
-          "relativeDifference": 0.02448528345657519
-        },
-        "pb": {
-          "published": 13.2412,
-          "current": 12.17,
-          "relativeDifference": 0.0808990121741231
-        },
-        "peg": {
-          "published": 4.3815,
-          "current": 3.64,
-          "relativeDifference": 0.16923428049754652
+          "published": 47.34,
+          "current": 47.98,
+          "relativeDifference": 0.013519222644697848
         }
       }
     },
@@ -757,29 +382,14 @@
       "symbol": "CRM",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/CRM/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/CRM/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.568Z",
+      "capturedAt": "2026-10-30T13:22:26.014Z",
       "metrics": {
         "pe_ttm": {
-          "published": 21.13,
-          "current": 22.15,
-          "relativeDifference": 0.04827259820160901
-        },
-        "pe_forward": {
-          "published": 14.98,
-          "current": 15.51,
-          "relativeDifference": 0.035380507343124146
-        },
-        "pb": {
-          "published": 4.8777,
-          "current": 5.19,
-          "relativeDifference": 0.06402607786456738
-        },
-        "peg": {
-          "published": 0.8111,
-          "current": 0.64,
-          "relativeDifference": 0.21094809517938606
+          "published": 22.15,
+          "current": 21.13,
+          "relativeDifference": 0.04604966139954847
         }
       }
     },
@@ -787,28 +397,13 @@
       "symbol": "CRWD",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/CRWD/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/CRWD/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.595Z",
+      "capturedAt": "2026-10-30T13:22:25.969Z",
       "metrics": {
-        "pe_forward": {
-          "published": 6.5933,
-          "current": 172.04,
-          "relativeDifference": 25.09315517267529
-        },
-        "pb": {
-          "published": 52.8009,
-          "current": 53.51,
-          "relativeDifference": 0.013429695327162872
-        },
         "pe_ttm": {
-          "published": -11,
-          "current": null,
-          "relativeDifference": null
-        },
-        "peg": {
-          "published": 7.8624,
-          "current": null,
+          "published": null,
+          "current": -11,
           "relativeDifference": null
         }
       }
@@ -817,29 +412,14 @@
       "symbol": "CSCO",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/CSCO/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/CSCO/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.880Z",
+      "capturedAt": "2026-10-30T13:22:26.176Z",
       "metrics": {
         "pe_ttm": {
-          "published": 32.61,
-          "current": 33.12,
-          "relativeDifference": 0.015639374425022945
-        },
-        "pe_forward": {
-          "published": 20.0644,
-          "current": 20.54,
-          "relativeDifference": 0.023703674169175182
-        },
-        "pb": {
-          "published": 8.444,
-          "current": 8.65,
-          "relativeDifference": 0.024396020843202137
-        },
-        "peg": {
-          "published": 1.0163,
-          "current": 5.61,
-          "relativeDifference": 4.520023615074289
+          "published": 33.12,
+          "current": 32.61,
+          "relativeDifference": 0.015398550724637583
         }
       }
     },
@@ -847,29 +427,14 @@
       "symbol": "CVX",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/CVX/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/CVX/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.800Z",
+      "capturedAt": "2026-10-30T13:22:26.293Z",
       "metrics": {
         "pe_ttm": {
-          "published": 22.28,
-          "current": 22.06,
-          "relativeDifference": 0.00987432675044897
-        },
-        "pe_forward": {
-          "published": 15.0869,
-          "current": 16.64,
-          "relativeDifference": 0.10294361333342184
-        },
-        "pb": {
-          "published": 2.3815,
-          "current": 2.37,
-          "relativeDifference": 0.004828889355448229
-        },
-        "peg": {
-          "published": 0.9342,
-          "current": 0.54,
-          "relativeDifference": 0.4219653179190751
+          "published": 22.06,
+          "current": 22.28,
+          "relativeDifference": 0.00997280145058932
         }
       }
     },
@@ -877,29 +442,14 @@
       "symbol": "DE",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/DE/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/DE/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.934Z",
+      "capturedAt": "2026-10-30T13:22:26.538Z",
       "metrics": {
         "pe_ttm": {
-          "published": 36.69,
-          "current": 35.61,
-          "relativeDifference": 0.029435813573180702
-        },
-        "pe_forward": {
-          "published": 24.6039,
-          "current": 27.42,
-          "relativeDifference": 0.11445746406057578
-        },
-        "pb": {
-          "published": 5.7218,
-          "current": 6.18,
-          "relativeDifference": 0.08007969520081093
-        },
-        "peg": {
-          "published": 1.5909,
-          "current": 42.21,
-          "relativeDifference": 25.53215161229493
+          "published": 35.61,
+          "current": 36.69,
+          "relativeDifference": 0.030328559393428822
         }
       }
     },
@@ -907,29 +457,14 @@
       "symbol": "DELL",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/DELL/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/DELL/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:48.910Z",
+      "capturedAt": "2026-10-30T13:22:26.578Z",
       "metrics": {
         "pe_ttm": {
-          "published": 27.65,
-          "current": 28.71,
-          "relativeDifference": 0.03833634719710677
-        },
-        "pe_forward": {
-          "published": 24.855,
-          "current": 16.43,
-          "relativeDifference": 0.3389660028163347
-        },
-        "peg": {
-          "published": 0.6912,
-          "current": 0.79,
-          "relativeDifference": 0.14293981481481488
-        },
-        "pb": {
-          "published": -211.868,
-          "current": null,
-          "relativeDifference": null
+          "published": 28.71,
+          "current": 27.65,
+          "relativeDifference": 0.03692093347265768
         }
       }
     },
@@ -937,29 +472,14 @@
       "symbol": "DHR",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/DHR/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/DHR/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.099Z",
+      "capturedAt": "2026-10-30T13:22:26.677Z",
       "metrics": {
         "pe_ttm": {
-          "published": 39.24,
-          "current": 38.75,
-          "relativeDifference": 0.012487257900101967
-        },
-        "pe_forward": {
-          "published": 26.1582,
-          "current": 25.09,
-          "relativeDifference": 0.040836143159697524
-        },
-        "pb": {
-          "published": 3.1677,
-          "current": 3.07,
-          "relativeDifference": 0.0308425671622945
-        },
-        "peg": {
-          "published": 2.9264,
-          "current": 68.44,
-          "relativeDifference": 22.387096774193548
+          "published": 38.75,
+          "current": 39.24,
+          "relativeDifference": 0.01264516129032267
         }
       }
     },
@@ -967,29 +487,14 @@
       "symbol": "DIS",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/DIS/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/DIS/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.190Z",
+      "capturedAt": "2026-10-30T13:22:26.818Z",
       "metrics": {
         "pe_ttm": {
-          "published": 22.87,
-          "current": 22.48,
-          "relativeDifference": 0.017052907739396606
-        },
-        "pe_forward": {
-          "published": 15.4666,
-          "current": 14.54,
-          "relativeDifference": 0.059909740990262916
-        },
-        "pb": {
-          "published": 1.8455,
-          "current": 1.71,
-          "relativeDifference": 0.07342183690056892
-        },
-        "peg": {
-          "published": 2.8324,
-          "current": 0.45,
-          "relativeDifference": 0.8411241350091795
+          "published": 22.48,
+          "current": 22.87,
+          "relativeDifference": 0.017348754448398562
         }
       }
     },
@@ -997,29 +502,14 @@
       "symbol": "GE",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/GE/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/GE/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.288Z",
+      "capturedAt": "2026-10-30T13:22:27.125Z",
       "metrics": {
         "pe_ttm": {
-          "published": 35.78,
-          "current": 34.41,
-          "relativeDifference": 0.03828954723309119
-        },
-        "pe_forward": {
-          "published": 42.2682,
-          "current": 32.55,
-          "relativeDifference": 0.22991752665124143
-        },
-        "pb": {
-          "published": 19.4867,
-          "current": 17.83,
-          "relativeDifference": 0.08501696028573336
-        },
-        "peg": {
-          "published": 3.9857,
-          "current": 1.02,
-          "relativeDifference": 0.7440851042476855
+          "published": 34.41,
+          "current": 35.78,
+          "relativeDifference": 0.03981400755594322
         }
       }
     },
@@ -1027,89 +517,38 @@
       "symbol": "GEV",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/GEV/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/GEV/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.327Z",
+      "capturedAt": "2026-10-30T13:22:27.151Z",
       "metrics": {
         "pe_ttm": {
           "published": 23.31,
           "current": 23.31,
           "relativeDifference": 0
-        },
-        "pe_forward": {
-          "published": 17.4033,
-          "current": 36.45,
-          "relativeDifference": 1.0944303666546
-        },
-        "pb": {
-          "published": 20.6055,
-          "current": 20.65,
-          "relativeDifference": 0.002159617577831119
-        },
-        "peg": {
-          "published": 1.803,
-          "current": 0.04,
-          "relativeDifference": 0.9778147531891292
         }
       }
     },
     {
       "symbol": "GILD",
       "publishedDate": "2026-10-29",
-      "status": "verified",
+      "status": "source-unavailable",
       "sourceUrl": "https://finance.yahoo.com/quote/GILD/key-statistics/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.373Z",
-      "metrics": {
-        "pe_forward": {
-          "published": 16.13,
-          "current": 16.13,
-          "relativeDifference": 0
-        },
-        "pb": {
-          "published": 16.7,
-          "current": 16.7,
-          "relativeDifference": 0
-        },
-        "pe_ttm": {
-          "published": -11,
-          "current": null,
-          "relativeDifference": null
-        },
-        "peg": {
-          "published": 2.27,
-          "current": null,
-          "relativeDifference": null
-        }
-      }
+      "capturedAt": "",
+      "metrics": {}
     },
     {
       "symbol": "GOOG",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/GOOG/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/GOOG/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.484Z",
+      "capturedAt": "2026-10-30T13:22:27.306Z",
       "metrics": {
         "pe_ttm": {
           "published": 14.74,
-          "current": 16.81,
-          "relativeDifference": 0.14043419267299861
-        },
-        "pe_forward": {
-          "published": 13.8224,
-          "current": 20.57,
-          "relativeDifference": 0.48816413936798253
-        },
-        "pb": {
-          "published": 5.5668,
-          "current": 5.97,
-          "relativeDifference": 0.07242940288855348
-        },
-        "peg": {
-          "published": 1.2282,
-          "current": 0.56,
-          "relativeDifference": 0.5440482006187917
+          "current": 14.74,
+          "relativeDifference": 0
         }
       }
     },
@@ -1117,29 +556,14 @@
       "symbol": "GS",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/GS/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/GS/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.543Z",
+      "capturedAt": "2026-10-30T13:22:27.683Z",
       "metrics": {
         "pe_ttm": {
-          "published": 13.34,
-          "current": 13.3,
-          "relativeDifference": 0.0029985007496251548
-        },
-        "pe_forward": {
-          "published": 14.5964,
-          "current": 12.43,
-          "relativeDifference": 0.1484201583952207
-        },
-        "pb": {
-          "published": 2.5055,
-          "current": 2.54,
-          "relativeDifference": 0.013769706645380131
-        },
-        "peg": {
-          "published": 1.1766,
-          "current": 4.81,
-          "relativeDifference": 3.0880503144654083
+          "published": 13.3,
+          "current": 13.34,
+          "relativeDifference": 0.003007518796992459
         }
       }
     },
@@ -1147,29 +571,14 @@
       "symbol": "HD",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/HD/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/HD/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.639Z",
+      "capturedAt": "2026-10-30T13:22:27.660Z",
       "metrics": {
         "pe_ttm": {
-          "published": 23.02,
-          "current": 22.22,
-          "relativeDifference": 0.034752389226759384
-        },
-        "pe_forward": {
-          "published": 22.3315,
-          "current": 20.01,
-          "relativeDifference": 0.10395629491973213
-        },
-        "pb": {
-          "published": 23.8544,
-          "current": 19.06,
-          "relativeDifference": 0.20098598162183912
-        },
-        "peg": {
-          "published": 1.6876,
-          "current": 226.07,
-          "relativeDifference": 132.95946906849963
+          "published": 22.22,
+          "current": 23.02,
+          "relativeDifference": 0.036003600360036137
         }
       }
     },
@@ -1177,29 +586,14 @@
       "symbol": "HSBC",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/HSBC/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/HSBC/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.604Z",
+      "capturedAt": "2026-10-30T13:22:27.839Z",
       "metrics": {
         "pe_ttm": {
-          "published": 11.32,
-          "current": 11.29,
-          "relativeDifference": 0.0026501766784453595
-        },
-        "pe_forward": {
-          "published": 9.9658,
-          "current": 9.04,
-          "relativeDifference": 0.09289771016877724
-        },
-        "pb": {
-          "published": 1.6485,
-          "current": 1.51,
-          "relativeDifference": 0.08401577191386111
-        },
-        "peg": {
-          "published": 0.8846,
-          "current": 0.51,
-          "relativeDifference": 0.42346823423016056
+          "published": 11.29,
+          "current": 11.32,
+          "relativeDifference": 0.0026572187776794376
         }
       }
     },
@@ -1207,89 +601,38 @@
       "symbol": "IBM",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/IBM/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/IBM/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.742Z",
+      "capturedAt": "2026-10-30T13:22:28.203Z",
       "metrics": {
         "pe_ttm": {
-          "published": 22.04,
-          "current": 21.61,
-          "relativeDifference": 0.019509981851179692
-        },
-        "pe_forward": {
-          "published": 20.7127,
-          "current": 18.97,
-          "relativeDifference": 0.08413678564359073
-        },
-        "pb": {
-          "published": 6.9981,
-          "current": 6.73,
-          "relativeDifference": 0.03831039853674567
-        },
-        "peg": {
-          "published": 2.2485,
-          "current": 0.86,
-          "relativeDifference": 0.6175227929730931
+          "published": 21.61,
+          "current": 22.04,
+          "relativeDifference": 0.01989819527996306
         }
       }
     },
     {
       "symbol": "INTC",
       "publishedDate": "2026-10-29",
-      "status": "verified",
+      "status": "source-unavailable",
       "sourceUrl": "https://finance.yahoo.com/quote/INTC/key-statistics/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.814Z",
-      "metrics": {
-        "pe_forward": {
-          "published": 51.64,
-          "current": 51.64,
-          "relativeDifference": 0
-        },
-        "pb": {
-          "published": 5.5,
-          "current": 5.5,
-          "relativeDifference": 0
-        },
-        "pe_ttm": {
-          "published": -11,
-          "current": null,
-          "relativeDifference": null
-        },
-        "peg": {
-          "published": 0.5,
-          "current": null,
-          "relativeDifference": null
-        }
-      }
+      "capturedAt": "",
+      "metrics": {}
     },
     {
       "symbol": "ISRG",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/ISRG/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/ISRG/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:49.885Z",
+      "capturedAt": "2026-10-30T13:22:28.400Z",
       "metrics": {
         "pe_ttm": {
-          "published": 54.26,
-          "current": 53.71,
-          "relativeDifference": 0.010136380390711297
-        },
-        "pe_forward": {
-          "published": 46.7234,
-          "current": 36.62,
-          "relativeDifference": 0.21623854428402045
-        },
-        "pb": {
-          "published": 9.8274,
-          "current": 9.82,
-          "relativeDifference": 0.0007529967234467527
-        },
-        "peg": {
-          "published": 2.1946,
-          "current": 4.38,
-          "relativeDifference": 0.9958078920987881
+          "published": 53.71,
+          "current": 54.26,
+          "relativeDifference": 0.01024017873766514
         }
       }
     },
@@ -1297,29 +640,14 @@
       "symbol": "JNJ",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/JNJ/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/JNJ/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.008Z",
+      "capturedAt": "2026-10-30T13:22:28.670Z",
       "metrics": {
         "pe_ttm": {
-          "published": 41.76,
-          "current": 41.13,
-          "relativeDifference": 0.015086206896551602
-        },
-        "pe_forward": {
-          "published": 23.0556,
-          "current": 22.87,
-          "relativeDifference": 0.008050104963652993
-        },
-        "pb": {
-          "published": 7.6139,
-          "current": 8,
-          "relativeDifference": 0.050709885866638604
-        },
-        "peg": {
-          "published": 2.8337,
-          "current": 7.69,
-          "relativeDifference": 1.7137664537530441
+          "published": 41.13,
+          "current": 41.76,
+          "relativeDifference": 0.015317286652078765
         }
       }
     },
@@ -1327,29 +655,14 @@
       "symbol": "JPM",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/JPM/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/JPM/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.041Z",
+      "capturedAt": "2026-10-30T13:22:28.788Z",
       "metrics": {
         "pe_ttm": {
-          "published": 14.41,
-          "current": 14.23,
-          "relativeDifference": 0.012491325468424685
-        },
-        "pe_forward": {
-          "published": 14.254,
-          "current": 13.24,
-          "relativeDifference": 0.07113792619615544
-        },
-        "pb": {
-          "published": 2.5443,
-          "current": 2.56,
-          "relativeDifference": 0.006170655976103445
-        },
-        "peg": {
-          "published": 1.6244,
-          "current": 1.66,
-          "relativeDifference": 0.02191578428958385
+          "published": 14.23,
+          "current": 14.41,
+          "relativeDifference": 0.012649332396345692
         }
       }
     },
@@ -1357,29 +670,14 @@
       "symbol": "KLAC",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/KLAC/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/KLAC/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.093Z",
+      "capturedAt": "2026-10-30T13:22:28.873Z",
       "metrics": {
         "pe_ttm": {
-          "published": 41.96,
-          "current": 39.75,
-          "relativeDifference": 0.05266920877025738
-        },
-        "pe_forward": {
-          "published": 30.7419,
-          "current": 29.37,
-          "relativeDifference": 0.044626389390376
-        },
-        "pb": {
-          "published": 34.2061,
-          "current": 31.76,
-          "relativeDifference": 0.07151063699164761
-        },
-        "peg": {
-          "published": 1.6002,
-          "current": 2.24,
-          "relativeDifference": 0.3998250218722661
+          "published": 39.75,
+          "current": 41.96,
+          "relativeDifference": 0.0555974842767295
         }
       }
     },
@@ -1387,29 +685,14 @@
       "symbol": "KO",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/KO/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/KO/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.171Z",
+      "capturedAt": "2026-10-30T13:22:29.313Z",
       "metrics": {
         "pe_ttm": {
-          "published": 27.87,
-          "current": 27.06,
-          "relativeDifference": 0.0290635091496233
-        },
-        "pe_forward": {
-          "published": 28.2187,
-          "current": 26.21,
-          "relativeDifference": 0.07118329334802798
-        },
-        "pb": {
-          "published": 11.091,
-          "current": 10.56,
-          "relativeDifference": 0.04787665674871511
-        },
-        "peg": {
-          "published": 4,
-          "current": 2.51,
-          "relativeDifference": 0.37250000000000005
+          "published": 27.06,
+          "current": 27.38,
+          "relativeDifference": 0.01182557280118246
         }
       }
     },
@@ -1417,29 +700,14 @@
       "symbol": "LIN",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/LIN/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/LIN/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.262Z",
+      "capturedAt": "2026-10-30T13:22:29.334Z",
       "metrics": {
         "pe_ttm": {
-          "published": 32.48,
-          "current": 32.81,
-          "relativeDifference": 0.010160098522167704
-        },
-        "pe_forward": {
-          "published": 27.8942,
-          "current": 25.92,
-          "relativeDifference": 0.0707745696237927
-        },
-        "pb": {
-          "published": 5.8859,
-          "current": 5.99,
-          "relativeDifference": 0.01768633513991058
-        },
-        "peg": {
-          "published": 1.7748,
-          "current": 1.64,
-          "relativeDifference": 0.07595221996844714
+          "published": 32.81,
+          "current": 32.48,
+          "relativeDifference": 0.010057909174032487
         }
       }
     },
@@ -1447,29 +715,14 @@
       "symbol": "LLY",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/LLY/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/LLY/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.295Z",
+      "capturedAt": "2026-10-30T13:22:29.398Z",
       "metrics": {
         "pe_ttm": {
-          "published": 46.11,
-          "current": 43.25,
-          "relativeDifference": 0.0620255909780959
-        },
-        "pe_forward": {
-          "published": 37.501,
-          "current": 26.97,
-          "relativeDifference": 0.28081917815524915
-        },
-        "pb": {
-          "published": 35.861,
-          "current": 33.9,
-          "relativeDifference": 0.05468336075402247
-        },
-        "peg": {
-          "published": 1.1388,
-          "current": 1.24,
-          "relativeDifference": 0.08886547242711629
+          "published": 43.25,
+          "current": 46.11,
+          "relativeDifference": 0.06612716763005788
         }
       }
     },
@@ -1477,29 +730,14 @@
       "symbol": "LRCX",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/LRCX/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/LRCX/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.345Z",
+      "capturedAt": "2026-10-30T13:22:29.857Z",
       "metrics": {
         "pe_ttm": {
-          "published": 37.91,
-          "current": 37.83,
-          "relativeDifference": 0.0021102611448166053
-        },
-        "pe_forward": {
-          "published": 25.771,
-          "current": 26.33,
-          "relativeDifference": 0.02169104807729605
-        },
-        "pb": {
-          "published": 24.9934,
-          "current": 22.84,
-          "relativeDifference": 0.08615874590892003
-        },
-        "peg": {
-          "published": 1.2529,
-          "current": 2.13,
-          "relativeDifference": 0.7000558703807167
+          "published": 37.83,
+          "current": 37.91,
+          "relativeDifference": 0.0021147237642082928
         }
       }
     },
@@ -1507,29 +745,14 @@
       "symbol": "MA",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/MA/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/MA/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.503Z",
+      "capturedAt": "2026-10-30T13:22:29.832Z",
       "metrics": {
         "pe_ttm": {
-          "published": 34.97,
-          "current": 33.57,
-          "relativeDifference": 0.04003431512725186
-        },
-        "pe_forward": {
-          "published": 31.7379,
-          "current": 27.47,
-          "relativeDifference": 0.13447329533459995
-        },
-        "pb": {
-          "published": 82.0644,
-          "current": 95.5,
-          "relativeDifference": 0.1637202002329876
-        },
-        "peg": {
-          "published": 1.4772,
-          "current": 1.65,
-          "relativeDifference": 0.11697806661250998
+          "published": 33.57,
+          "current": 34.97,
+          "relativeDifference": 0.04170390229371468
         }
       }
     },
@@ -1537,29 +760,14 @@
       "symbol": "MCD",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/MCD/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/MCD/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.533Z",
+      "capturedAt": "2026-10-30T13:22:29.919Z",
       "metrics": {
         "pe_ttm": {
-          "published": 20.91,
-          "current": 20.35,
-          "relativeDifference": 0.026781444285031042
-        },
-        "pe_forward": {
-          "published": 20.5126,
-          "current": 18.17,
-          "relativeDifference": 0.11420297768200993
-        },
-        "peg": {
-          "published": 2.1452,
-          "current": 3.38,
-          "relativeDifference": 0.5756106656721984
-        },
-        "pb": {
-          "published": -178.038,
-          "current": null,
-          "relativeDifference": null
+          "published": 20.35,
+          "current": 20.91,
+          "relativeDifference": 0.02751842751842748
         }
       }
     },
@@ -1567,29 +775,14 @@
       "symbol": "META",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/META/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/META/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.677Z",
+      "capturedAt": "2026-10-30T13:22:29.974Z",
       "metrics": {
         "pe_ttm": {
-          "published": 21.31,
-          "current": 20.9,
-          "relativeDifference": 0.019239793524167048
-        },
-        "pe_forward": {
-          "published": 20.6497,
-          "current": 17.84,
-          "relativeDifference": 0.13606493072538584
-        },
-        "pb": {
-          "published": 6.0269,
-          "current": 5.75,
-          "relativeDifference": 0.045944017654183766
-        },
-        "peg": {
-          "published": 0.9028,
-          "current": 1.31,
-          "relativeDifference": 0.4510412051395658
+          "published": 20.9,
+          "current": 21.31,
+          "relativeDifference": 0.019617224880382755
         }
       }
     },
@@ -1597,29 +790,14 @@
       "symbol": "MRK",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/MRK/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/MRK/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.644Z",
+      "capturedAt": "2026-10-30T13:22:30.341Z",
       "metrics": {
         "pe_ttm": {
-          "published": 116.13,
-          "current": 111.85,
-          "relativeDifference": 0.03685524842848531
-        },
-        "pe_forward": {
-          "published": 53.5977,
-          "current": 15.02,
-          "relativeDifference": 0.7197640943547952
-        },
-        "pb": {
-          "published": 8.6605,
-          "current": 8.3,
-          "relativeDifference": 0.041625772184054055
-        },
-        "peg": {
-          "published": 2.6877,
-          "current": 8.28,
-          "relativeDifference": 2.0807009710905233
+          "published": 111.85,
+          "current": 116.13,
+          "relativeDifference": 0.03826553419758616
         }
       }
     },
@@ -1627,29 +805,14 @@
       "symbol": "MRVL",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/MRVL/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/MRVL/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.802Z",
+      "capturedAt": "2026-10-30T13:22:30.471Z",
       "metrics": {
         "pe_ttm": {
-          "published": 71.82,
-          "current": 82.78,
-          "relativeDifference": 0.15260373155110019
-        },
-        "pe_forward": {
-          "published": 67.5576,
-          "current": 33.8,
-          "relativeDifference": 0.4996861937072957
-        },
-        "pb": {
-          "published": 13.4998,
-          "current": 12.19,
-          "relativeDifference": 0.0970236596097721
-        },
-        "peg": {
-          "published": 1.2795,
-          "current": 15.24,
-          "relativeDifference": 10.910902696365767
+          "published": 82.78,
+          "current": 71.82,
+          "relativeDifference": 0.13239913022469207
         }
       }
     },
@@ -1657,29 +820,14 @@
       "symbol": "MS",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/MS/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/MS/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.834Z",
+      "capturedAt": "2026-10-30T13:22:30.387Z",
       "metrics": {
         "pe_ttm": {
-          "published": 15.07,
-          "current": 15.08,
-          "relativeDifference": 0.0006635700066357497
-        },
-        "pe_forward": {
-          "published": 14.2605,
-          "current": 13.91,
-          "relativeDifference": 0.024578380842186442
-        },
-        "pb": {
-          "published": 2.8044,
-          "current": 2.8,
-          "relativeDifference": 0.0015689630580516534
-        },
-        "peg": {
-          "published": 1.7792,
-          "current": 1.52,
-          "relativeDifference": 0.14568345323741005
+          "published": 15.08,
+          "current": 15.07,
+          "relativeDifference": 0.0006631299734748408
         }
       }
     },
@@ -1687,29 +835,14 @@
       "symbol": "MSFT",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/MSFT/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/MSFT/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:50.951Z",
+      "capturedAt": "2026-10-30T13:22:30.535Z",
       "metrics": {
         "pe_ttm": {
-          "published": 27.67,
-          "current": 29.58,
-          "relativeDifference": 0.06902782797253337
-        },
-        "pe_forward": {
-          "published": 26.4979,
-          "current": 26.8,
-          "relativeDifference": 0.011400903467821966
-        },
-        "pb": {
-          "published": 8.8113,
-          "current": 8.91,
-          "relativeDifference": 0.011201525314085359
-        },
-        "peg": {
-          "published": 1.5923,
-          "current": 1.7,
-          "relativeDifference": 0.06763800791308161
+          "published": 29.58,
+          "current": 27.67,
+          "relativeDifference": 0.06457065584854615
         }
       }
     },
@@ -1717,29 +850,14 @@
       "symbol": "MU",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/MU/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/MU/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.011Z",
+      "capturedAt": "2026-10-30T13:22:30.889Z",
       "metrics": {
         "pe_ttm": {
-          "published": 12.57,
-          "current": 13.23,
-          "relativeDifference": 0.05250596658711215
-        },
-        "pe_forward": {
-          "published": 5.8442,
-          "current": 5.65,
-          "relativeDifference": 0.033229526710242596
-        },
-        "pb": {
-          "published": 10.1651,
-          "current": 8.02,
-          "relativeDifference": 0.21102596137765506
-        },
-        "peg": {
-          "published": 0.1361,
-          "current": 0.19,
-          "relativeDifference": 0.3960323291697281
+          "published": 13.23,
+          "current": 12.57,
+          "relativeDifference": 0.049886621315192725
         }
       }
     },
@@ -1747,29 +865,14 @@
       "symbol": "MUFG",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/MUFG/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/MUFG/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.162Z",
+      "capturedAt": "2026-10-30T13:22:30.912Z",
       "metrics": {
         "pe_ttm": {
-          "published": 14.34,
-          "current": 14.01,
-          "relativeDifference": 0.023012552301255207
-        },
-        "pe_forward": {
-          "published": 13.5209,
-          "current": 13.59,
-          "relativeDifference": 0.00511060654246398
-        },
-        "pb": {
-          "published": 1.6633,
-          "current": 1.72,
-          "relativeDifference": 0.034088859496182344
-        },
-        "peg": {
-          "published": 1.79,
-          "current": 0.55,
-          "relativeDifference": 0.6927374301675977
+          "published": 14.01,
+          "current": 14.34,
+          "relativeDifference": 0.023554603854389677
         }
       }
     },
@@ -1777,29 +880,14 @@
       "symbol": "NEE",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/NEE/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/NEE/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.221Z",
+      "capturedAt": "2026-10-30T13:22:31.007Z",
       "metrics": {
         "pe_ttm": {
-          "published": 14.8,
-          "current": 14.6,
-          "relativeDifference": 0.013513513513513598
-        },
-        "pe_forward": {
-          "published": 20.5349,
-          "current": 18.84,
-          "relativeDifference": 0.0825375336622044
-        },
-        "pb": {
-          "published": 3.0042,
-          "current": 2.76,
-          "relativeDifference": 0.08128619932095071
-        },
-        "peg": {
-          "published": 1.6226,
-          "current": 0.4,
-          "relativeDifference": 0.7534820658202884
+          "published": 14.6,
+          "current": 14.8,
+          "relativeDifference": 0.013698630136986356
         }
       }
     },
@@ -1807,29 +895,14 @@
       "symbol": "NFLX",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/NFLX/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/NFLX/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.189Z",
+      "capturedAt": "2026-10-30T13:22:31.067Z",
       "metrics": {
         "pe_ttm": {
-          "published": 17.93,
-          "current": 17.9,
-          "relativeDifference": 0.001673173452314658
-        },
-        "pe_forward": {
-          "published": 19.2335,
-          "current": 16.36,
-          "relativeDifference": 0.1494007850885174
-        },
-        "pb": {
-          "published": 8.3713,
-          "current": 8.81,
-          "relativeDifference": 0.05240524171872951
-        },
-        "peg": {
-          "published": 1.2869,
-          "current": 0.7,
-          "relativeDifference": 0.4560571917009869
+          "published": 17.9,
+          "current": 17.93,
+          "relativeDifference": 0.0016759776536312554
         }
       }
     },
@@ -1837,29 +910,14 @@
       "symbol": "NVDA",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/NVDA/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/NVDA/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.279Z",
+      "capturedAt": "2026-10-30T13:22:31.413Z",
       "metrics": {
         "pe_ttm": {
-          "published": 27.01,
-          "current": 27.23,
-          "relativeDifference": 0.00814513143280271
-        },
-        "pe_forward": {
-          "published": 24.733,
-          "current": 13.63,
-          "relativeDifference": 0.44891440585452635
-        },
-        "pb": {
-          "published": 26.9037,
-          "current": 22.71,
-          "relativeDifference": 0.1558781877585611
-        },
-        "peg": {
-          "published": 0.466,
-          "current": 0.29,
-          "relativeDifference": 0.3776824034334765
+          "published": 27.23,
+          "current": 27.01,
+          "relativeDifference": 0.00807932427469693
         }
       }
     },
@@ -1867,29 +925,14 @@
       "symbol": "NVO",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/NVO/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/NVO/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.419Z",
+      "capturedAt": "2026-10-30T13:22:31.386Z",
       "metrics": {
         "pe_ttm": {
-          "published": 9.57,
-          "current": 9.36,
-          "relativeDifference": 0.021943573667711713
-        },
-        "pe_forward": {
-          "published": 4.261,
-          "current": 11.77,
-          "relativeDifference": 1.7622623797230696
-        },
-        "pb": {
-          "published": 5.15,
-          "current": 5.01,
-          "relativeDifference": 0.027184466019417597
-        },
-        "peg": {
-          "published": 3.0737,
-          "current": 0.42,
-          "relativeDifference": 0.8633568663174676
+          "published": 9.36,
+          "current": 9.57,
+          "relativeDifference": 0.022435897435897578
         }
       }
     },
@@ -1897,29 +940,14 @@
       "symbol": "NVS",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/NVS/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/NVS/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.509Z",
+      "capturedAt": "2026-10-30T13:22:31.460Z",
       "metrics": {
         "pe_ttm": {
-          "published": 30.74,
-          "current": 29.79,
-          "relativeDifference": 0.030904359141184057
-        },
-        "pe_forward": {
-          "published": 18.2943,
-          "current": 16.09,
-          "relativeDifference": 0.12049108192169145
-        },
-        "pb": {
-          "published": 7.4854,
-          "current": 7.92,
-          "relativeDifference": 0.058059689528949576
-        },
-        "peg": {
-          "published": 3.3018,
-          "current": 7.66,
-          "relativeDifference": 1.3199466957417165
+          "published": 29.79,
+          "current": 30.74,
+          "relativeDifference": 0.031889895938234325
         }
       }
     },
@@ -1927,29 +955,14 @@
       "symbol": "ORCL",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/ORCL/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/ORCL/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.667Z",
+      "capturedAt": "2026-10-30T13:22:31.573Z",
       "metrics": {
         "pe_ttm": {
-          "published": 21.87,
-          "current": 22.66,
-          "relativeDifference": 0.0361225422953817
-        },
-        "pe_forward": {
-          "published": 17.7524,
-          "current": 17.82,
-          "relativeDifference": 0.0038079358283948928
-        },
-        "pb": {
-          "published": 11.0022,
-          "current": 7.07,
-          "relativeDifference": 0.35740124702332254
-        },
-        "peg": {
-          "published": 0.8435,
-          "current": 3.59,
-          "relativeDifference": 3.2560758743331357
+          "published": 22.66,
+          "current": 21.87,
+          "relativeDifference": 0.03486319505736979
         }
       }
     },
@@ -1957,29 +970,14 @@
       "symbol": "PANW",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/PANW/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/PANW/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.577Z",
+      "capturedAt": "2026-10-30T13:22:31.923Z",
       "metrics": {
         "pe_ttm": {
           "published": 951.42,
           "current": 951.42,
           "relativeDifference": 0
-        },
-        "pe_forward": {
-          "published": 91.9375,
-          "current": 91.05,
-          "relativeDifference": 0.009653297076818501
-        },
-        "pb": {
-          "published": 11.2272,
-          "current": 11.28,
-          "relativeDifference": 0.004702864471996637
-        },
-        "peg": {
-          "published": 1.9152,
-          "current": 18.16,
-          "relativeDifference": 8.48203842940685
         }
       }
     },
@@ -1987,29 +985,14 @@
       "symbol": "PEP",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/PEP/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/PEP/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.738Z",
+      "capturedAt": "2026-10-30T13:22:31.958Z",
       "metrics": {
         "pe_ttm": {
-          "published": 16.83,
-          "current": 16.68,
-          "relativeDifference": 0.008912655971479388
-        },
-        "pe_forward": {
-          "published": 15.4661,
-          "current": 15.37,
-          "relativeDifference": 0.006213589722037338
-        },
-        "pb": {
-          "published": 8.1697,
-          "current": 8.12,
-          "relativeDifference": 0.006083454716819592
-        },
-        "peg": {
-          "published": 1.376,
-          "current": 2.67,
-          "relativeDifference": 0.940406976744186
+          "published": 16.68,
+          "current": 16.83,
+          "relativeDifference": 0.008992805755395628
         }
       }
     },
@@ -2017,29 +1000,14 @@
       "symbol": "PFE",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/PFE/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/PFE/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.768Z",
+      "capturedAt": "2026-10-30T13:22:31.985Z",
       "metrics": {
         "pe_ttm": {
-          "published": 39.41,
-          "current": 38.75,
-          "relativeDifference": 0.01674701852321736
-        },
-        "pe_forward": {
-          "published": 9.7206,
-          "current": 10.12,
-          "relativeDifference": 0.04108799868320889
-        },
-        "pb": {
-          "published": 1.8018,
-          "current": 1.97,
-          "relativeDifference": 0.09335109335109326
-        },
-        "peg": {
-          "published": 2.7983,
-          "current": 13.45,
-          "relativeDifference": 3.806489654433049
+          "published": 38.75,
+          "current": 39.41,
+          "relativeDifference": 0.017032258064516137
         }
       }
     },
@@ -2047,29 +1015,14 @@
       "symbol": "PG",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/PG/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/PG/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.817Z",
+      "capturedAt": "2026-10-30T13:22:32.052Z",
       "metrics": {
         "pe_ttm": {
-          "published": 24.19,
-          "current": 23.83,
-          "relativeDifference": 0.01488218272013242
-        },
-        "pe_forward": {
-          "published": 5.5376,
-          "current": 22.77,
-          "relativeDifference": 3.111889627275354
-        },
-        "pb": {
-          "published": 7.0576,
-          "current": 6.68,
-          "relativeDifference": 0.05350260711856725
-        },
-        "peg": {
-          "published": 3.7613,
-          "current": 6.03,
-          "relativeDifference": 0.6031691170605908
+          "published": 23.83,
+          "current": 24.19,
+          "relativeDifference": 0.015107007973143238
         }
       }
     },
@@ -2077,29 +1030,14 @@
       "symbol": "PLTR",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/PLTR/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/PLTR/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.917Z",
+      "capturedAt": "2026-10-30T13:22:32.401Z",
       "metrics": {
         "pe_ttm": {
-          "published": 169.33,
-          "current": 169.71,
-          "relativeDifference": 0.0022441386641469663
-        },
-        "pe_forward": {
-          "published": 22.743,
-          "current": 87.69,
-          "relativeDifference": 2.8556918612320277
-        },
-        "pb": {
-          "published": 49.1704,
-          "current": 48.38,
-          "relativeDifference": 0.016074711615117976
-        },
-        "peg": {
-          "published": 1.6964,
-          "current": 0.59,
-          "relativeDifference": 0.6522046687102099
+          "published": 169.71,
+          "current": 169.33,
+          "relativeDifference": 0.0022391137823345453
         }
       }
     },
@@ -2107,29 +1045,14 @@
       "symbol": "PM",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/PM/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/PM/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:51.991Z",
+      "capturedAt": "2026-10-30T13:22:32.428Z",
       "metrics": {
         "pe_ttm": {
-          "published": 30.44,
-          "current": 29.58,
-          "relativeDifference": 0.028252299605782016
-        },
-        "pe_forward": {
-          "published": 12.7184,
-          "current": 22.15,
-          "relativeDifference": 0.7415712668260157
-        },
-        "peg": {
-          "published": 2.2876,
-          "current": 8.22,
-          "relativeDifference": 2.5932855394299708
-        },
-        "pb": {
-          "published": -48.8164,
-          "current": null,
-          "relativeDifference": null
+          "published": 29.58,
+          "current": 30.44,
+          "relativeDifference": 0.02907369844489538
         }
       }
     },
@@ -2137,29 +1060,14 @@
       "symbol": "QCOM",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/QCOM/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/QCOM/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:52.079Z",
+      "capturedAt": "2026-10-30T13:22:32.468Z",
       "metrics": {
         "pe_ttm": {
-          "published": 21.46,
-          "current": 21.18,
-          "relativeDifference": 0.013047530288909703
-        },
-        "pe_forward": {
-          "published": 17.4807,
-          "current": 18.44,
-          "relativeDifference": 0.054877665082062155
-        },
-        "pb": {
-          "published": 7.5062,
-          "current": 6.99,
-          "relativeDifference": 0.06876981695132023
-        },
-        "peg": {
-          "published": 0.8207,
-          "current": 13.65,
-          "relativeDifference": 15.632143292311444
+          "published": 21.18,
+          "current": 21.46,
+          "relativeDifference": 0.013220018885741425
         }
       }
     },
@@ -2167,29 +1075,14 @@
       "symbol": "RTX",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/RTX/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/RTX/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:52.107Z",
+      "capturedAt": "2026-10-30T13:22:32.605Z",
       "metrics": {
         "pe_ttm": {
-          "published": 32.42,
-          "current": 31.84,
-          "relativeDifference": 0.017890191239975373
-        },
-        "pe_forward": {
-          "published": 27.5693,
-          "current": 25.04,
-          "relativeDifference": 0.09174335220698382
-        },
-        "pb": {
-          "published": 4.0164,
-          "current": 3.82,
-          "relativeDifference": 0.048899512000796785
-        },
-        "peg": {
-          "published": 2.244,
-          "current": 1.42,
-          "relativeDifference": 0.36720142602495554
+          "published": 31.84,
+          "current": 32.42,
+          "relativeDifference": 0.01821608040201017
         }
       }
     },
@@ -2197,29 +1090,14 @@
       "symbol": "RY",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/RY/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/RY/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:52.190Z",
+      "capturedAt": "2026-10-30T13:22:33.028Z",
       "metrics": {
         "pe_ttm": {
-          "published": 18.01,
-          "current": 17.89,
-          "relativeDifference": 0.006662965019433753
-        },
-        "pe_forward": {
-          "published": 16.8236,
-          "current": 16.1,
-          "relativeDifference": 0.04301100834541938
-        },
-        "pb": {
-          "published": 3.1519,
-          "current": 2.97,
-          "relativeDifference": 0.057711221802722035
-        },
-        "peg": {
-          "published": 2.2567,
-          "current": 2.14,
-          "relativeDifference": 0.051712677803872786
+          "published": 17.89,
+          "current": 18.01,
+          "relativeDifference": 0.006707657909446718
         }
       }
     },
@@ -2227,29 +1105,14 @@
       "symbol": "SAN",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/SAN/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/SAN/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:52.259Z",
+      "capturedAt": "2026-10-30T13:22:32.935Z",
       "metrics": {
         "pe_ttm": {
-          "published": 11.19,
-          "current": 11.06,
-          "relativeDifference": 0.011617515638963294
-        },
-        "pe_forward": {
-          "published": 10.5989,
-          "current": 8.24,
-          "relativeDifference": 0.22256083178443042
-        },
-        "pb": {
-          "published": 1.3805,
-          "current": 1.34,
-          "relativeDifference": 0.029337196667873933
-        },
-        "peg": {
-          "published": 0.9302,
-          "current": 0.48,
-          "relativeDifference": 0.4839819393678779
+          "published": 11.06,
+          "current": 11.08,
+          "relativeDifference": 0.001808318264014508
         }
       }
     },
@@ -2257,29 +1120,14 @@
       "symbol": "SAP",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/SAP/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/SAP/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:52.341Z",
+      "capturedAt": "2026-10-30T13:22:32.960Z",
       "metrics": {
         "pe_ttm": {
-          "published": 29.15,
-          "current": 29.51,
-          "relativeDifference": 0.012349914236706727
-        },
-        "pe_forward": {
-          "published": 24.6477,
-          "current": 24.98,
-          "relativeDifference": 0.013481988177395765
-        },
-        "pb": {
-          "published": 5.3457,
-          "current": 5.25,
-          "relativeDifference": 0.017902239182894686
-        },
-        "peg": {
-          "published": 1.6211,
-          "current": 3.97,
-          "relativeDifference": 1.4489544136697305
+          "published": 29.51,
+          "current": 29.15,
+          "relativeDifference": 0.012199254490003475
         }
       }
     },
@@ -2287,29 +1135,14 @@
       "symbol": "SCCO",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/SCCO/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/SCCO/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:52.455Z",
+      "capturedAt": "2026-10-30T13:22:33.120Z",
       "metrics": {
         "pe_ttm": {
-          "published": 25.5,
-          "current": 25.78,
-          "relativeDifference": 0.01098039215686275
-        },
-        "pb": {
-          "published": 13.3133,
-          "current": 12.11,
-          "relativeDifference": 0.09038330090961677
-        },
-        "peg": {
-          "published": -1,
-          "current": 1.72,
-          "relativeDifference": 2.7199999999999998
-        },
-        "pe_forward": {
-          "published": 38.1691,
-          "current": null,
-          "relativeDifference": null
+          "published": 25.78,
+          "current": 25.5,
+          "relativeDifference": 0.010861132660977546
         }
       }
     },
@@ -2317,29 +1150,14 @@
       "symbol": "SHEL",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/SHEL/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/SHEL/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:52.555Z",
+      "capturedAt": "2026-10-30T13:22:33.367Z",
       "metrics": {
         "pe_ttm": {
-          "published": 11.88,
-          "current": 11.61,
-          "relativeDifference": 0.022727272727272818
-        },
-        "pe_forward": {
-          "published": 9.6438,
-          "current": 9.96,
-          "relativeDifference": 0.03278790518260433
-        },
-        "pb": {
-          "published": 1.6345,
-          "current": 1.62,
-          "relativeDifference": 0.00887121443866623
-        },
-        "peg": {
-          "published": 1.6209,
-          "current": 0.26,
-          "relativeDifference": 0.8395952865691899
+          "published": 11.61,
+          "current": 9.35,
+          "relativeDifference": 0.19465977605512486
         }
       }
     },
@@ -2347,29 +1165,14 @@
       "symbol": "SHOP",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/SHOP/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/SHOP/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:52.738Z",
+      "capturedAt": "2026-10-30T13:22:33.516Z",
       "metrics": {
         "pe_ttm": {
           "published": 112.76,
-          "current": 113.66,
-          "relativeDifference": 0.0079815537424619
-        },
-        "pe_forward": {
-          "published": 95.0687,
-          "current": 69.9,
-          "relativeDifference": 0.26474223377410233
-        },
-        "pb": {
-          "published": 18.636,
-          "current": 17.1,
-          "relativeDifference": 0.08242112041210548
-        },
-        "peg": {
-          "published": 1.7339,
-          "current": 3.86,
-          "relativeDifference": 1.226195282311552
+          "current": 112.76,
+          "relativeDifference": 0
         }
       }
     },
@@ -2377,29 +1180,14 @@
       "symbol": "SKHY",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/SKHY/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/SKHY/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:52.708Z",
+      "capturedAt": "2026-10-30T13:22:33.551Z",
       "metrics": {
         "pe_ttm": {
-          "published": 10.34,
-          "current": 10.5,
-          "relativeDifference": 0.01547388781431347
-        },
-        "pe_forward": {
-          "published": 3.653,
-          "current": 4.57,
-          "relativeDifference": 0.2510265535176568
-        },
-        "pb": {
-          "published": 4.7871,
-          "current": 6.89,
-          "relativeDifference": 0.43928474441728826
-        },
-        "peg": {
-          "published": 0.0565,
-          "current": 0.11,
-          "relativeDifference": 0.9469026548672566
+          "published": 10.5,
+          "current": 10.34,
+          "relativeDifference": 0.015238095238095273
         }
       }
     },
@@ -2407,29 +1195,14 @@
       "symbol": "SNDK",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/SNDK/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/SNDK/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:53.746Z",
+      "capturedAt": "2026-10-30T13:22:33.613Z",
       "metrics": {
         "pe_ttm": {
           "published": 18.03,
-          "current": 19.05,
-          "relativeDifference": 0.056572379367720416
-        },
-        "pe_forward": {
-          "published": 20.7331,
-          "current": 6.22,
-          "relativeDifference": 0.6999966237562159
-        },
-        "pb": {
-          "published": 12.4082,
-          "current": 13.22,
-          "relativeDifference": 0.06542447736174473
-        },
-        "peg": {
-          "published": 0.1476,
-          "current": null,
-          "relativeDifference": null
+          "current": 18.03,
+          "relativeDifference": 0
         }
       }
     },
@@ -2437,29 +1210,14 @@
       "symbol": "SPCX",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/SPCX/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/SPCX/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:53.094Z",
+      "capturedAt": "2026-10-30T13:22:33.815Z",
       "metrics": {
         "pe_ttm": {
-          "published": 625.61,
-          "current": 624.68,
-          "relativeDifference": 0.001486549128051129
-        },
-        "pe_forward": {
-          "published": 194.7222,
-          "current": 71.54,
-          "relativeDifference": 0.6326048082858553
-        },
-        "pb": {
-          "published": 40.331,
-          "current": 11.16,
-          "relativeDifference": 0.7232897770945427
-        },
-        "peg": {
-          "published": null,
-          "current": null,
-          "relativeDifference": null
+          "published": 624.68,
+          "current": 625.61,
+          "relativeDifference": 0.0014887622462702588
         }
       }
     },
@@ -2467,29 +1225,14 @@
       "symbol": "STX",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/STX/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/STX/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:53.183Z",
+      "capturedAt": "2026-10-30T13:22:34.022Z",
       "metrics": {
         "pe_ttm": {
-          "published": 36.73,
-          "current": 36.6,
-          "relativeDifference": 0.0035393411380342243
-        },
-        "pe_forward": {
-          "published": 4.0432,
-          "current": 19.52,
-          "relativeDifference": 3.827859121487931
-        },
-        "pb": {
-          "published": 71.0513,
-          "current": 45.96,
-          "relativeDifference": 0.3531434329843366
-        },
-        "peg": {
-          "published": 0.4594,
-          "current": 1.6,
-          "relativeDifference": 2.4828036569438403
+          "published": 36.6,
+          "current": 36.73,
+          "relativeDifference": 0.0035519125683058927
         }
       }
     },
@@ -2497,29 +1240,14 @@
       "symbol": "TCEHY",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/TCEHY/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/TCEHY/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.069Z",
+      "capturedAt": "2026-10-30T13:22:34.069Z",
       "metrics": {
         "pe_ttm": {
-          "published": 13.36,
-          "current": 13.51,
-          "relativeDifference": 0.011227544910179743
-        },
-        "pe_forward": {
-          "published": 11.1554,
-          "current": 10.72,
-          "relativeDifference": 0.03903042472703799
-        },
-        "pb": {
-          "published": 2.6378,
-          "current": 2.63,
-          "relativeDifference": 0.0029570096292365067
-        },
-        "peg": {
-          "published": 1.3109,
-          "current": 2.42,
-          "relativeDifference": 0.8460599588069266
+          "published": 13.51,
+          "current": 13.36,
+          "relativeDifference": 0.011102886750555152
         }
       }
     },
@@ -2527,29 +1255,14 @@
       "symbol": "TD",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/TD/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/TD/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:53.357Z",
+      "capturedAt": "2026-10-30T13:22:34.140Z",
       "metrics": {
         "pe_ttm": {
-          "published": 18.88,
-          "current": 18.77,
-          "relativeDifference": 0.005826271186440635
-        },
-        "pe_forward": {
-          "published": 16.0585,
-          "current": 16.11,
-          "relativeDifference": 0.0032070243173398794
-        },
-        "pb": {
-          "published": 2.5685,
-          "current": 2.54,
-          "relativeDifference": 0.011095970410745504
-        },
-        "peg": {
-          "published": 1.01,
-          "current": 9.74,
-          "relativeDifference": 8.643564356435643
+          "published": 18.77,
+          "current": 18.88,
+          "relativeDifference": 0.00586041555673944
         }
       }
     },
@@ -2557,29 +1270,14 @@
       "symbol": "TM",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/TM/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/TM/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:53.471Z",
+      "capturedAt": "2026-10-30T13:22:34.400Z",
       "metrics": {
         "pe_ttm": {
-          "published": 8.64,
-          "current": 8.56,
-          "relativeDifference": 0.0092592592592593
-        },
-        "pe_forward": {
-          "published": 11.8609,
-          "current": 11.21,
-          "relativeDifference": 0.054877791735871595
-        },
-        "pb": {
-          "published": 1.03,
-          "current": 1,
-          "relativeDifference": 0.029126213592232997
-        },
-        "peg": {
-          "published": 1.54,
-          "current": 0.8,
-          "relativeDifference": 0.48051948051948046
+          "published": 8.56,
+          "current": 8.64,
+          "relativeDifference": 0.009345794392523477
         }
       }
     },
@@ -2587,29 +1285,14 @@
       "symbol": "TMO",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/TMO/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/TMO/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.656Z",
+      "capturedAt": "2026-10-30T13:22:34.519Z",
       "metrics": {
         "pe_ttm": {
-          "published": 37.4,
-          "current": 37.14,
-          "relativeDifference": 0.006951871657753905
-        },
-        "pe_forward": {
-          "published": 27.9773,
-          "current": 25.48,
-          "relativeDifference": 0.08926165141025044
-        },
-        "pb": {
-          "published": 4.9352,
-          "current": 4.75,
-          "relativeDifference": 0.03752634138434108
-        },
-        "peg": {
-          "published": 1.9608,
-          "current": 17.38,
-          "relativeDifference": 7.863729090167277
+          "published": 37.14,
+          "current": 37.4,
+          "relativeDifference": 0.007000538502961673
         }
       }
     },
@@ -2617,29 +1300,14 @@
       "symbol": "TMUS",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/TMUS/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/TMUS/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:53.772Z",
+      "capturedAt": "2026-10-30T13:22:34.655Z",
       "metrics": {
         "pe_ttm": {
           "published": 14.2,
           "current": 14.2,
           "relativeDifference": 0
-        },
-        "pe_forward": {
-          "published": 16.7806,
-          "current": 10.67,
-          "relativeDifference": 0.36414669320524895
-        },
-        "pb": {
-          "published": 3.406,
-          "current": 2.78,
-          "relativeDifference": 0.18379330593071064
-        },
-        "peg": {
-          "published": 0.5882,
-          "current": 0.46,
-          "relativeDifference": 0.21795307718463097
         }
       }
     },
@@ -2647,29 +1315,14 @@
       "symbol": "TSLA",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/TSLA/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/TSLA/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:53.996Z",
+      "capturedAt": "2026-10-30T13:22:34.616Z",
       "metrics": {
         "pe_ttm": {
-          "published": 443.19,
-          "current": 444.2,
-          "relativeDifference": 0.0022789322863783212
-        },
-        "pe_forward": {
-          "published": 205.6168,
-          "current": 164.61,
-          "relativeDifference": 0.19943312025087445
-        },
-        "pb": {
-          "published": 18.2737,
-          "current": 17.89,
-          "relativeDifference": 0.020997389691195578
-        },
-        "peg": {
-          "published": 4.3778,
-          "current": 39.84,
-          "relativeDifference": 8.10046141897757
+          "published": 444.2,
+          "current": 443.19,
+          "relativeDifference": 0.00227375056280954
         }
       }
     },
@@ -2677,29 +1330,14 @@
       "symbol": "TSM",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/TSM/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/TSM/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.331Z",
+      "capturedAt": "2026-10-30T13:22:34.936Z",
       "metrics": {
         "pe_ttm": {
-          "published": 27.99,
-          "current": 28.48,
-          "relativeDifference": 0.017506252232940334
-        },
-        "pe_forward": {
-          "published": 25.7831,
-          "current": 19.85,
-          "relativeDifference": 0.23011585108074661
-        },
-        "pb": {
-          "published": 11.1237,
-          "current": 10.38,
-          "relativeDifference": 0.06685725073491722
-        },
-        "peg": {
-          "published": 0.8193,
-          "current": 0.82,
-          "relativeDifference": 0.0008543878921030146
+          "published": 28.48,
+          "current": 27.99,
+          "relativeDifference": 0.017205056179775302
         }
       }
     },
@@ -2707,29 +1345,14 @@
       "symbol": "TTE",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/TTE/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/TTE/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.265Z",
+      "capturedAt": "2026-10-30T13:22:35.085Z",
       "metrics": {
         "pe_ttm": {
-          "published": 9.38,
-          "current": 11.62,
-          "relativeDifference": 0.23880597014925353
-        },
-        "pe_forward": {
-          "published": 8.388,
-          "current": 8.13,
-          "relativeDifference": 0.030758226037195913
-        },
-        "pb": {
-          "published": 1.5901,
-          "current": 1.61,
-          "relativeDifference": 0.012514936167536739
-        },
-        "peg": {
-          "published": 0.8384,
-          "current": 0.42,
-          "relativeDifference": 0.4990458015267176
+          "published": 11.62,
+          "current": 9.38,
+          "relativeDifference": 0.19277108433734924
         }
       }
     },
@@ -2737,29 +1360,14 @@
       "symbol": "TXN",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/TXN/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/TXN/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.302Z",
+      "capturedAt": "2026-10-30T13:22:35.166Z",
       "metrics": {
         "pe_ttm": {
-          "published": 40.59,
-          "current": 40.19,
-          "relativeDifference": 0.009854644000985568
-        },
-        "pe_forward": {
-          "published": 43.5632,
-          "current": 27.24,
-          "relativeDifference": 0.3747015829874757
-        },
-        "pb": {
-          "published": 15.8004,
-          "current": 14.76,
-          "relativeDifference": 0.06584643426748693
-        },
-        "peg": {
-          "published": 0.9193,
-          "current": 53.94,
-          "relativeDifference": 57.67507886435331
+          "published": 40.19,
+          "current": 40.59,
+          "relativeDifference": 0.009952724558347947
         }
       }
     },
@@ -2767,29 +1375,14 @@
       "symbol": "UNH",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/UNH/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/UNH/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.560Z",
+      "capturedAt": "2026-10-30T13:22:35.216Z",
       "metrics": {
         "pe_ttm": {
-          "published": 23.45,
-          "current": 23.24,
-          "relativeDifference": 0.008955223880596996
-        },
-        "pe_forward": {
-          "published": 19.1369,
-          "current": 17.49,
-          "relativeDifference": 0.08605887055897254
-        },
-        "pb": {
-          "published": 3.7714,
-          "current": 3.51,
-          "relativeDifference": 0.06931113114493292
-        },
-        "peg": {
-          "published": 1.0193,
-          "current": 13.83,
-          "relativeDifference": 12.568134994604138
+          "published": 23.24,
+          "current": 23.45,
+          "relativeDifference": 0.009036144578313365
         }
       }
     },
@@ -2797,29 +1390,14 @@
       "symbol": "UNP",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/UNP/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/UNP/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.634Z",
+      "capturedAt": "2026-10-30T13:22:35.482Z",
       "metrics": {
         "pe_ttm": {
-          "published": 23.55,
-          "current": 23.23,
-          "relativeDifference": 0.013588110403397025
-        },
-        "pe_forward": {
-          "published": 24.2324,
-          "current": 20.83,
-          "relativeDifference": 0.14040705831861477
-        },
-        "pb": {
-          "published": 8.8702,
-          "current": 8.04,
-          "relativeDifference": 0.09359428197785857
-        },
-        "peg": {
-          "published": 2.8038,
-          "current": 3.55,
-          "relativeDifference": 0.26613881161281117
+          "published": 23.23,
+          "current": 23.55,
+          "relativeDifference": 0.013775290572535459
         }
       }
     },
@@ -2827,29 +1405,14 @@
       "symbol": "V",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/V/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/V/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.598Z",
+      "capturedAt": "2026-10-30T13:22:35.579Z",
       "metrics": {
         "pe_ttm": {
-          "published": 33.32,
-          "current": 32.52,
-          "relativeDifference": 0.024009603841536498
-        },
-        "pe_forward": {
-          "published": 26.4033,
-          "current": 26.64,
-          "relativeDifference": 0.008964788492347608
-        },
-        "pb": {
-          "published": 21.3665,
-          "current": 21.03,
-          "relativeDifference": 0.015748952799943705
-        },
-        "peg": {
-          "published": 1.6755,
-          "current": 1.92,
-          "relativeDifference": 0.14592658907788714
+          "published": 32.52,
+          "current": 33.32,
+          "relativeDifference": 0.024600246002459913
         }
       }
     },
@@ -2857,29 +1420,14 @@
       "symbol": "VZ",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/VZ/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/VZ/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.814Z",
+      "capturedAt": "2026-10-30T13:22:35.666Z",
       "metrics": {
         "pe_ttm": {
-          "published": 11.14,
-          "current": 11.02,
-          "relativeDifference": 0.010771992818671583
-        },
-        "pe_forward": {
-          "published": 8.3753,
-          "current": 8.22,
-          "relativeDifference": 0.01854261936885826
-        },
-        "pb": {
-          "published": 1.6819,
-          "current": 1.7,
-          "relativeDifference": 0.010761638622985847
-        },
-        "peg": {
-          "published": 0.8849,
-          "current": 9.23,
-          "relativeDifference": 9.430557125098881
+          "published": 11.02,
+          "current": 11.14,
+          "relativeDifference": 0.010889292196007316
         }
       }
     },
@@ -2887,29 +1435,14 @@
       "symbol": "WELL",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/WELL/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/WELL/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.883Z",
+      "capturedAt": "2026-10-30T13:22:35.842Z",
       "metrics": {
         "pe_ttm": {
-          "published": 99.22,
-          "current": 96.27,
-          "relativeDifference": 0.029731908889336855
-        },
-        "pe_forward": {
-          "published": 79.1141,
-          "current": 77.02,
-          "relativeDifference": 0.02646936513213194
-        },
-        "pb": {
-          "published": 3.6154,
-          "current": 3.42,
-          "relativeDifference": 0.054046578525197786
-        },
-        "peg": {
-          "published": 3.62,
-          "current": 5.84,
-          "relativeDifference": 0.6132596685082872
+          "published": 96.27,
+          "current": 98.8,
+          "relativeDifference": 0.026280253453827784
         }
       }
     },
@@ -2917,29 +1450,14 @@
       "symbol": "WFC",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/WFC/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/WFC/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.862Z",
+      "capturedAt": "2026-10-30T13:22:36.131Z",
       "metrics": {
         "pe_ttm": {
-          "published": 11.96,
-          "current": 11.8,
-          "relativeDifference": 0.013377926421404673
-        },
-        "pe_forward": {
-          "published": 11.6321,
-          "current": 10.39,
-          "relativeDifference": 0.10678209437676767
-        },
-        "pb": {
-          "published": 1.5262,
-          "current": 1.58,
-          "relativeDifference": 0.03525095007207457
-        },
-        "peg": {
-          "published": 1.4723,
-          "current": 1.08,
-          "relativeDifference": 0.26645384772125236
+          "published": 11.8,
+          "current": 11.96,
+          "relativeDifference": 0.013559322033898313
         }
       }
     },
@@ -2947,29 +1465,14 @@
       "symbol": "WMT",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/WMT/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/WMT/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:54.937Z",
+      "capturedAt": "2026-10-30T13:22:36.108Z",
       "metrics": {
         "pe_ttm": {
-          "published": 43.93,
-          "current": 43.03,
-          "relativeDifference": 0.020487138629638024
-        },
-        "pe_forward": {
-          "published": 42.4154,
-          "current": 36.1,
-          "relativeDifference": 0.14889403377075305
-        },
-        "pb": {
-          "published": 10.0286,
-          "current": 9.6,
-          "relativeDifference": 0.04273776997786338
-        },
-        "peg": {
-          "published": 4.1046,
-          "current": 2.33,
-          "relativeDifference": 0.4323441991911513
+          "published": 43.03,
+          "current": 43.93,
+          "relativeDifference": 0.020915640250987577
         }
       }
     },
@@ -2977,45 +1480,18 @@
       "symbol": "XOM",
       "publishedDate": "2026-10-29",
       "status": "verified",
-      "sourceUrl": "https://finance.yahoo.com/quote/XOM/key-statistics/",
+      "sourceUrl": "https://finance.yahoo.com/quote/XOM/",
       "sourceDate": "2026-10-29",
-      "capturedAt": "2026-10-30T10:03:55.105Z",
+      "capturedAt": "2026-10-30T13:22:36.196Z",
       "metrics": {
         "pe_ttm": {
-          "published": 23.59,
-          "current": 23.43,
-          "relativeDifference": 0.006782534972445964
-        },
-        "pe_forward": {
-          "published": 15.3336,
-          "current": 15.41,
-          "relativeDifference": 0.004982522043094795
-        },
-        "pb": {
-          "published": 2.9006,
-          "current": 2.89,
-          "relativeDifference": 0.0036544163276562847
-        },
-        "peg": {
-          "published": 1.3986,
-          "current": 0.43,
-          "relativeDifference": 0.6925496925496926
+          "published": 23.43,
+          "current": 23.59,
+          "relativeDifference": 0.006828851899274513
         }
       }
     }
   ],
-  "alphabetShareClassComparison": {
-    "symbol": "GOOGL",
-    "url": "https://finance.yahoo.com/quote/GOOGL/key-statistics/",
-    "capturedAt": "2026-10-30T10:03:55.411Z",
-    "values": {
-      "pe_ttm": 16.97,
-      "pe_forward": 20.76,
-      "pb": 6.02,
-      "peg": 0.57
-    },
-    "note": "Comparison only. The platform tracks GOOG, a different share class."
-  },
-  "verifiedCount": 100,
-  "status": "complete"
+  "verifiedCount": 98,
+  "status": "partial"
 }
