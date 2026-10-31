@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyEtfTtmPricePolicy, etfTtmAnchors, ETF_TTM_START, ETF_TTM_SYMBOLS } from '../packages/data-pipeline/src/etf-ttm-policy.ts';
+import { applyEtfTtmPricePolicy, applyEtfPbPricePolicy, etfPbAnchors, etfTtmAnchors, ETF_TTM_START, ETF_TTM_SYMBOLS, ETF_PB_SYMBOLS } from '../packages/data-pipeline/src/etf-ttm-policy.ts';
 import { reconstructDramTtm } from '../packages/data-pipeline/src/dram-ttm-reconstruction.ts';
 import { fetchGapCloses } from '../packages/data-pipeline/src/gap-repair.ts';
 import { tradingDates } from '../packages/data-pipeline/src/market-calendar.ts';
@@ -27,11 +27,13 @@ export async function repairEtfTtmHistory({ dir = defaultDir, write = false,
   if (cache.version !== 1 || !cache.symbols) throw new Error('Invalid ETF TTM close cache');
   try { ledger = await read('index-gap-repairs.json'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const changes = [];
-  await Promise.all(dataset.indices.filter(item => ETF_TTM_SYMBOLS.has(item.symbol)).map(async item => {
+  await Promise.all(dataset.indices.filter(item => ETF_PB_SYMBOLS.has(item.symbol)).map(async item => {
     const snapshots = metrics.symbols[item.symbol] || [];
-    const anchors = etfTtmAnchors(snapshots);
-    if (!anchors.some(row => row.source === 'stockanalysis-latest')) return;
-    const first = (anchors.findLast(row => row.date <= ETF_TTM_START) || anchors[0]).date;
+    const ttmAnchors = ETF_TTM_SYMBOLS.has(item.symbol) ? etfTtmAnchors(snapshots) : [];
+    const pbAnchors = etfPbAnchors(snapshots);
+    const starts = [ttmAnchors,pbAnchors].filter(rows => rows.length).map(rows => (rows.findLast(row => row.date <= ETF_TTM_START) || rows[0]).date);
+    if (!starts.length) return;
+    const first = starts.sort()[0];
     const target = item.points.at(-1).date;
     const prices = new Map();
     for (const row of cache.symbols[item.symbol] || []) {
@@ -49,18 +51,20 @@ export async function repairEtfTtmHistory({ dir = defaultDir, write = false,
     if (remaining.length) throw new Error(`Incomplete ETF closes for ${item.symbol}: ${remaining.join(', ')}`);
     cache.symbols[item.symbol] = [...prices.values()].sort((a, b) => a.date.localeCompare(b.date));
     const before = item.points;
-    item.points = applyEtfTtmPricePolicy(before, snapshots, cache.symbols[item.symbol]);
+    item.points = ETF_TTM_SYMBOLS.has(item.symbol) ? applyEtfTtmPricePolicy(before, snapshots, cache.symbols[item.symbol]) : before;
+    item.points = applyEtfPbPricePolicy(item.points, snapshots, cache.symbols[item.symbol]);
     if(item.id === 'dram' && item.points.at(-1).date >= '2026-10-23') item.points = reconstructDramTtm(item.points,snapshots,cache.symbols[item.symbol]);
-    // This publication repair may only change TTM and its provenance.
+    // This publication repair changes only TTM, PB, and TTM provenance.
     for (let i = 0; i < before.length; i++) {
-      const { pe_ttm: oldPe, pe_ttm_estimate: oldEstimate, pe_ttm_snapshot: oldSnapshot, ...oldOther } = before[i];
-      const { pe_ttm, pe_ttm_estimate, pe_ttm_snapshot, ...other } = item.points[i];
+      const { pe_ttm: oldPe, pe_ttm_estimate: oldEstimate, pe_ttm_snapshot: oldSnapshot, pb: oldPb, ...oldOther } = before[i];
+      const { pe_ttm, pe_ttm_estimate, pe_ttm_snapshot, pb, ...other } = item.points[i];
       assert.deepEqual(other, oldOther);
       if (before[i].date < ETF_TTM_START) assert.deepEqual(item.points[i], before[i]);
       if (!isDeepStrictEqual(before[i],item.points[i])) changes.push({ symbol: item.symbol, date: before[i].date, before: oldPe, after: pe_ttm });
     }
     if (ledger) for (const repair of ledger.repairs[item.symbol] || []) {
-      [repair.point] = applyEtfTtmPricePolicy([repair.point], snapshots, cache.symbols[item.symbol]);
+      if (ETF_TTM_SYMBOLS.has(item.symbol)) [repair.point] = applyEtfTtmPricePolicy([repair.point], snapshots, cache.symbols[item.symbol]);
+      [repair.point] = applyEtfPbPricePolicy([repair.point], snapshots, cache.symbols[item.symbol]);
       if(item.id === 'dram' && item.points.at(-1).date >= '2026-10-23') [repair.point] = reconstructDramTtm([repair.point],snapshots,cache.symbols[item.symbol]);
     }
   }));

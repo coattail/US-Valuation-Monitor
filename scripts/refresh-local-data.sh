@@ -142,7 +142,13 @@ echo "[$(timestamp)] using node: ${NODE_BIN}"
 cd "${ROOT_DIR}"
 
 "${NODE_BIN}" packages/data-pipeline/src/build-snapshot.ts
+"${NODE_BIN}" scripts/repair-data-gaps.mjs index
+"${NODE_BIN}" scripts/sync-wsj-valuations.mjs
+"${NODE_BIN}" scripts/sync-index-sources.mjs
+"${NODE_BIN}" scripts/reconcile-sp500-pb.mjs --write
+"${NODE_BIN}" scripts/reconcile-index-valuations.mjs --write
 "${NODE_BIN}" packages/data-pipeline/src/split-index-dataset.ts
+"${NODE_BIN}" scripts/reconcile-index-valuations.mjs --check
 "${NODE_BIN}" packages/data-pipeline/src/build-company-snapshot.ts
 "${NODE_BIN}" packages/data-pipeline/src/split-company-dataset.ts
 

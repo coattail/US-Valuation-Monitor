@@ -1,10 +1,11 @@
+import { indexMetricSource, type MetricSourceRow } from './index-source-policy.ts';
 import type { TtmPeEstimate } from '../../core/src/types.ts';
 
 export const SP500_TTM_WSJ_START = '2026-05-08';
 export const SP500_CLOSE_START = '2026-03-20';
 export interface Sp500Close { date: string; close: number; source: string }
 interface Point { date: string; pe_ttm?: unknown; pe_ttm_estimate?: TtmPeEstimate }
-interface Observation extends Point { source?: string }
+interface Observation extends Point, MetricSourceRow { source?: string }
 const positive = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0;
 
 // Preserve dated observations, then continue on the same earnings denominator.
@@ -12,7 +13,7 @@ const positive = (x: unknown): x is number => typeof x === 'number' && Number.is
 export function applySp500TtmPricePolicy<T extends Point>(points: T[], snapshots: Observation[], closes: Sp500Close[]): T[] {
   const anchors = new Map<string, Observation>();
   for (const row of snapshots) {
-    if (row.source === 'wsj-latest' && row.date >= SP500_TTM_WSJ_START && positive(row.pe_ttm)) anchors.set(row.date, row);
+    if (indexMetricSource(row, 'pe_ttm') === 'wsj-latest' && row.date >= SP500_TTM_WSJ_START && positive(row.pe_ttm)) anchors.set(row.date, row);
   }
   const observed = [...anchors.values()].sort((a,b)=>a.date.localeCompare(b.date));
   const prices = new Map(closes.filter(row=>positive(row.close)).map(row=>[row.date,row]));

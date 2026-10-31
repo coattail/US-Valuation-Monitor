@@ -1,7 +1,9 @@
+import { indexMetricSource, datedIndexSource, mergeIndexSourceSnapshot, type MetricSourceRow } from './index-source-policy.ts';
+import { loadIndexPublicationInputs, reconcileIndexDataset } from './index-publication.mjs';
 import { applySp500TtmPricePolicy, sp500TtmPriceCorrections, assertSp500TtmCoverage, SP500_TTM_WSJ_START, type Sp500Close } from "./sp500-ttm-policy.ts";
 import { loadSp500TtmCloses, refreshSp500TtmCloses } from "./sp500-ttm-closes.ts";
 import {applySp500PbPolicy, loadSp500PbInputs} from './sp500-pb-policy.ts';
-import { lastCompletedSession as getLastCompletedUsMarketDate } from "./market-calendar.ts";
+import { lastCompletedSession as getLastCompletedUsMarketDate, isTradingDate } from "./market-calendar.ts";
 import { createTextFetcher } from "./fetch-text.ts";
 import { applyNasdaqForwardPricePolicy, nasdaqForwardPriceCorrections, assertNasdaqForwardCoverage, NASDAQ_FORWARD_WSJ_START, type NasdaqClose } from "./nasdaq-forward-policy.ts";
 import { loadNasdaqForwardCloses, refreshNasdaqForwardCloses } from "./nasdaq-forward-closes.ts";
@@ -717,7 +719,7 @@ interface IndexRatioPayload {
   source: string;
 }
 
-interface IndexYahooDailyMetricSnapshot {
+interface IndexYahooDailyMetricSnapshot extends MetricSourceRow {
   date: string;
   pe_ttm: number | null;
   pe_forward: number | null;
@@ -900,7 +902,7 @@ function buildAuthoritativeMetricCorrections(
     const values: Partial<Record<IndexRatioMetricKey, number>> = {};
     for (const metric of ["pe_ttm", "pe_forward", "pb"] as const) {
       const value = sanitizeSignedRatio(snapshot[metric]);
-      if (value !== null) values[metric] = value;
+      if (value !== null && AUTHORITATIVE_PUBLISHED_SNAPSHOT_SOURCES.has(indexMetricSource(snapshot, metric))) values[metric] = value;
     }
     if (Object.keys(values).length) corrections.set(snapshot.date, values);
   }
@@ -1772,6 +1774,10 @@ function normalizeIndexYahooDailyMetricSnapshot(raw: unknown): IndexYahooDailyMe
     pb,
     source: String(item.source || "").trim(),
     capturedAt: String(item.capturedAt || "").trim(),
+    ...(item.metricSources && typeof item.metricSources === 'object' ? { metricSources: Object.fromEntries(
+      ['pe_ttm', 'pe_forward', 'pb'].flatMap(metric => typeof (item.metricSources as Record<string, unknown>)[metric] === 'string'
+        ? [[metric, String((item.metricSources as Record<string, unknown>)[metric]).trim()]] : [])
+    ) } : {}),
   };
 }
 
@@ -1931,14 +1937,10 @@ export function upsertIndexYahooDailyMetricSnapshot(
   }
 
   const existing = nextByDate.get(snapshot.date);
-  nextByDate.set(snapshot.date, {
-    date: snapshot.date,
-    pe_ttm: sanitizeSignedRatio(snapshot.pe_ttm) ?? sanitizeSignedRatio(existing?.pe_ttm),
-    pe_forward: sanitizeSignedRatio(snapshot.pe_forward) ?? sanitizeSignedRatio(existing?.pe_forward),
-    pb: sanitizeSignedRatio(snapshot.pb) ?? sanitizeSignedRatio(existing?.pb),
-    source: String(snapshot.source || existing?.source || "").trim(),
+  nextByDate.set(snapshot.date, mergeIndexSourceSnapshot(existing, {
+    ...snapshot,
     capturedAt: String(snapshot.capturedAt || existing?.capturedAt || new Date().toISOString()).trim(),
-  });
+  }));
   bySymbol.set(
     normalizedSymbol,
     [...nextByDate.values()].sort((a, b) => a.date.localeCompare(b.date))
@@ -2167,8 +2169,8 @@ function collapseRedundantExplicitLatestSnapshots(
       getIndexSnapshotMetricValue(previous, "pe_forward") === getIndexSnapshotMetricValue(snapshot, "pe_forward") &&
       getIndexSnapshotMetricValue(previous, "pb") === getIndexSnapshotMetricValue(snapshot, "pb");
 
-    if (sameExplicitLatestSource && sameValues) {
-      collapsed[collapsed.length - 1] = snapshot;
+    if (sameExplicitLatestSource && sameValues && !datedIndexSource(snapshot.source || '')) {
+      // An unchanged undated page is not an update; retain its FIRST sighting.
       continue;
     }
 
@@ -2469,7 +2471,7 @@ function pruneInvalidExplicitIndexSnapshots(
       const next: IndexYahooDailyMetricSnapshot = { ...snapshot };
       const isDeviationCheckedSource =
         isExplicitIndexYahooLatestMetricSource(snapshot.source || "") &&
-        !isPriorityWsjAnchorSource(snapshot.source);
+        !datedIndexSource(String(snapshot.source || ""));
 
       if (
         isDeviationCheckedSource &&
@@ -3343,7 +3345,7 @@ function pickLatestWsjPeSnapshot(
   cachedSnapshots: IndexYahooDailyMetricSnapshot[]
 ): LatestPeSnapshot | undefined {
   const cached = [...(cachedSnapshots || [])]
-    .filter((snapshot) => snapshot.source === "wsj-latest")
+    .filter((snapshot) => indexMetricSource(snapshot, "pe_ttm") === "wsj-latest")
     .filter((snapshot) => isReasonablePe(snapshot.pe_ttm ?? undefined))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-1)[0];
@@ -4685,7 +4687,7 @@ async function fetchUs10ySeries(endDate: string): Promise<YieldPoint[]> {
   return result;
 }
 
-async function fetchStockAnalysisPe(symbol: string): Promise<number | undefined> {
+export async function fetchStockAnalysisPe(symbol: string): Promise<number | undefined> {
   const url = `https://stockanalysis.com/etf/${symbol.toLowerCase()}/`;
   const html = await curlGet(url, 25000, {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
@@ -4711,7 +4713,7 @@ async function fetchStockAnalysisPe(symbol: string): Promise<number | undefined>
   return value;
 }
 
-async function fetchStockAnalysisForwardPe(symbol: string): Promise<number | undefined> {
+export async function fetchStockAnalysisForwardPe(symbol: string): Promise<number | undefined> {
   const url = `https://stockanalysis.com/etf/${symbol.toLowerCase()}/`;
   const html = await curlGet(url, 25000, {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
@@ -5908,7 +5910,8 @@ function buildForwardStartMap(
 }
 
 export async function generateDataset(endDate?: string, options: GenerateDatasetOptions = {}): Promise<ValuationDataset> {
-  const effectiveEnd = endDate || getLastCompletedUsMarketDate();
+  const completed = getLastCompletedUsMarketDate();
+  const effectiveEnd = endDate && endDate < completed ? endDate : completed;
   const historyFallbackMap = buildHistoryFallbackMap(options.previousDataset, effectiveEnd);
   const latestForwardMap = buildLatestForwardMap(options.previousDataset, effectiveEnd);
   const historyForwardStartMap = buildForwardStartMap(options.previousDataset, effectiveEnd);
@@ -6433,7 +6436,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       let officialAnchorTrailing: number | undefined;
       let officialAnchorForward: number | undefined;
       const officialLatest = await fetchOfficialIndexLatestSnapshot(meta.id).catch(() => null);
-      if (officialLatest) {
+      if (officialLatest?.date && isTradingDate(officialLatest.date) && officialLatest.date <= effectiveEnd) {
         let appliedOfficialSnapshot = false;
         const officialEffectiveDate =
           officialLatest.date && officialLatest.date <= effectiveEnd
@@ -6449,31 +6452,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         officialAnchorTrailing = officialTrailing;
         officialAnchorForward = officialForward;
 
-        const canApplyOfficialTrailing = isLatestSnapshotDeviationAcceptable(
-          trailingSeries,
-          officialEffectiveDate,
-          officialTrailing,
-          isReasonablePe,
-          { maxDeviationRatio: OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO }
-        );
-        const canApplyOfficialForward = isLatestSnapshotDeviationAcceptable(
-          forwardSeries,
-          officialEffectiveDate,
-          officialForward,
-          isReasonableForwardPe,
-          {
-            maxDeviationRatio:
-              OFFICIAL_INDEX_LATEST_FORWARD_MAX_DEVIATION_RATIO_OVERRIDES[meta.id] ??
-              OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO,
-          }
-        );
-        const canApplyOfficialPb = isLatestSnapshotDeviationAcceptable(
-          pbSeries,
-          officialEffectiveDate,
-          officialPb,
-          isReasonablePb,
-          { maxDeviationRatio: OFFICIAL_INDEX_LATEST_PB_MAX_DEVIATION_RATIO }
-        );
+        const canApplyOfficialTrailing = isReasonablePe(officialTrailing);
+        const canApplyOfficialForward = isReasonableForwardPe(officialForward);
+        const canApplyOfficialPb = isReasonablePb(officialPb);
 
         if (!prefersWsjLatestSnapshot && canApplyOfficialTrailing) {
           trailingSeries = upsertSeriesValueAtDate(trailingSeries, officialEffectiveDate, Number(officialTrailing));
@@ -7417,7 +7398,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
     "utf8"
   );
 
-  return dataset;
+  const metricLog = { symbols: Object.fromEntries(indexYahooDailyMetricsBySymbol) };
+  const { prices, files } = await loadIndexPublicationInputs(OUTPUT_DIR, { dataset, metrics:metricLog, refresh:true });
+  const published = reconcileIndexDataset(dataset,metricLog,prices,files);
+  for (const [name,file] of Object.entries(files)) await writeFile(path.join(OUTPUT_DIR,name),JSON.stringify(file,null,2) + '\n');
+  return published;
 }
 
 export async function loadAuthoritativePublishedMetricCorrections(): Promise<AuthoritativePublishedMetricCorrections> {
@@ -7429,6 +7414,8 @@ export async function loadAuthoritativePublishedMetricCorrections(): Promise<Aut
   const history = JSON.parse(await readFile(path.join(OUTPUT_DIR, "valuation-history.json"), "utf8"));
   const sp500Points = history.indices.find((row: { id: string }) => row.id === "sp500")?.points || [];
 
+  const { prices, files } = await loadIndexPublicationInputs();
+  const corrected = reconcileIndexDataset(history, { symbols: Object.fromEntries(snapshotsBySymbol) }, prices, files);
   for (const meta of ALL_INDICES) {
     const corrections = buildAuthoritativeMetricCorrections(
       meta.id,
@@ -7445,6 +7432,16 @@ export async function loadAuthoritativePublishedMetricCorrections(): Promise<Aut
       }
       for (const point of applySp500PbPolicy(sp500Points, spxPbInputs, false)) {
         if (point.pb_basis) corrections.set(point.date, {...corrections.get(point.date), pb: point.pb});
+      }
+    }
+    // Only reproducible source/price-policy corrections may revise published values.
+    const originalByDate = new Map((history.indices.find((row: {id:string}) => row.id === meta.id)?.points || []).map((row: {date:string}) => [row.date,row]));
+    for (const point of corrected.indices.find((row: {id:string}) => row.id === meta.id)?.points || []) {
+      for (const metric of ["pe_ttm", "pe_forward", "pb"] as const) {
+        const original = originalByDate.get(point.date);
+        if (point[metric] !== original?.[metric] || point[`${metric}_observation`] || point[`${metric}_estimate`]?.method === 'wsj-index-price-carry') {
+          corrections.set(point.date, { ...corrections.get(point.date), [metric]: point[metric] });
+        }
       }
     }
     if (corrections.size) result.set(meta.id, corrections);

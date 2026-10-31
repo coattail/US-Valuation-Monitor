@@ -1,8 +1,10 @@
+import {applyWsjIndexPolicy,WSJ_INDEX_PRICES} from '../packages/data-pipeline/src/wsj-index-policy.ts';
+import {loadIndexPublicationInputs} from '../packages/data-pipeline/src/index-publication.mjs';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lastCompletedSession, tradingDates } from '../packages/data-pipeline/src/market-calendar.ts';
-import { applyEtfTtmPricePolicy, ETF_TTM_SYMBOLS } from '../packages/data-pipeline/src/etf-ttm-policy.ts';
+import { applyEtfTtmPricePolicy, applyEtfPbPricePolicy, ETF_TTM_SYMBOLS, ETF_PB_SYMBOLS } from '../packages/data-pipeline/src/etf-ttm-policy.ts';
 import { reconstructDramTtm } from '../packages/data-pipeline/src/dram-ttm-reconstruction.ts';
 import { forwardPlan, applyIndexForwardPolicy } from '../packages/data-pipeline/src/index-forward-policy.ts';
 import {applySp500PbPolicy} from '../packages/data-pipeline/src/sp500-pb-policy.ts';
@@ -22,7 +24,7 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
   if (files.length !== expectedCount) throw new Error(`${kind}: expected ${expectedCount} series, found ${files.length}`);
   const problems = [];
   let awaitingProviderCount = 0;
-  let etfCloses, metrics, forwardInputs, pbInputs;
+  let etfCloses, metrics, forwardInputs, pbInputs, wsjPrices;
   if (kind === 'index') {
     etfCloses = JSON.parse(await readFile(path.join(dir, '../etf-ttm-closes.json'), 'utf8'));
     metrics = JSON.parse(await readFile(path.join(dir, '../index-yahoo-daily-metrics.json'), 'utf8'));
@@ -56,7 +58,20 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
         if (stale.length) problems.push(`${series.symbol}: stale TTM values/provenance on ${stale.map(row => row.date).join(', ')}`);
       } catch (error) { problems.push(`${series.symbol}: ${error.message}`); }
     }
-    if(kind === 'index' && forwardPlan(series)) {
+    if (kind === 'index' && ETF_PB_SYMBOLS.has(series.symbol)) {
+      try {
+        const expected = applyEtfPbPricePolicy(series.points,metrics.symbols[series.symbol] || [],etfCloses.symbols[series.symbol] || []);
+        if (series.points.some((point,i) => point.pb !== expected[i].pb)) problems.push(`${series.symbol}: stale PB values`);
+      } catch(error) { problems.push(`${series.symbol}: ${error.message}`); }
+    }
+    if (kind === 'index' && WSJ_INDEX_PRICES[series.id]) {
+      try {
+        wsjPrices ??= (await loadIndexPublicationInputs(dataDir)).prices;
+        const expected = applyWsjIndexPolicy(series.points,series.id,metrics.symbols[series.symbol] || [],wsjPrices[series.id]);
+        if (series.points.some((point,i) => ['pe_ttm','pe_forward'].some(metric => point[metric] !== expected[i][metric] ||
+          JSON.stringify(point[`${metric}_estimate`]) !== JSON.stringify(expected[i][`${metric}_estimate`])))) problems.push(`${series.symbol}: stale WSJ-based PE`);
+      } catch(error) { problems.push(`${series.symbol}: ${error.message}`); }
+    } else if(kind === 'index' && forwardPlan(series)) {
       try {
         const inputs = forwardInputs?.indices?.[series.id];
         if(!inputs) throw new Error('missing forward reconciliation inputs');

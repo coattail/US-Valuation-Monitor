@@ -1,3 +1,4 @@
+import { validateIndexPublication } from './reconcile-index-valuations.mjs';
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,6 +77,7 @@ const redirects = `
 `.trimStart();
 
 async function main() {
+  await validateIndexPublication();
   await rm(outputDir, { recursive: true, force: true });
   await mkdir(path.join(outputDir, "apps"), { recursive: true });
   await mkdir(path.join(outputDir, "data", "standardized"), { recursive: true });

@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { forwardPlan, applyIndexForwardPolicy, findFlatMetricRuns } from '../packages/data-pipeline/src/index-forward-policy.ts';
+import { forwardPlan, applyIndexForwardPolicy, indexForwardAnchors, findFlatMetricRuns } from '../packages/data-pipeline/src/index-forward-policy.ts';
 import { fetchOfficialIndexLatestSnapshot } from '../packages/data-pipeline/src/generate.ts';
 import { fetchGapCloses, recoverWithBudget } from '../packages/data-pipeline/src/gap-repair.ts';
 import { tradingDates, isTradingDate } from '../packages/data-pipeline/src/market-calendar.ts';
@@ -55,7 +55,9 @@ export async function reconcileIndexForward({ dir = defaultDir, write = false, r
         if(!isTradingDate(row.date) || !Number.isFinite(row.close) || row.close <= 0 || !row.source) throw new Error(`Invalid cached forward close: ${item.id}/${row.date}`);
         prices.set(row.date,row);
       }
-      const required = tradingDates(inputs.seed.date,target), missing = required.filter(date=>!prices.has(date));
+      const firstAnchor = indexForwardAnchors(snapshots,inputs,plan.weekly).findLast(row=>row.date<=plan.startDate);
+      const firstPriceDate = firstAnchor && firstAnchor.date < inputs.seed.date ? firstAnchor.date : inputs.seed.date;
+      const required = tradingDates(firstPriceDate,target), missing = required.filter(date=>!prices.has(date));
       if(missing.length) for(const row of await fetchCloses(inputs.priceSymbol,'etf',missing[0],target,missing)) {
         if(required.includes(row.date) && !prices.has(row.date)) prices.set(row.date,row);
       }

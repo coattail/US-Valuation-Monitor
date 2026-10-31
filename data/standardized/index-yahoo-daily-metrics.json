@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T23:40:44.932Z",
+  "generatedAt": "2026-10-31T02:23:45.114Z",
   "symbols": {
     "DIA": [
       {
@@ -1036,11 +1036,16 @@
       },
       {
         "date": "2026-10-29",
+        "source": "ssga-official-latest",
+        "capturedAt": "2026-10-31T02:17:34.494Z",
         "pe_ttm": 20.7,
         "pe_forward": 19.86,
         "pb": 5.49,
-        "source": "wsj-latest",
-        "capturedAt": "2026-10-30T15:58:43.513Z"
+        "metricSources": {
+          "pe_ttm": "wsj-latest",
+          "pe_forward": "wsj-latest",
+          "pb": "ssga-official-latest"
+        }
       },
       {
         "date": "2026-10-30",
@@ -1635,6 +1640,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-10-30T16:02:40.246Z"
+      },
+      {
+        "date": "2026-10-30",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-10-31T02:17:34.494Z",
+        "pe_ttm": 22.93,
+        "pe_forward": null,
+        "pb": null
       }
     ],
     "IGV": [
@@ -2211,8 +2224,21 @@
         "pe_ttm": 36.92,
         "pe_forward": 25.98,
         "pb": 7.41,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-10-31T02:17:34.494Z",
+        "metricSources": {
+          "pe_ttm": "ishares-official-latest",
+          "pe_forward": "stockanalysis-latest",
+          "pb": "ishares-official-latest"
+        }
+      },
+      {
+        "date": "2026-10-30",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-10-30T16:02:35.956Z"
+        "capturedAt": "2026-10-31T02:23:45.114Z",
+        "pe_ttm": null,
+        "pe_forward": 25.26,
+        "pb": null
       }
     ],
     "IJH": [
@@ -2973,8 +2999,21 @@
         "pe_ttm": 21.88,
         "pe_forward": 15.18,
         "pb": 2.68,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-10-31T02:17:34.494Z",
+        "metricSources": {
+          "pe_ttm": "ishares-official-latest",
+          "pe_forward": "stockanalysis-latest",
+          "pb": "ishares-official-latest"
+        }
+      },
+      {
+        "date": "2026-10-30",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-10-30T15:59:13.669Z"
+        "capturedAt": "2026-10-31T02:23:45.114Z",
+        "pe_ttm": null,
+        "pe_forward": 15.11,
+        "pb": null
       }
     ],
     "IWM": [
@@ -4597,6 +4636,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-10-30T16:02:38.998Z"
+      },
+      {
+        "date": "2026-10-30",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-10-31T02:17:34.494Z",
+        "pe_ttm": 28.23,
+        "pe_forward": 16.55,
+        "pb": null
       }
     ],
     "SOXX": [
@@ -5173,8 +5220,21 @@
         "pe_ttm": 46.4,
         "pe_forward": 18.16,
         "pb": 10.22,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-10-31T02:17:34.494Z",
+        "metricSources": {
+          "pe_ttm": "ishares-official-latest",
+          "pe_forward": "stockanalysis-latest",
+          "pb": "ishares-official-latest"
+        }
+      },
+      {
+        "date": "2026-10-30",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-10-30T16:02:37.563Z"
+        "capturedAt": "2026-10-31T02:23:45.114Z",
+        "pe_ttm": null,
+        "pe_forward": 16.36,
+        "pb": null
       }
     ],
     "SPY": [
@@ -6145,8 +6205,21 @@
         "pe_ttm": 28.27,
         "pe_forward": 19.13,
         "pb": 5.03,
+        "source": "ishares-official-latest",
+        "capturedAt": "2026-10-31T02:17:34.494Z",
+        "metricSources": {
+          "pe_ttm": "ishares-official-latest",
+          "pe_forward": "stockanalysis-latest",
+          "pb": "ishares-official-latest"
+        }
+      },
+      {
+        "date": "2026-10-30",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-10-30T15:59:44.696Z"
+        "capturedAt": "2026-10-31T02:23:45.114Z",
+        "pe_ttm": null,
+        "pe_forward": 18.76,
+        "pb": null
       }
     ],
     "XLB": [

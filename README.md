@@ -22,6 +22,8 @@ A production-oriented valuation monitoring project for:
 
 ## Data Integrity Policy (Important)
 
+- Every index/ETF refresh follows the same final source-anchor policy: adopt new dated source values, otherwise estimate from the latest anchor and actual unadjusted prices. Provenance is stored per field so a partial update cannot relabel other metrics. The API, full builds, daily refresh and static publication use the same checks. See [the 2026-10-31 audit](./docs/index-anchor-update-audit-2026-10-31.md).
+
 - **Index valuation data** stays on its historical non-Yahoo source chain to avoid short-term regime noise.
 - Core index TTM/forward P/E observations are reconciled with dated WSJ quotes after close and during overnight company runs, even when every trading date already exists. Run `npm run refresh:wsj:index` to retry only this synchronization. Source freshness and published-value equality are checked separately from trading-date coverage; see [the WSJ audit](./docs/wsj-reconciliation-2026-10-17.md).
 - ETF TTM reconciliation retains the first sighting of repeated undated page snapshots, applies actual daily close returns between anchors, and replaces earlier estimates when a changed source snapshot arrives. All index refresh modes run this policy; tooltips distinguish dated quotes, undated snapshots and estimates. See [the ETF TTM audit](./docs/etf-ttm-daily-audit.md).

@@ -1,3 +1,4 @@
+import { indexMetricSource, sourcePriority, type MetricSourceRow } from './index-source-policy.ts';
 import type { ForwardPeEstimate } from '../../core/src/types.ts';
 import type { CloseObservation } from './gap-repair.ts';
 import { isTradingDate, shiftDate } from './market-calendar.ts';
@@ -6,7 +7,7 @@ import { INDEX_MAP } from '../../core/src/constants.ts';
 export interface ForwardAnchor { date: string; value: number; source: string; url?: string; capturedAt?: string }
 export interface ForwardInputs { priceSymbol: string; startDate: string; seed: ForwardAnchor; closes: CloseObservation[]; observations: ForwardAnchor[] }
 interface Point { date: string; pe_forward?: number | null; pe_forward_estimate?: ForwardPeEstimate; pe_forward_snapshot?: { source: string; dateBasis: 'first-seen' } }
-interface Snapshot { date: string; pe_forward?: number | null; source?: string; capturedAt?: string }
+interface Snapshot extends MetricSourceRow { date: string; pe_forward?: number | null; source?: string; capturedAt?: string }
 const positive = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0;
 const sources = new Set(['wsj-latest', 'ssga-official-latest', 'ishares-official-latest', 'stockanalysis-latest']);
 
@@ -31,7 +32,7 @@ function isWeeklyObservationDate(date: string): boolean {
 export function indexForwardAnchors(snapshots: Snapshot[], inputs: ForwardInputs, weekly: boolean): ForwardAnchor[] {
   const byDate = new Map<string, ForwardAnchor>([[inputs.seed.date, inputs.seed]]);
   let lastValue: number | undefined;
-  for (const row of [...snapshots].sort((a, b) => a.date.localeCompare(b.date))) {
+  for (const row of snapshots.map(row => ({...row, source:indexMetricSource(row,'pe_forward')})).sort((a, b) => a.date.localeCompare(b.date))) {
     if (!positive(row.pe_forward) || !sources.has(row.source || '')) continue;
     if (weekly && row.source !== 'wsj-latest') continue;
     if (row.source === 'stockanalysis-latest' || weekly) {
@@ -46,9 +47,12 @@ export function indexForwardAnchors(snapshots: Snapshot[], inputs: ForwardInputs
   }
   for (const row of inputs.observations) if (positive(row.value) && !weekly) {
     const existing = byDate.get(row.date);
-    if(!existing || existing.source === 'stockanalysis-latest' || !existing.capturedAt ||
-      String(row.capturedAt || '') >= existing.capturedAt) byDate.set(row.date,row);
+    if (!existing || sourcePriority(row.source) > sourcePriority(existing.source) ||
+      (sourcePriority(row.source) === sourcePriority(existing.source) && (!existing.capturedAt ||
+        String(row.capturedAt || '') >= existing.capturedAt))) byDate.set(row.date,row);
   }
+  if (byDate.get(inputs.seed.date)?.source === 'previous-published-estimate' &&
+    [...byDate.values()].some(row => row.source !== 'previous-published-estimate' && row.date <= inputs.seed.date)) byDate.delete(inputs.seed.date);
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
