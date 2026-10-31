@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-10-31T02:23:49.528Z",
+  "generatedAt": "2026-10-31T06:07:22.303Z",
   "indices": {
     "dow30": {
       "pointCount": 7241,
@@ -26,19 +26,19 @@
       "pointCount": 6361,
       "firstDate": "2001-07-17",
       "lastDate": "2026-10-30",
-      "sha256": "05b24dd73310cae1b56ca63af6073f633f8b6da906ead44e7cf865539c533328"
+      "sha256": "dda62ad8955e7f6314f7aff72c02ab6be6da7cd7e592cffe7df409c3015b6d93"
     },
     "nasdaq100": {
       "pointCount": 6954,
       "firstDate": "1999-03-10",
       "lastDate": "2026-10-30",
-      "sha256": "c76a646ee869355daf1c85f49d4ee9795b5378e0d4c3a3e7d11497fe40be82de"
+      "sha256": "caa9f0868f83be104ef344a72c41a20a3f3bcf8a453f77d33a068f38bfe6186e"
     },
     "russell2000": {
       "pointCount": 6495,
       "firstDate": "2001-01-03",
       "lastDate": "2026-10-30",
-      "sha256": "c1440e1ffbd6addf49ea6d9d45e8432567bac1f710d7abcfd0df316ae49bfb77"
+      "sha256": "d8455326953efdec1d0a872bbbeb79c9920587a121a0e7ea8cd6d7894458d68c"
     },
     "sector_communication": {
       "pointCount": 2104,
@@ -110,13 +110,13 @@
       "pointCount": 3737,
       "firstDate": "2011-12-20",
       "lastDate": "2026-10-30",
-      "sha256": "14179252b02bb3a8092701d5086ed347f24c20d3ac067ab0c4de0fe44b7ad10a"
+      "sha256": "d064c80d2dccb897a06b49b1f70be5b9815c16aa20e3b92c3d053227034039c7"
     },
     "soxx": {
       "pointCount": 6363,
       "firstDate": "2001-07-13",
       "lastDate": "2026-10-30",
-      "sha256": "cd4d991cbe672d0a798cee776bfe6213ca3b40f620ebd1267fc6ba88045b225e"
+      "sha256": "cb8dee3e8dee31343b8897ac134bd637841e4ed03aaf7aa85fd8ddad05d15929"
     },
     "sp400": {
       "pointCount": 5454,
@@ -128,7 +128,7 @@
       "pointCount": 6749,
       "firstDate": "1999-12-31",
       "lastDate": "2026-10-30",
-      "sha256": "c0a9b7148385c447b5cc0e858ca79da0dbad719340d1cbec1e020dc0380b7ebc"
+      "sha256": "2ab56d51800b28c489bd071ea60c21ae5dd97d65a1ddb3e2152d077900ebeeff"
     },
     "us_total_market": {
       "pointCount": 5454,

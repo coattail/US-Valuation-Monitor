@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-31T02:23:49.528Z",
+  "generatedAt": "2026-10-31T06:07:22.303Z",
   "source": "free-live-proxy-v6+stockanalysis-pe-2+stockmarketperatio-pe-1+multpl-pb-1+wsj-pe-4+stockanalysis-snap-6+curated-public-fpe-8+vendor-index-fpe-2+ndx-bloomberg-fpe-1+ndx-official-ttm-monthly-1+rut-index-close-1+stockanalysis-fpe-6+sp500-pb-prefix-1+sp500-wsj-carry-1+sp500-yardeni-refinitiv-fpe-prefix-1+fallback10y+wsj-reconciled+market-close-estimate",
   "indices": [
     {
@@ -83729,8 +83729,8 @@
         },
         {
           "date": "2026-10-30",
-          "pe_ttm": 23.1369,
-          "pe_forward": 19.0405,
+          "pe_ttm": 23.55,
+          "pe_forward": 19.25,
           "pb": 5.967055,
           "us10y_yield": 0.035,
           "recovery": {
@@ -83746,27 +83746,17 @@
             "bookValueDate": "2025-09-30",
             "bookValue": 1270.32
           },
-          "pe_ttm_estimate": {
-            "method": "wsj-index-price-carry",
-            "anchorDate": "2026-10-23",
-            "anchorPe": 23.27,
-            "anchorClose": 7623.68017578125,
-            "close": 7580.06982421875,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792800000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1793404800&interval=1d",
-            "priceSymbol": "^GSPC",
-            "anchorSource": "wsj-latest"
+          "pe_ttm_observation": {
+            "source": "wsj-latest",
+            "date": "2026-10-30",
+            "value": 23.55,
+            "url": "https://www.wsj.com/market-data/stocks/peyields"
           },
-          "pe_forward_estimate": {
-            "method": "wsj-index-price-carry",
-            "anchorDate": "2026-10-23",
-            "anchorPe": 19.15,
-            "anchorClose": 7623.68017578125,
-            "close": 7580.06982421875,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1792800000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1793404800&interval=1d",
-            "priceSymbol": "^GSPC",
-            "anchorSource": "wsj-latest"
+          "pe_forward_observation": {
+            "source": "wsj-latest",
+            "date": "2026-10-30",
+            "value": 19.25,
+            "url": "https://www.wsj.com/market-data/stocks/peyields"
           }
         }
       ]
@@ -134810,8 +134800,8 @@
         },
         {
           "date": "2026-10-30",
-          "pe_ttm": 28.9656,
-          "pe_forward": 20.6827,
+          "pe_ttm": 29.92,
+          "pe_forward": 21.37,
           "pb": 6.919199,
           "us10y_yield": 0.035,
           "recovery": {
@@ -134822,27 +134812,17 @@
             "us10yYieldDate": "2026-10-29",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "wsj-index-price-carry",
-            "anchorDate": "2026-10-23",
-            "anchorPe": 29.55,
-            "anchorClose": 28957.52734375,
-            "close": 28384.845703125,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1792800000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1793404800&interval=1d",
-            "priceSymbol": "^NDX",
-            "anchorSource": "wsj-latest"
+          "pe_ttm_observation": {
+            "source": "wsj-latest",
+            "date": "2026-10-30",
+            "value": 29.92,
+            "url": "https://www.wsj.com/market-data/stocks/peyields"
           },
-          "pe_forward_estimate": {
-            "method": "wsj-index-price-carry",
-            "anchorDate": "2026-10-23",
-            "anchorPe": 21.1,
-            "anchorClose": 28957.52734375,
-            "close": 28384.845703125,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1792800000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1775779200&period2=1793404800&interval=1d",
-            "priceSymbol": "^NDX",
-            "anchorSource": "wsj-latest"
+          "pe_forward_observation": {
+            "source": "wsj-latest",
+            "date": "2026-10-30",
+            "value": 21.37,
+            "url": "https://www.wsj.com/market-data/stocks/peyields"
           }
         }
       ]
@@ -236425,8 +236405,8 @@
         },
         {
           "date": "2026-10-30",
-          "pe_ttm": 35.2,
-          "pe_forward": 26.2556,
+          "pe_ttm": 35.96,
+          "pe_forward": 26.15,
           "pb": 2.0457,
           "us10y_yield": 0.035,
           "recovery": {
@@ -236437,27 +236417,17 @@
             "us10yYieldDate": "2026-10-29",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "wsj-index-price-carry",
-            "anchorDate": "2026-10-23",
-            "anchorPe": 34.75,
-            "anchorClose": 2775.89990234375,
-            "close": 2811.84423828125,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ERUT?period1=1775001600&period2=1792800000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ERUT?period1=1793318400&period2=1793404800&interval=1d",
-            "priceSymbol": "^RUT",
-            "anchorSource": "wsj-latest"
+          "pe_ttm_observation": {
+            "source": "wsj-latest",
+            "date": "2026-10-30",
+            "value": 35.96,
+            "url": "https://www.wsj.com/market-data/stocks/peyields"
           },
-          "pe_forward_estimate": {
-            "method": "wsj-index-price-carry",
-            "anchorDate": "2026-10-23",
-            "anchorPe": 25.92,
-            "anchorClose": 2775.89990234375,
-            "close": 2811.84423828125,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ERUT?period1=1775001600&period2=1792800000&interval=1d",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/%5ERUT?period1=1793318400&period2=1793404800&interval=1d",
-            "priceSymbol": "^RUT",
-            "anchorSource": "wsj-latest"
+          "pe_forward_observation": {
+            "source": "wsj-latest",
+            "date": "2026-10-30",
+            "value": 26.15,
+            "url": "https://www.wsj.com/market-data/stocks/peyields"
           }
         }
       ]
@@ -776955,7 +776925,7 @@
         {
           "date": "2026-10-30",
           "pe_ttm": 35.6616,
-          "pe_forward": 25.26,
+          "pe_forward": 25.08,
           "pb": 7.1574,
           "us10y_yield": 0.035,
           "recovery": {
@@ -822385,7 +822355,7 @@
         {
           "date": "2026-10-30",
           "pe_ttm": 42.5759,
-          "pe_forward": 16.36,
+          "pe_forward": 16.73,
           "pb": 9.3777,
           "us10y_yield": 0.035,
           "recovery": {
@@ -849981,8 +849951,8 @@
         },
         {
           "date": "2026-10-30",
-          "pe_ttm": 28.23,
-          "pe_forward": 16.55,
+          "pe_ttm": 28.25,
+          "pe_forward": 16.48,
           "pb": 8.241575,
           "us10y_yield": 0.035,
           "recovery": {

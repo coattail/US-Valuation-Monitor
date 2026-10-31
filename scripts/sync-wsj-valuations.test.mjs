@@ -87,8 +87,21 @@ test('persisted synchronization updates the lock and ledger; failed fetch leaves
   for (const [name, value] of Object.entries(files)) await writeFile(path.join(dir, name), JSON.stringify(value));
   await assert.rejects(syncWsj({ dir, now, fetchSnapshots: async () => new Map() }), /No dated WSJ/);
   assert.deepEqual(JSON.parse(await readFile(path.join(dir, 'valuation-history.json'))), dataset);
+  const fallback = await syncWsj({ dir, now, fetchSnapshots: async () => new Map(), allowUnavailable: true });
+  assert.equal(fallback.changed, false);
+  assert.equal(fallback.sourceUnavailable, true);
+  const unavailable = await syncWsj({ dir, now, fetchSnapshots: async () => { throw new Error('network unavailable'); }, allowUnavailable: true });
+  assert.equal(unavailable.sourceUnavailable, true);
+  assert.deepEqual(JSON.parse(await readFile(path.join(dir, 'valuation-history.json'))), dataset);
   const result = await syncWsj({ dir, now, fetchSnapshots: async () => observations });
   assertDatasetMatchesIndexHistoryLock(result.dataset, JSON.parse(await readFile(path.join(dir, 'index-history-lock.json'))));
   const ledger = JSON.parse(await readFile(path.join(dir, 'index-gap-repairs.json')));
   assert.equal(ledger.repairs.SPY[0].point.pe_ttm, 23.51);
+});
+
+
+test('every daily refresh fetches WSJ before applying cached-anchor estimates', async () => {
+  const { scripts } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.match(scripts['refresh:daily:index'], /^node scripts\/sync-wsj-valuations\.mjs --allow-unavailable &&/);
+  for (const name of ['refresh:wsj:index', 'refresh:close:index', 'build:data:index']) assert.match(scripts[name], /refresh:daily:index/);
 });
