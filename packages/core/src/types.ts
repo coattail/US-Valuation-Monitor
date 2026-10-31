@@ -5,7 +5,7 @@ export type MetricId = "pe_ttm" | "pe_forward" | "pb" | "erp_proxy";
 export type Regime = "low" | "neutral" | "high";
 
 export interface ForwardPeEstimate {
-  method: 'wsj-forward-ndx-price-carry' | 'source-forward-price-carry';
+  method: 'wsj-index-price-carry' | 'wsj-forward-ndx-price-carry' | 'source-forward-price-carry';
   anchorDate: string;
   anchorPe: number;
   anchorClose: number;
@@ -17,7 +17,7 @@ export interface ForwardPeEstimate {
 }
 
 export interface TtmPeEstimate {
-  method: 'wsj-ttm-spx-price-carry' | 'undated-ttm-etf-price-carry' | 'dated-ttm-etf-price-carry' | 'snapshot-implied-earnings-interpolation';
+  method: 'wsj-index-price-carry' | 'wsj-ttm-spx-price-carry' | 'undated-ttm-etf-price-carry' | 'dated-ttm-etf-price-carry' | 'snapshot-implied-earnings-interpolation';
   anchorDate: string;
   anchorPe: number;
   anchorClose: number;
@@ -30,6 +30,8 @@ export interface TtmPeEstimate {
   earnings?: number;
   usesFutureAnchor?: boolean;
   valuationSource?: string;
+  priceSymbol?: string;
+  anchorSource?: string;
 }
 
 export interface IndexMeta {
@@ -49,6 +51,8 @@ export interface RawValuationPoint {
   pe_forward_snapshot?: { source: string; dateBasis: 'first-seen' };
   pe_ttm_estimate?: TtmPeEstimate;
   pe_ttm_snapshot?: { source: string; dateBasis: 'first-seen' };
+  pe_ttm_observation?: { source: 'wsj-latest'; date: string; value: number; url: string };
+  pe_forward_observation?: { source: 'wsj-latest'; date: string; value: number; url: string };
   pb: number | null;
   pb_basis?: { method: 'index-price-to-book'; bookValueDate: string; bookValue: number };
   us10y_yield: number;

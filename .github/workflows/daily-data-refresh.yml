@@ -99,11 +99,14 @@ jobs:
         id: wsj
         continue-on-error: true
         if: matrix.dataset == 'index'
-        timeout-minutes: 3
+        timeout-minutes: 8
         run: npm run refresh:wsj:index
       - name: Validate company history
         if: matrix.dataset == 'company'
         run: npm run validate:data:company
+      - name: Validate index anchors and all published estimates
+        if: matrix.dataset == 'index'
+        run: node scripts/reconcile-index-valuations.mjs --check
       - name: Stage validated files
         run: node scripts/stage-refresh-artifact.mjs ${{ matrix.dataset }}
       # Upload before freshness checks: valid progress must be published even

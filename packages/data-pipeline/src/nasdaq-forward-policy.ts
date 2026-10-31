@@ -1,8 +1,9 @@
+import { indexMetricSource, type MetricSourceRow } from './index-source-policy.ts';
 import type { ForwardPeEstimate } from '../../core/src/types.ts';
 
 export const NASDAQ_FORWARD_WSJ_START = '2026-04-10';
 interface ForwardPoint { date: string; pe_forward?: unknown; pe_forward_estimate?: ForwardPeEstimate }
-interface ForwardObservation extends ForwardPoint { source?: string }
+interface ForwardObservation extends ForwardPoint, MetricSourceRow { source?: string }
 export interface NasdaqClose { date: string; close: number; source: string }
 const positive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
 
@@ -14,7 +15,7 @@ export function applyNasdaqForwardPricePolicy<T extends ForwardPoint>(
 ): T[] {
   const observed = new Map<string, ForwardObservation>();
   for (const row of snapshots) {
-    if (row.source === 'wsj-latest' && row.date >= NASDAQ_FORWARD_WSJ_START && positive(row.pe_forward)) observed.set(row.date, row);
+    if (indexMetricSource(row, 'pe_forward') === 'wsj-latest' && row.date >= NASDAQ_FORWARD_WSJ_START && positive(row.pe_forward)) observed.set(row.date, row);
   }
   const anchors = [...observed.values()].sort((a, b) => a.date.localeCompare(b.date));
   const prices = new Map(closes.filter(row => positive(row.close)).map(row => [row.date, row]));

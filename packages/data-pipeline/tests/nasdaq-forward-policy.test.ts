@@ -1,3 +1,4 @@
+import { applyWsjIndexPolicy } from '../src/wsj-index-policy.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -81,7 +82,7 @@ test('committed daily history is complete, reproducible, and permitted by persis
   const [history, split, metrics, prices] = await Promise.all([read('valuation-history.json'), read('index-series/nasdaq100.json'), read('index-yahoo-daily-metrics.json'), read('nasdaq100-forward-closes.json')]);
   const points = history.indices.find(row => row.id === 'nasdaq100').points;
   assertNasdaqForwardCoverage(points);
-  assert.deepEqual(points, applyNasdaqForwardPricePolicy(points, metrics.symbols.QQQ, prices.observations));
+  assert.deepEqual(points, applyWsjIndexPolicy(applyNasdaqForwardPricePolicy(points, metrics.symbols.QQQ, prices.observations), 'nasdaq100', metrics.symbols.QQQ, prices.observations));
   assert.deepEqual(split.points, points);
   assert.equal(points.find(p => p.date === '2026-04-17').pe_forward, 24.62);
   assert.equal(points.find(p => p.date === '2026-04-20').pe_forward, 24.5442);

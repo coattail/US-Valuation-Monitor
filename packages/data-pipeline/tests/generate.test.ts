@@ -790,7 +790,7 @@ test("buildEffectiveIndexYahooDailyMetricSnapshotsForTest keeps newer explicit s
   );
 });
 
-test("collapseRedundantExplicitLatestSnapshotsForTest drops older duplicate explicit anchors and keeps the newest date", () => {
+test("dated source updates retain distinct dates even when the reported multiples are equal", () => {
   const snapshots = [
     { date: "2026-04-01", pe_ttm: 36.96, pe_forward: 25.1, pb: null, source: "wsj-latest", capturedAt: "" },
     { date: "2026-04-10", pe_ttm: 36.96, pe_forward: 25.1, pb: null, source: "wsj-latest", capturedAt: "" },
@@ -802,6 +802,7 @@ test("collapseRedundantExplicitLatestSnapshotsForTest drops older duplicate expl
   assert.deepEqual(
     collapsed.map((item) => ({ date: item.date, pe_ttm: item.pe_ttm, pe_forward: item.pe_forward })),
     [
+      { date: "2026-04-01", pe_ttm: 36.96, pe_forward: 25.1 },
       { date: "2026-04-10", pe_ttm: 36.96, pe_forward: 25.1 },
       { date: "2026-04-17", pe_ttm: 38.05, pe_forward: 25.74 },
     ]
@@ -1053,6 +1054,7 @@ test("upsertIndexYahooDailyMetricSnapshot merges non-null metrics with existing 
       pb: 7.1,
       source: "wsj-latest",
       capturedAt: "2026-04-17T00:01:00.000Z",
+      metricSources: {pe_ttm:"stockanalysis-latest",pe_forward:"wsj-latest",pb:"stockanalysis-latest"},
     },
   ]);
 });
@@ -1300,4 +1302,10 @@ test("parseIsharesPortfolioMetricsForTest keeps reversed JSON fields inside thei
     pb: 2.15,
     source: "ishares-official-latest",
   });
+});
+
+
+test('unchanged undated pages retain their first-seen anchor instead of resetting each scrape', () => {
+  const snapshots = ['2026-07-16','2026-07-17','2026-07-20'].map(date => ({date,pe_ttm:30,pe_forward:20,pb:null,source:'stockanalysis-latest'}));
+  assert.deepEqual(collapseRedundantExplicitLatestSnapshotsForTest(snapshots).map(row=>row.date),['2026-07-16']);
 });

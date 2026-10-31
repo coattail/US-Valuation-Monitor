@@ -1,11 +1,30 @@
+import { indexMetricSource, type MetricSourceRow } from './index-source-policy.ts';
 import type { TtmPeEstimate } from '../../core/src/types.ts';
 import type { CloseObservation } from './gap-repair.ts';
 
 export const ETF_TTM_START = '2026-07-17';
-export const ETF_TTM_SYMBOLS = new Set(['DRAM', 'SMH', 'SOXX', 'IGV', 'IJH', 'VTI']);
+export const ETF_TTM_SYMBOLS = new Set(['DRAM', 'SMH', 'SOXX', 'IGV', 'IJH', 'VTI', 'XLC', 'XLY', 'XLP', 'XLE', 'XLF', 'XLV', 'XLI', 'XLRE', 'XLU', 'XLB', 'XLK']);
 const datedSources = new Set(['ishares-official-latest', 'ssga-official-latest', 'wsj-latest']);
 const positive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
-export interface EtfSnapshot { date: string; pe_ttm?: number | null; source?: string }
+export interface EtfSnapshot extends MetricSourceRow { date: string; pe_ttm?: number | null; source?: string }
+export const ETF_PB_SYMBOLS = new Set([...ETF_TTM_SYMBOLS, 'DIA', 'IWM']);
+
+export function etfPbAnchors(snapshots: Array<EtfSnapshot & {pb?: number | null}>): EtfSnapshot[] {
+  return etfTtmAnchors(snapshots.map(row => ({ date: row.date, pe_ttm: row.pb, source: indexMetricSource(row, 'pb') })));
+}
+
+export function applyEtfPbPricePolicy<T extends {date:string;pb?:number|null}>(points:T[], snapshots:Array<EtfSnapshot & {pb?:number|null}>, closes:CloseObservation[]):T[] {
+  const anchors = etfPbAnchors(snapshots), prices = new Map(closes.map(row => [row.date,row]));
+  return points.map(point => {
+    if (point.date < ETF_TTM_START) return point;
+    const anchor = anchors.findLast(row => row.date <= point.date);
+    if (!anchor) return point;
+    if (anchor.date === point.date) return {...point,pb:anchor.pe_ttm} as T;
+    const base = prices.get(anchor.date), current = prices.get(point.date);
+    if (!base || !current || !positive(base.close) || !positive(current.close)) throw new Error(`Missing ETF PB close: ${anchor.date} -> ${point.date}`);
+    return {...point,pb:Number((Number(anchor.pe_ttm)*current.close/base.close).toFixed(4))} as T;
+  });
+}
 interface Point { date: string; pe_ttm?: number | null; pe_ttm_estimate?: TtmPeEstimate; pe_ttm_snapshot?: { source: string; dateBasis: 'first-seen' } }
 
 // Stock Analysis ETF pages do not date the fundamental multiple. A new scrape
@@ -13,7 +32,7 @@ interface Point { date: string; pe_ttm?: number | null; pe_ttm_estimate?: TtmPeE
 // distinct value; dated fund-provider observations remain authoritative.
 export function etfTtmAnchors(snapshots: EtfSnapshot[]): EtfSnapshot[] {
   let lastUndatedValue: number | undefined;
-  return [...snapshots].sort((a, b) => a.date.localeCompare(b.date)).filter(row => {
+  return snapshots.map(row => ({...row, source:indexMetricSource(row,'pe_ttm')})).sort((a, b) => a.date.localeCompare(b.date)).filter(row => {
     if (!positive(row.pe_ttm)) return false;
     if (datedSources.has(row.source || '')) return true;
     if (row.source !== 'stockanalysis-latest') return false;

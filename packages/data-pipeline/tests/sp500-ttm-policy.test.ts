@@ -1,3 +1,4 @@
+import { applyWsjIndexPolicy } from '../src/wsj-index-policy.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -53,7 +54,7 @@ test('committed TTM history and price cache reproduce every repair and retain ev
   const [history,split,metrics,prices]=await Promise.all([read('valuation-history.json'),read('index-series/sp500.json'),read('index-yahoo-daily-metrics.json'),read('sp500-ttm-closes.json')]);
   const points=history.indices.find(row=>row.id==='sp500').points;
   assertSp500TtmCoverage(points);
-  assert.deepEqual(points,applySp500TtmPricePolicy(points,metrics.symbols.SPY,prices.observations));
+  assert.deepEqual(points,applyWsjIndexPolicy(applySp500TtmPricePolicy(points,metrics.symbols.SPY,prices.observations), 'sp500', metrics.symbols.SPY, prices.observations));
   assert.deepEqual(split.points,points);
   for(const row of metrics.symbols.SPY.filter(row=>row.source==='wsj-latest' && row.pe_ttm>0)) {
     assert.equal(points.find(p=>p.date===row.date).pe_ttm,row.pe_ttm);

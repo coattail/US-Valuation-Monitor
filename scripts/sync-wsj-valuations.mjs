@@ -1,3 +1,4 @@
+import { indexMetricSource } from '../packages/data-pipeline/src/index-source-policy.ts';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -25,11 +26,11 @@ export function reconcileWsj(dataset, metrics, observations, { now = new Date(),
     if (!date || !isTradingDate(date) || date > lastCompletedSession(now)) throw new Error(`Invalid WSJ date: ${id}/${date}`);
     if (![quote.trailing, quote.forward].every(value => Number.isFinite(value) && value > 0)) throw new Error(`Incomplete WSJ row: ${id}`);
     const existing = bySymbol.get(index.symbol) || [];
-    if (existing.some(row => row.source === 'wsj-latest' && row.date > date)) continue;
+    if (existing.some(row => indexMetricSource(row, 'pe_ttm') === 'wsj-latest' && row.date > date)) continue;
     const point = index.points.find(row => row.date === date);
     if (!point) throw new Error(`WSJ ${id}/${date}: missing trading row; repair dates before source synchronization`);
     const same = existing.find(row => row.date === date);
-    const unchanged = same?.source === 'wsj-latest' && same.pe_ttm === quote.trailing && same.pe_forward === quote.forward;
+    const unchanged = same && indexMetricSource(same, 'pe_ttm') === 'wsj-latest' && same.pe_ttm === quote.trailing && same.pe_forward === quote.forward;
     upsert(bySymbol, index.symbol, { date, pe_ttm: quote.trailing, pe_forward: quote.forward, pb: null,
       source: 'wsj-latest', capturedAt: unchanged ? same.capturedAt : now.toISOString() });
     const original = structuredClone(index.points);
@@ -78,7 +79,7 @@ export function validateWsjFreshness(dataset, metrics, now = new Date(), { forwa
   const problems = [];
   for (const id of ids) {
     const index = dataset.indices.find(row => row.id === id);
-    const row = (metrics.symbols[index?.symbol] || []).filter(row => row.source === 'wsj-latest').at(-1);
+    const row = (metrics.symbols[index?.symbol] || []).filter(row => indexMetricSource(row, 'pe_ttm') === 'wsj-latest').at(-1);
     const expected = id === 'dow30' ? target : friday;
     if (!row || row.date < expected) problems.push(`${id}: WSJ ${row?.date || 'missing'}, expected >= ${expected}`);
     if (row) {
