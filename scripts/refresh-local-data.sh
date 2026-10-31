@@ -143,7 +143,7 @@ cd "${ROOT_DIR}"
 
 "${NODE_BIN}" packages/data-pipeline/src/build-snapshot.ts
 "${NODE_BIN}" scripts/repair-data-gaps.mjs index
-"${NODE_BIN}" scripts/sync-wsj-valuations.mjs
+"${NODE_BIN}" scripts/sync-wsj-valuations.mjs --allow-unavailable
 "${NODE_BIN}" scripts/sync-index-sources.mjs
 "${NODE_BIN}" scripts/reconcile-sp500-pb.mjs --write
 "${NODE_BIN}" scripts/reconcile-index-valuations.mjs --write

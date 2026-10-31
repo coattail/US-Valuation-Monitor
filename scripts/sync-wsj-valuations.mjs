@@ -93,7 +93,7 @@ export function validateWsjFreshness(dataset, metrics, now = new Date(), { forwa
   if (problems.length) throw new Error(`WSJ source validation failed:\n${problems.join('\n')}`);
 }
 
-export async function syncWsj({ dir = path.join(root, 'data/standardized'), now = new Date(), fetchSnapshots = fetchWsjPeSnapshot, check = false } = {}) {
+export async function syncWsj({ dir = path.join(root, 'data/standardized'), now = new Date(), fetchSnapshots = fetchWsjPeSnapshot, check = false, allowUnavailable = false } = {}) {
   const read = async name => JSON.parse(await readFile(path.join(dir, name), 'utf8'));
   const write = async (name, value) => writeFile(path.join(dir, name), JSON.stringify(value, null, 2) + '\n');
   const dataset = await read('valuation-history.json'), metrics = await read('index-yahoo-daily-metrics.json');
@@ -103,8 +103,18 @@ export async function syncWsj({ dir = path.join(root, 'data/standardized'), now 
     try { forwardInputs = await read('index-forward-inputs.json'); } catch(error) { if(error.code !== 'ENOENT') throw error; }
     return validateWsjFreshness(dataset, metrics, now, {forwardInputs});
   }
-  const observations = await fetchSnapshots(undefined, lastCompletedSession(now));
-  if (!observations.size) throw new Error('No dated WSJ observations available; retain existing published data');
+  let observations;
+  try { observations = await fetchSnapshots(undefined, lastCompletedSession(now)); }
+  catch (error) {
+    if (!allowUnavailable) throw error;
+    console.warn(`[wsj] Source unavailable; estimating from cached anchors: ${error.message}`);
+    observations = new Map();
+  }
+  if (!observations.size) {
+    if (!allowUnavailable) throw new Error('No dated WSJ observations available; retain existing published data');
+    console.warn('[wsj] No new observations available; retain cached anchors for daily estimates');
+    return { dataset, metrics, changes: [], changed: false, sourceUnavailable: true };
+  }
   const result = reconcileWsj(dataset, metrics, observations, { now,
     spx: (await read('sp500-ttm-closes.json')).observations,
     ndx: (await read('nasdaq100-forward-closes.json')).observations,
@@ -128,5 +138,5 @@ export async function syncWsj({ dir = path.join(root, 'data/standardized'), now 
 }
 
 if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
-  syncWsj({ check: process.argv.includes('--check') }).catch(error => { console.error(error); process.exitCode = 1; });
+  syncWsj({ check: process.argv.includes('--check'), allowUnavailable: process.argv.includes('--allow-unavailable') }).catch(error => { console.error(error); process.exitCode = 1; });
 }
