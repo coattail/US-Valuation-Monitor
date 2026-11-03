@@ -10545,8 +10545,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-11-02",
-          "pe_ttm": 28.32,
-          "pe_forward": 16.51,
+          "pe_ttm": 27.64,
+          "pe_forward": 16.15,
           "pb": 8.017905,
           "us10y_yield": 0.035,
           "recovery": {
