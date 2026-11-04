@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-11-04T00:36:07.954Z",
+  "generatedAt": "2026-11-04T02:21:26.925Z",
   "indices": {
     "dow30": {
       "pointCount": 7243,
@@ -122,7 +122,7 @@
       "pointCount": 5456,
       "firstDate": "2005-02-25",
       "lastDate": "2026-11-03",
-      "sha256": "ecaaf9490185bea1bd2236f7da08884c65b231da008ec0ffddeffe6230f5636f"
+      "sha256": "99afed2d81ea0927d7bf5da61041dc1fb72649bb096c6fa586f035c85be73667"
     },
     "sp500": {
       "pointCount": 6751,
