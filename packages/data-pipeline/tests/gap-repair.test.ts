@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseYahooCloses, parseChartExchangeCloses, repairMissingPoints, assertExistingPointsUnchanged, fetchGapCloses } from '../src/gap-repair.ts';
+import { applyPolicyToNewPoints, parseYahooCloses, parseChartExchangeCloses, repairMissingPoints, assertExistingPointsUnchanged, fetchGapCloses } from '../src/gap-repair.ts';
 import { lastCompletedSession, isTradingDate, tradingDates } from '../src/market-calendar.ts';
 import { findMissingSessions } from '../../../scripts/validate-data-freshness.mjs';
+import { applySp500TtmPricePolicy } from '../src/sp500-ttm-policy.ts';
+import { applyNasdaqForwardPricePolicy } from '../src/nasdaq-forward-policy.ts';
+import { applyWsjIndexPolicy } from '../src/wsj-index-policy.ts';
 
 test('calendar excludes observed holidays and respects New York close and DST', () => {
   for (const date of ['2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25','2026-06-19','2026-07-03','2026-09-07','2026-11-26','2026-12-25','2025-01-09']) assert.equal(isTradingDate(date), false, date);
@@ -38,6 +41,45 @@ test('no price, yield, valid scale, or recent anchor means no fabricated row', (
   const prices = [{date:'2026-09-01',close:100,source:'a'},{date:'2026-09-22',close:105,source:'a'}];
   assert.equal(repairMissingPoints(before,['2026-09-22'],prices,new Map([['2026-09-22',.04]])).repairs.length,0);
   assert.equal(repairMissingPoints([{...before[0],date:'2026-09-21'}],['2026-09-22'],prices,new Map()).repairs.length,0);
+});
+
+for (const [id, apply] of [['sp500', applySp500TtmPricePolicy], ['nasdaq100', applyNasdaqForwardPricePolicy]] as const) {
+  test(`${id} gap policies preserve published WSJ provenance and estimate only new dates`, () => {
+    const quotes = [{ date: '2026-05-08', pe_ttm: 26.4, pe_forward: 21.85, source: 'wsj-latest' }];
+    const closes = ['2026-05-08', '2026-05-11', '2026-05-12', '2026-05-13']
+      .map((date, i) => ({ date, close: 100 + i, source: 'index-test' }));
+    const before = applyWsjIndexPolicy([
+      { date: '2026-05-08', pe_ttm: 26.4, pe_forward: 21.85 },
+      { date: '2026-05-11', pe_ttm: null, pe_forward: null },
+      { date: '2026-05-13', pe_ttm: null, pe_forward: null },
+    ], id, quotes, closes);
+    const saved = JSON.stringify(before);
+    // This is the failing path in Daily Data Refresh #264.
+    assert.throws(() => assertExistingPointsUnchanged(before, apply(before, quotes, closes)), /Gap repair altered an existing record/);
+    const recovered = { date: '2026-05-12', pe_ttm: 99, pe_forward: 99, recovery: { estimated: true } };
+    const after = applyPolicyToNewPoints(before, [...before, recovered], points => {
+      assert.deepEqual(points, [recovered]);
+      return apply(points, quotes, closes);
+    });
+    assert.equal(JSON.stringify(before), saved);
+    assertExistingPointsUnchanged(before, after);
+    assert.deepEqual(after.map(point => point.date), closes.map(point => point.date));
+    const added = after.find(point => point.date === recovered.date)!;
+    const metric = id === 'sp500' ? 'pe_ttm' : 'pe_forward';
+    assert.equal(added[metric], Number((quotes[0][metric] * 1.02).toFixed(4)));
+    assert.deepEqual(added.recovery, recovered.recovery);
+    assert.deepEqual(applyPolicyToNewPoints(after, after, points => apply(points, quotes, closes)), after);
+  });
+}
+
+test('new-point policies still reject edits, deletions, and duplicate dates in existing history', () => {
+  const before = [{ date: '2026-05-11', pe_ttm: 26.664, recovery: { anchorDate: '2026-05-08' } }];
+  for (const after of [
+    [{ ...before[0], pe_ttm: 99 }],
+    [{ ...before[0], recovery: { anchorDate: '2026-05-07' } }],
+    [],
+  ]) assert.throws(() => applyPolicyToNewPoints(before, after, points => points), /Gap repair altered an existing record/);
+  assert.throws(() => applyPolicyToNewPoints(before, [...before, ...before], points => points), /Duplicate dates after gap repair/);
 });
 test('fallback fills an interior null despite a newer primary observation', async () => {
   const calls: string[] = [];

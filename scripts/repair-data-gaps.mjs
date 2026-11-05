@@ -4,7 +4,7 @@ import { readFile, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertDatasetMatchesIndexHistoryLock, buildIndexHistoryLock } from '../packages/data-pipeline/src/index-history-lock.ts';
-import { assertExistingPointsUnchanged, fetchGapCloses, repairMissingPoints, recoverWithBudget } from '../packages/data-pipeline/src/gap-repair.ts';
+import { applyPolicyToNewPoints, assertExistingPointsUnchanged, fetchGapCloses, repairMissingPoints, recoverWithBudget } from '../packages/data-pipeline/src/gap-repair.ts';
 import { lastCompletedSession, shiftDate, tradingDates } from '../packages/data-pipeline/src/market-calendar.ts';
 import { refreshNasdaqForwardCloses } from '../packages/data-pipeline/src/nasdaq-forward-closes.ts';
 import { applyNasdaqForwardPricePolicy, assertNasdaqForwardCoverage } from '../packages/data-pipeline/src/nasdaq-forward-policy.ts';
@@ -65,20 +65,24 @@ const skipped = await recoverWithBudget(pending, async item => {
 if (skipped.length) console.warn(`[gap] recovery budget exhausted; not attempted: ${skipped.map(item => item.symbol).join(', ')}`);
 for (const item of dataset.indices) {
   const original = originals.get(item);
+  const existingDates = new Set(original.map(point => point.date));
   if (kind === 'index' && item.id === 'nasdaq100') {
-    item.points = applyNasdaqForwardPricePolicy(item.points, metrics.symbols.QQQ || [], ndxCloses);
+    item.points = applyPolicyToNewPoints(original, item.points, points => applyNasdaqForwardPricePolicy(points, metrics.symbols.QQQ || [], ndxCloses));
     assertNasdaqForwardCoverage(item.points);
     for (const repair of ledger.repairs.QQQ || []) {
-      [repair.point] = applyNasdaqForwardPricePolicy([repair.point], metrics.symbols.QQQ || [], ndxCloses);
+      if (!existingDates.has(repair.date)) repair.point = item.points.find(point => point.date === repair.date) || repair.point;
     }
   }
   if (kind === 'index' && item.id === 'sp500') {
-    item.points = applySp500TtmPricePolicy(item.points, metrics.symbols.SPY || [], spxCloses);
+    item.points = applyPolicyToNewPoints(original, item.points, points => {
+      // Keep the retained March anchor available for a replayed legacy gap.
+      const anchor = original.filter(point => point.date === '2026-03-20');
+      return applySp500TtmPricePolicy([...anchor, ...points], metrics.symbols.SPY || [], spxCloses)
+        .filter(point => !existingDates.has(point.date));
+    });
     assertSp500TtmCoverage(item.points);
     for (const repair of ledger.repairs.SPY || []) {
-      // Include the retained March anchor when correcting a cached repair row.
-      const repaired = applySp500TtmPricePolicy([...item.points.filter(p => p.date === '2026-03-20'), repair.point], metrics.symbols.SPY || [], spxCloses);
-      repair.point = repaired.at(-1);
+      if (!existingDates.has(repair.date)) repair.point = item.points.find(point => point.date === repair.date) || repair.point;
     }
   }
   assertExistingPointsUnchanged(original, item.points);

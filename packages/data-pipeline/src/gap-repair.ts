@@ -105,3 +105,14 @@ export function assertExistingPointsUnchanged(before: GapPoint[], after: GapPoin
   if (afterMap.size !== after.length) throw new Error('Duplicate dates after gap repair');
   for (const point of before) if (JSON.stringify(point) !== JSON.stringify(afterMap.get(point.date))) throw new Error(`Gap repair altered an existing record: ${point.date}`);
 }
+
+// Gap recovery may estimate new dates, but must not re-run older valuation
+// policies over published rows whose provenance has since been reconciled.
+export function applyPolicyToNewPoints(before: GapPoint[], after: GapPoint[], policy: (points: GapPoint[]) => GapPoint[]): GapPoint[] {
+  const existingDates = new Set(before.map(point => point.date));
+  const retained = after.filter(point => existingDates.has(point.date));
+  const added = after.filter(point => !existingDates.has(point.date));
+  const result = [...retained, ...policy(added)].sort((a, b) => a.date.localeCompare(b.date));
+  assertExistingPointsUnchanged(before, result);
+  return result;
+}
