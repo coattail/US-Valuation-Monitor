@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-11-05T15:26:10.218Z",
+  "generatedAt": "2026-11-05T17:30:28.744Z",
   "indices": {
     "dow30": {
       "pointCount": 7244,
@@ -38,7 +38,7 @@
       "pointCount": 6498,
       "firstDate": "2001-01-03",
       "lastDate": "2026-11-04",
-      "sha256": "55e7d7a15635068dc89ea577502e883d2302bf1d84e979c25c730d7c28015af8"
+      "sha256": "25f1ee0b8fc6ccd5980d84750ce0bb735033c83a76851208de82d7b8610a67d7"
     },
     "sector_communication": {
       "pointCount": 2107,
@@ -116,7 +116,7 @@
       "pointCount": 6366,
       "firstDate": "2001-07-13",
       "lastDate": "2026-11-04",
-      "sha256": "9c3b9c8093fa51567c27c20832950ce62ecadacf3bbec873abf43f0050b37200"
+      "sha256": "8f09ab4f69c10567386b5f8af78445996cf060a7378fcdef782fa0bb2807ce04"
     },
     "sp400": {
       "pointCount": 5457,
