@@ -391,6 +391,11 @@
         "date": "2026-11-03",
         "close": 102.66000366210938,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 103.55999755859375,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "IJH": [
@@ -783,6 +788,11 @@
         "date": "2026-11-03",
         "close": 74.12999725341797,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 74.58999633789062,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "SMH": [
@@ -1175,6 +1185,11 @@
         "date": "2026-11-03",
         "close": 518.52001953125,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 504.2699890136719,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "DRAM": [
@@ -1567,6 +1582,11 @@
         "date": "2026-11-03",
         "close": 47.63999938964844,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/DRAM?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 45.11000061035156,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/DRAM?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "SOXX": [
@@ -1959,6 +1979,11 @@
         "date": "2026-11-03",
         "close": 465,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 450.4100036621094,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "VTI": [
@@ -2351,6 +2376,11 @@
         "date": "2026-11-03",
         "close": 371.2099914550781,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 376.9200134277344,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLE": [
@@ -3053,6 +3083,11 @@
         "date": "2026-11-03",
         "close": 66.68000030517578,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLE?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 63.52000045776367,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLE?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLRE": [
@@ -3755,6 +3790,11 @@
         "date": "2026-11-03",
         "close": 43.66999816894531,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLRE?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 45.119998931884766,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLRE?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLF": [
@@ -4457,6 +4497,11 @@
         "date": "2026-11-03",
         "close": 57.189998626708984,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLF?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 59.20000076293945,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLF?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLY": [
@@ -5159,6 +5204,11 @@
         "date": "2026-11-03",
         "close": 117.33000183105469,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLY?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 122.33000183105469,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLY?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLB": [
@@ -5861,6 +5911,11 @@
         "date": "2026-11-03",
         "close": 52.59000015258789,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLB?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 53.900001525878906,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLB?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLK": [
@@ -6563,6 +6618,11 @@
         "date": "2026-11-03",
         "close": 176.50999450683594,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLK?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 176.5,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLK?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLU": [
@@ -7265,6 +7325,11 @@
         "date": "2026-11-03",
         "close": 43.41999816894531,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLU?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 43.61000061035156,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLU?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLI": [
@@ -7967,6 +8032,11 @@
         "date": "2026-11-03",
         "close": 171.32000732421875,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLI?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 169.4600067138672,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLI?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLC": [
@@ -8669,6 +8739,11 @@
         "date": "2026-11-03",
         "close": 101.44000244140625,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 104.95999908447266,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLV": [
@@ -9371,6 +9446,11 @@
         "date": "2026-11-03",
         "close": 184.02000427246094,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLV?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 189.66000366210938,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLV?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "XLP": [
@@ -10073,6 +10153,11 @@
         "date": "2026-11-03",
         "close": 88.94999694824219,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 91.94000244140625,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "DIA": [
@@ -10115,6 +10200,11 @@
         "date": "2026-11-03",
         "close": 517.0599975585938,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/DIA?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 533.1099853515625,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/DIA?period1=1793750400&period2=1793836800&interval=1d"
       }
     ],
     "IWM": [
@@ -10507,6 +10597,11 @@
         "date": "2026-11-03",
         "close": 279.7900085449219,
         "source": "https://query1.finance.yahoo.com/v8/finance/chart/IWM?period1=1793664000&period2=1793750400&interval=1d"
+      },
+      {
+        "date": "2026-11-04",
+        "close": 284.0199890136719,
+        "source": "https://query1.finance.yahoo.com/v8/finance/chart/IWM?period1=1793750400&period2=1793836800&interval=1d"
       }
     ]
   }
