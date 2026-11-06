@@ -9,6 +9,7 @@ import { applySp500PbPolicy } from './sp500-pb-policy.ts';
 import { reconstructDramTtm } from './dram-ttm-reconstruction.ts';
 import { applyIndexForwardPolicy, indexForwardAnchors, forwardPlan } from './index-forward-policy.ts';
 import { fetchGapCloses } from './gap-repair.ts';
+import { alignClosePriceBasis } from './close-price-basis.ts';
 import { assertDatasetMatchesIndexHistoryLock, buildIndexHistoryLock } from './index-history-lock.ts';
 
 const defaultDir = fileURLToPath(new URL('../../../data/standardized/', import.meta.url));
@@ -72,8 +73,11 @@ export async function loadIndexPublicationInputs(dir = defaultDir, { dataset, me
       const byDate = new Map([...(files['etf-ttm-closes.json'].symbols[index.symbol] || []), ...(isFundForward ? forward.closes : [])].map(row => [row.date,row]));
       for (const row of byDate.values()) if (!Number.isFinite(row.close) || row.close <= 0 || !row.source) throw new Error(`Invalid ${index.symbol} cached close: ${row.date}`);
       const missing = [...required].filter(date => date <= target && !byDate.has(date)).sort();
-      if (missing.length) for (const row of await fetchCloses(index.symbol,'etf',missing[0],target,missing)) {
-        if (missing.includes(row.date) && Number.isFinite(row.close) && row.close > 0 && row.source) byDate.set(row.date,row);
+      if (missing.length) {
+        const overlap = [...byDate.keys()].filter(date => date < missing[0]).sort().at(-1);
+        const fetched = await fetchCloses(index.symbol,'etf',overlap || missing[0],target,[...(overlap ? [overlap] : []), ...missing]);
+        const aligned = overlap ? alignClosePriceBasis(index.symbol,[...byDate.values()],fetched,target) : fetched;
+        for (const row of aligned) if (missing.includes(row.date) && Number.isFinite(row.close) && row.close > 0 && row.source) byDate.set(row.date,row);
       }
       if ([...required].some(date => date <= target && !byDate.has(date))) throw new Error(`Incomplete ${index.symbol} valuation prices`);
       const closes = [...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
