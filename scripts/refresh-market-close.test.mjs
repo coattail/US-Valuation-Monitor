@@ -20,7 +20,9 @@ test('close schedule starts after 16:00 New York in both DST offsets and skips h
   assert.equal(marketClosePlan({ event: 'workflow_dispatch', mode: 'close' }).run, 'true');
 });
 
-test('overnight company runs also synchronize WSJ without rebuilding index history', () => {
+test('overnight company runs also recover index closes and synchronize WSJ without rebuilding history', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/daily-data-refresh.yml',import.meta.url),'utf8');
+  assert.match(workflow, /if: matrix.dataset == 'index' && needs.plan.outputs.mode != 'full'\n\s+timeout-minutes: 8\n\s+run: npm run refresh:close:index/);
   for (const schedule of ['17 22 * * 1-5', '17 1 * * 2-6']) {
     const plan = marketClosePlan({ schedule, now: new Date('2026-10-15T01:17:00Z') });
     assert.equal(plan.mode, 'company');

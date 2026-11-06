@@ -1,7 +1,9 @@
 import { createTextFetcher } from './fetch-text.ts';
 import { appendRecentCloses, nasdaqClosedQuoteUrl, parseNasdaqClosedQuote } from './recent-close.ts';
+import { coherentCloseWindow } from './close-price-basis.ts';
 
-export interface CloseObservation { date: string; close: number; source: string }
+export interface CloseObservation { date: string; close: number; source: string;
+  basisAdjustment?: { originalClose: number; multiplier: number; referenceDate: string; splitDate: string; source: string } }
 export interface GapPoint { date: string; [key: string]: unknown }
 export interface GapRepair { date: string; anchorDate: string; anchorClose: CloseObservation; close: CloseObservation; method: string; point: GapPoint }
 const fetchText = createTextFetcher({ userAgent: 'Mozilla/5.0', requestBudgetMs: 10000 });
@@ -39,7 +41,17 @@ export async function fetchGapCloses(symbol: string, assetClass: 'stocks' | 'etf
   ];
   for (const { url, parse } of sources) {
     try {
-      for (const point of parse(await request(url))) {
+      const points = parse(await request(url)).filter(point => point.date >= from && point.date <= to);
+      if (!coherentCloseWindow(points)) {
+        console.warn(`[gap] ${symbol}: inconsistent price scale from ${url}; trying the next source`);
+        continue;
+      }
+      const combined = new Map(observations);
+      for (const point of points) if (!combined.has(point.date)) combined.set(point.date, point);
+      // Do not combine a pre-split history with a post-split quote on a
+      // different scale. A complete fallback window replaces that candidate.
+      if (!coherentCloseWindow([...combined.values()])) observations.clear();
+      for (const point of points) {
         if (point.date >= from && point.date <= to && !observations.has(point.date)) observations.set(point.date, point);
       }
       if (requiredDates.every(date => observations.has(date))) break;
