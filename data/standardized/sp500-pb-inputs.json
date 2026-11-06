@@ -430,7 +430,8 @@
     "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1793318400&period2=1793404800&interval=1d",
     "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1793577600&period2=1793664000&interval=1d",
     "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1793664000&period2=1793750400&interval=1d",
-    "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1793750400&period2=1793836800&interval=1d"
+    "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1793750400&period2=1793836800&interval=1d",
+    "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1793836800&period2=1793923200&interval=1d"
   ],
   "closes": [
     {
@@ -27440,6 +27441,10 @@
     {
       "date": "2026-11-04",
       "close": 7688.6201171875
+    },
+    {
+      "date": "2026-11-05",
+      "close": 7353.72998046875
     }
   ]
 }

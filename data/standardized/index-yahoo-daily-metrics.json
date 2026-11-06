@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T17:30:23.658Z",
+  "generatedAt": "2026-11-06T00:59:02.680Z",
   "symbols": {
     "DIA": [
       {
@@ -1098,6 +1098,14 @@
           "pe_forward": "wsj-latest",
           "pb": "ssga-official-latest"
         }
+      },
+      {
+        "date": "2026-11-05",
+        "pe_ttm": 20.05,
+        "pe_forward": 19.57,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-11-06T00:58:37.386Z"
       }
     ],
     "DRAM": [
@@ -1716,6 +1724,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-11-05T17:30:04.795Z"
+      },
+      {
+        "date": "2026-11-05",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "pe_ttm": 18.47,
+        "pe_forward": null,
+        "pb": null
       }
     ],
     "IGV": [
@@ -2351,6 +2367,14 @@
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-05",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "pe_ttm": null,
+        "pe_forward": 24.24,
+        "pb": null
       }
     ],
     "IJH": [
@@ -3170,6 +3194,14 @@
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-05",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "pe_ttm": null,
+        "pe_forward": 14.54,
+        "pb": null
       }
     ],
     "IWM": [
@@ -4869,6 +4901,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-11-05T17:30:03.506Z"
+      },
+      {
+        "date": "2026-11-05",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "pe_ttm": 23.82,
+        "pe_forward": 14.08,
+        "pb": null
       }
     ],
     "SOXX": [
@@ -5494,11 +5534,11 @@
       },
       {
         "date": "2026-11-04",
-        "pe_ttm": 42.73,
-        "pe_forward": 15.41,
-        "pb": 9.13,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-05T17:30:02.350Z",
+        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "pe_ttm": 42.73,
+        "pe_forward": 13.7,
+        "pb": 9.13,
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
@@ -6541,6 +6581,14 @@
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-05",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "pe_ttm": null,
+        "pe_forward": 17.71,
+        "pb": null
       }
     ],
     "XLB": [
