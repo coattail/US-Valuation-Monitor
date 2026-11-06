@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T02:26:24.916Z",
+  "generatedAt": "2026-11-06T08:00:20.855Z",
   "symbols": {
     "DIA": [
       {
@@ -1728,8 +1728,8 @@
       {
         "date": "2026-11-05",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-06T00:58:55.523Z",
-        "pe_ttm": 18.47,
+        "capturedAt": "2026-11-06T08:00:20.855Z",
+        "pe_ttm": 17.68,
         "pe_forward": null,
         "pb": null
       }
@@ -2371,9 +2371,9 @@
       {
         "date": "2026-11-05",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "capturedAt": "2026-11-06T08:00:20.855Z",
         "pe_ttm": null,
-        "pe_forward": 24.24,
+        "pe_forward": 23.91,
         "pb": null
       }
     ],
@@ -3198,9 +3198,9 @@
       {
         "date": "2026-11-05",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "capturedAt": "2026-11-06T08:00:20.855Z",
         "pe_ttm": null,
-        "pe_forward": 14.54,
+        "pe_forward": 14.49,
         "pb": null
       }
     ],
@@ -4905,9 +4905,9 @@
       {
         "date": "2026-11-05",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-06T00:58:55.523Z",
-        "pe_ttm": 23.82,
-        "pe_forward": 14.08,
+        "capturedAt": "2026-11-06T08:00:20.855Z",
+        "pe_ttm": 23.3,
+        "pe_forward": 13.73,
         "pb": null
       }
     ],
@@ -5535,9 +5535,9 @@
       {
         "date": "2026-11-04",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "capturedAt": "2026-11-06T08:00:20.855Z",
         "pe_ttm": 42.73,
-        "pe_forward": 13.7,
+        "pe_forward": 13.47,
         "pb": 9.13,
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
@@ -6585,9 +6585,9 @@
       {
         "date": "2026-11-05",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-06T00:58:55.523Z",
+        "capturedAt": "2026-11-06T08:00:20.855Z",
         "pe_ttm": null,
-        "pe_forward": 17.71,
+        "pe_forward": 17.56,
         "pb": null
       }
     ],

@@ -1487,7 +1487,7 @@
         "point": {
           "date": "2026-11-05",
           "pe_ttm": 20.9495,
-          "pe_forward": 14.54,
+          "pe_forward": 14.49,
           "pb": 2.5947,
           "us10y_yield": 0.035,
           "recovery": {
@@ -2119,7 +2119,7 @@
         "point": {
           "date": "2026-11-05",
           "pe_ttm": 26.2652,
-          "pe_forward": 17.71,
+          "pe_forward": 17.56,
           "pb": 4.7059,
           "us10y_yield": 0.035,
           "recovery": {
@@ -11927,7 +11927,7 @@
         "point": {
           "date": "2026-11-05",
           "pe_ttm": 32.162,
-          "pe_forward": 24.24,
+          "pe_forward": 23.91,
           "pb": 6.549,
           "us10y_yield": 0.035,
           "recovery": {
@@ -12579,8 +12579,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-11-05",
-          "pe_ttm": 23.82,
-          "pe_forward": 14.08,
+          "pe_ttm": 23.3,
+          "pe_forward": 13.73,
           "pb": 7.062337,
           "us10y_yield": 0.035,
           "recovery": {
@@ -13163,7 +13163,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-11-05",
-          "pe_ttm": 18.47,
+          "pe_ttm": 17.68,
           "pe_forward": 4.194653,
           "pb": 3.268913,
           "us10y_yield": 0.035,
@@ -13666,7 +13666,7 @@
         "point": {
           "date": "2026-11-04",
           "pe_ttm": 42.73,
-          "pe_forward": 13.7,
+          "pe_forward": 13.47,
           "pb": 9.13,
           "us10y_yield": 0.035,
           "recovery": {
