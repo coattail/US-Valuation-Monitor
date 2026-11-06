@@ -86,7 +86,7 @@ test('fallback fills an interior null despite a newer primary observation', asyn
   const result = await fetchGapCloses('TCEHY','stocks','2026-09-18','2026-09-23',['2026-09-22'],async url => {
     calls.push(url);
     if (url.includes('nasdaq')) return JSON.stringify({status:{rCode:400}});
-    if (url.includes('yahoo')) return JSON.stringify({chart:{result:[{timestamp:[1790164800],indicators:{quote:[{close:[null]}]}}]}});
+    if (url.includes('yahoo')) return JSON.stringify({chart:{result:[{meta:{symbol:'TCEHY'},timestamp:[1790164800],indicators:{quote:[{close:[null]}]}}]}});
     return '<tr><td>2026-09-22</td><td>57.78</td><td>58.19</td><td>57.41</td><td>57.91</td></tr>';
   });
   assert.equal(calls.length,3); assert.equal(result[0].close,57.91);

@@ -12,3 +12,9 @@ but its missing asset prevented the repository test suite from passing. Its
 unchanged PNG was retrieved from:
 
 - https://companiesmarketcap.com/img/company-logos/256/BBVA.png
+
+ACN and SONY were also missing from the published universe. The unchanged
+PNG files below restore the full CI logo-coverage check:
+
+- https://companiesmarketcap.com/img/company-logos/256/ACN.png
+- https://companiesmarketcap.com/img/company-logos/256/SONY.png

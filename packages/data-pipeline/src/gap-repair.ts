@@ -1,9 +1,11 @@
 import { createTextFetcher } from './fetch-text.ts';
 import { appendRecentCloses, nasdaqClosedQuoteUrl, parseNasdaqClosedQuote } from './recent-close.ts';
-import { coherentCloseWindow } from './close-price-basis.ts';
+import { coherentCloseWindow, splitEventsFor } from './close-price-basis.ts';
+import { parseYahooSplitEvents, yahooChartUrl, type SplitEvent } from './split-events.ts';
 
 export interface CloseObservation { date: string; close: number; source: string;
-  basisAdjustment?: { originalClose: number; multiplier: number; referenceDate: string; splitDate: string; source: string } }
+  splitEvents?: SplitEvent[];
+  basisAdjustment?: { originalClose: number; multiplier: number; referenceDate: string; splitDate: string; source: string; splitEvents?: SplitEvent[] } }
 export interface GapPoint { date: string; [key: string]: unknown }
 export interface GapRepair { date: string; anchorDate: string; anchorClose: CloseObservation; close: CloseObservation; method: string; point: GapPoint }
 const fetchText = createTextFetcher({ userAgent: 'Mozilla/5.0', requestBudgetMs: 10000 });
@@ -12,10 +14,13 @@ const validClose = (value: unknown): value is number => typeof value === 'number
 export function parseYahooCloses(raw: string, source: string, symbol?: string): CloseObservation[] {
   const result = JSON.parse(raw)?.chart?.result?.[0];
   if (symbol && result?.meta?.symbol !== symbol.replace(/\./g, '-')) throw new Error(`Unexpected Yahoo price symbol for ${symbol}`);
-  return (result?.timestamp || []).flatMap((ts: number, i: number) => {
+  const points: CloseObservation[] = (result?.timestamp || []).flatMap((ts: number, i: number) => {
     const close = result?.indicators?.quote?.[0]?.close?.[i];
     return Number.isFinite(ts) && validClose(close) ? [{ date: new Date(ts * 1000).toISOString().slice(0, 10), close, source }] : [];
   });
+  const events = symbol ? parseYahooSplitEvents(raw, source, symbol) : [];
+  if (events.length && points.length) points.at(-1)!.splitEvents = events;
+  return points;
 }
 export function parseChartExchangeCloses(html: string, source: string): CloseObservation[] {
   return [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].flatMap(match => {
@@ -28,9 +33,10 @@ export function parseChartExchangeCloses(html: string, source: string): CloseObs
 export async function fetchGapCloses(symbol: string, assetClass: 'stocks' | 'etf', from: string, to: string, requiredDates: string[], request = (url: string) => fetchText(url, 1, 10000), { preferYahoo = false } = {}): Promise<CloseObservation[]> {
   const observations = new Map<string, CloseObservation>();
   const nasdaq = `https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol.replace(/-/g, '.'))}/historical?assetclass=${assetClass}&fromdate=${from}&todate=${to}&limit=5000`;
-  const yahoo = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol.replace(/\./g, '-'))}?period1=${Date.parse(from + 'T00:00:00Z') / 1000}&period2=${Date.parse(to + 'T00:00:00Z') / 1000 + 86400}&interval=1d`;
+  const yahoo = yahooChartUrl(symbol, from, to);
   const chart = `https://chartexchange.com/symbol/otc-${symbol.toLowerCase()}/historical/`;
-  const yahooSource = { url: yahoo, parse: (raw: string) => parseYahooCloses(raw, yahoo, preferYahoo ? symbol : undefined) };
+  const yahooSource = { url: yahoo, parse: (raw: string) => parseYahooCloses(raw, yahoo, symbol) };
+  let events = splitEventsFor(symbol, []).filter(event => event.date <= to);
   const sources = [
     ...(preferYahoo ? [yahooSource] : []),
     { url: nasdaq, parse: (raw: string) => appendRecentCloses([], raw, to).map(p => ({ date: p.date, close: p.close, source: nasdaq })) },
@@ -42,7 +48,8 @@ export async function fetchGapCloses(symbol: string, assetClass: 'stocks' | 'etf
   for (const { url, parse } of sources) {
     try {
       const points = parse(await request(url)).filter(point => point.date >= from && point.date <= to);
-      if (!coherentCloseWindow(points)) {
+      events = splitEventsFor(symbol, points, events).filter(event => event.date <= to);
+      if (!coherentCloseWindow(points, events)) {
         console.warn(`[gap] ${symbol}: inconsistent price scale from ${url}; trying the next source`);
         continue;
       }
@@ -50,26 +57,31 @@ export async function fetchGapCloses(symbol: string, assetClass: 'stocks' | 'etf
       for (const point of points) if (!combined.has(point.date)) combined.set(point.date, point);
       // Do not combine a pre-split history with a post-split quote on a
       // different scale. A complete fallback window replaces that candidate.
-      if (!coherentCloseWindow([...combined.values()])) observations.clear();
+      if (!coherentCloseWindow([...combined.values()], events)) observations.clear();
       for (const point of points) {
         if (point.date >= from && point.date <= to && !observations.has(point.date)) observations.set(point.date, point);
       }
       if (requiredDates.every(date => observations.has(date))) break;
     } catch (error) { console.warn(`[gap] ${symbol}: ${String(error)}`); }
   }
-  return [...observations.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const result = [...observations.values()].sort((a, b) => a.date.localeCompare(b.date));
+  if (events.length && result.length) result.at(-1)!.splitEvents = events;
+  return result;
 }
 
 // A slow ticker must not consume the recovery window for the entire universe.
 // Drain started workers before returning; callers can then validate/write once.
 export async function recoverWithBudget<T>(items: T[], recover: (item: T) => Promise<void>,
-  { concurrency = 4, budgetMs = 300000, now = Date.now } = {}): Promise<T[]> {
+  { concurrency = 4, budgetMs = 300000, now = Date.now, onError }: {
+    concurrency?: number; budgetMs?: number; now?: () => number; onError?: (item: T, error: unknown) => void;
+  } = {}): Promise<T[]> {
   const deadline = now() + budgetMs;
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
     while (next < items.length && now() < deadline) {
       const item = items[next++];
-      await recover(item);
+      try { await recover(item); }
+      catch (error) { if (!onError) throw error; onError(item, error); }
     }
   }));
   return items.slice(next);

@@ -9,7 +9,8 @@ import { applySp500PbPolicy } from './sp500-pb-policy.ts';
 import { reconstructDramTtm } from './dram-ttm-reconstruction.ts';
 import { applyIndexForwardPolicy, indexForwardAnchors, forwardPlan } from './index-forward-policy.ts';
 import { fetchGapCloses } from './gap-repair.ts';
-import { alignClosePriceBasis } from './close-price-basis.ts';
+import { alignClosePriceBasis, UnverifiedPriceBasisError } from './close-price-basis.ts';
+import { fetchYahooSplitEvents } from './split-events.ts';
 import { assertDatasetMatchesIndexHistoryLock, buildIndexHistoryLock } from './index-history-lock.ts';
 
 const defaultDir = fileURLToPath(new URL('../../../data/standardized/', import.meta.url));
@@ -18,6 +19,7 @@ const save = async (dir, name, data) => writeFile(path.join(dir, name), JSON.str
 
 export async function loadIndexPublicationInputs(dir = defaultDir, { dataset, metrics, refresh = false,
   fetchCloses = (...args) => fetchGapCloses(...args, undefined, { preferYahoo: true }),
+  fetchSplits = fetchYahooSplitEvents,
 } = {}) {
   const files = Object.fromEntries(await Promise.all(['sp500-ttm-closes.json', 'nasdaq100-forward-closes.json', 'index-forward-inputs.json', 'etf-ttm-closes.json', 'sp500-pb-inputs.json'].map(async name => [name, await read(dir, name)])));
   const prices = {};
@@ -76,7 +78,16 @@ export async function loadIndexPublicationInputs(dir = defaultDir, { dataset, me
       if (missing.length) {
         const overlap = [...byDate.keys()].filter(date => date < missing[0]).sort().at(-1);
         const fetched = await fetchCloses(index.symbol,'etf',overlap || missing[0],target,[...(overlap ? [overlap] : []), ...missing]);
-        const aligned = overlap ? alignClosePriceBasis(index.symbol,[...byDate.values()],fetched,target) : fetched;
+        let aligned = fetched;
+        if (overlap) {
+          const cached = [...byDate.values()];
+          try { aligned = alignClosePriceBasis(index.symbol,cached,fetched,target); }
+          catch (error) {
+            if (!(error instanceof UnverifiedPriceBasisError)) throw error;
+            const events = await fetchSplits(index.symbol,[...byDate.keys()].sort()[0],target);
+            aligned = alignClosePriceBasis(index.symbol,cached,fetched,target,events);
+          }
+        }
         for (const row of aligned) if (missing.includes(row.date) && Number.isFinite(row.close) && row.close > 0 && row.source) byDate.set(row.date,row);
       }
       if ([...required].some(date => date <= target && !byDate.has(date))) throw new Error(`Incomplete ${index.symbol} valuation prices`);
