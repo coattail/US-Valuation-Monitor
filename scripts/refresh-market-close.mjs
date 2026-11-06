@@ -34,7 +34,13 @@ export async function refreshMarketClose(kind, {
   const historyFile = 'valuation-history.json';
   const dataset = await read(historyFile);
   assertDatasetMatchesIndexHistoryLock(dataset, await read('index-history-lock.json'));
-  const pending = dataset.indices.filter(item => item.points.length && item.points.at(-1).date < target);
+  const published = structuredClone(dataset);
+  const missingSessions = item => {
+    const present = new Set(item.points.map(point => point.date));
+    const first = item.points[0]?.date;
+    return first ? tradingDates(first > '2026-09-18' ? first : '2026-09-18',target).filter(date => !present.has(date)) : [];
+  };
+  const pending = dataset.indices.filter(item => missingSessions(item).length);
   if (!pending.length) {
     console.log(`[close] ${kind}: already through ${target}`);
     return { added: 0, pending: [] };
@@ -45,7 +51,11 @@ export async function refreshMarketClose(kind, {
     if (error.code !== 'ENOENT') throw error;
     ledger = { version: 1, repairs: {} };
   }
-  const [ndx, spx] = await Promise.all([ndxCloses(target), spxCloses(target)]);
+  const [ndx, spx] = (await Promise.allSettled([ndxCloses(target), spxCloses(target)])).map((result, i) => {
+    if (result.status === 'fulfilled') return result.value;
+    console.warn(`[close] ${i === 0 ? 'NDX' : 'SPX'} closes unavailable; retaining affected index for retry: ${String(result.reason)}`);
+    return [];
+  });
   const yieldRows = [];
   {
     for (const item of dataset.indices) for (const point of item.points) {
@@ -53,7 +63,7 @@ export async function refreshMarketClose(kind, {
         date: point.date, value: point.us10y_yield, source: 'previous-published-us10y-yield',
       });
     }
-    const from = shiftDate(pending.reduce((date, item) => item.points.at(-1).date < date ? item.points.at(-1).date : date, target), -7);
+    const from = shiftDate(pending.map(item => missingSessions(item)[0]).sort()[0], -7);
     const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10&cosd=${from}&coed=${target}`;
     try { yieldRows.push(...parseTreasuryYields(await fetchYield(url), url)); }
     catch (error) { console.warn(`[close] Treasury update unavailable; carrying the last dated yield: ${String(error)}`); }
@@ -62,15 +72,15 @@ export async function refreshMarketClose(kind, {
   let added = 0;
   const skipped = await recoverWithBudget(pending, async item => {
     const original = structuredClone(item.points);
-    const last = original.at(-1).date;
-    const missing = tradingDates(shiftDate(last, 1), target);
-    const closes = await fetchCloses(item.symbol, 'etf', last, target, [last, ...missing]);
+    const missing = missingSessions(item);
+    const anchorDates = [...new Set(missing.map(date => original.findLast(point => point.date < date)?.date).filter(Boolean))].sort();
+    const closes = await fetchCloses(item.symbol, 'etf', anchorDates[0] || missing[0], target, [...anchorDates, ...missing]);
     const yieldByDate = new Map(missing.map(date => [date, yieldRows.findLast(row => row.date <= date)]));
     const yields = new Map(missing.flatMap(date => yieldByDate.get(date) ? [[date, yieldByDate.get(date).value]] : []));
     const result = repairMissingPoints(original, missing, closes, yields, metrics.symbols[item.symbol] || []);
     let points = result.repairs.map(repair => repair.point);
     // Keep the audited SPX/NDX actual-index-price rules. Only new rows enter
-    // these policies; the complete published prefix remains byte-for-byte fixed.
+    // these policies; every previously published row stays byte-for-byte fixed.
     try {
       if (item.id === 'nasdaq100') {
         points = applyNasdaqForwardPricePolicy(points, metrics.symbols.QQQ || [], ndx);
@@ -92,25 +102,28 @@ export async function refreshMarketClose(kind, {
       }
       repair.point = point;
     }
-    item.points = [...original, ...points];
+    item.points = [...original, ...points].sort((a, b) => a.date.localeCompare(b.date));
     assertExistingPointsUnchanged(original, item.points);
     if (points.length) {
       ledger.repairs[item.symbol] = [...(ledger.repairs[item.symbol] || []), ...result.repairs];
       added += points.length;
       console.log(`[close] ${item.symbol}: appended ${points.map(point => point.date).join(', ')}`);
     }
-  }, { concurrency: 8, budgetMs: 300000 });
+  }, { concurrency: 8, budgetMs: 300000,
+    onError: (item, error) => console.warn(`[close] ${item.symbol}: recovery failed; retaining published data for retry: ${String(error)}`),
+  });
   if (skipped.length) console.warn(`[close] budget exhausted: ${skipped.map(item => item.symbol).join(', ')}`);
   if (added) {
     dataset.generatedAt = now.toISOString();
     if (!dataset.source?.includes('+market-close-estimate')) dataset.source = `${dataset.source || kind}+market-close-estimate`;
-    const lock = await read('index-history-lock.json');
-    assertDatasetMatchesIndexHistoryLock(dataset, lock, { allowAppendedPoints: true });
+    // The input lock was checked before recovery. Interior insertions are
+    // permitted only after every existing record is verified unchanged.
+    for (const before of published.indices) assertExistingPointsUnchanged(before.points,dataset.indices.find(item => item.id === before.id).points);
     await write('index-history-lock.json', buildIndexHistoryLock(dataset));
     await write(`${kind}-gap-repairs.json`, ledger);
   }
   if (added) await write(historyFile, dataset);
-  return { added, pending: dataset.indices.filter(item => item.points.at(-1)?.date < target).map(item => item.symbol) };
+  return { added, pending: dataset.indices.filter(item => missingSessions(item).length).map(item => item.symbol) };
 }
 
 if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {

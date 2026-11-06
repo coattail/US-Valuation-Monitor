@@ -54,7 +54,7 @@ const skipped = await recoverWithBudget(pending, async item => {
   const missing = expected.filter(date => date >= item.points[0]?.date && !known.has(date));
   const from = shiftDate(missing[0], -14);
   const anchorDates = missing.map(date => [...item.points].reverse().find(p => p.date < date)?.date).filter(Boolean);
-  const closes = await fetchGapCloses(item.symbol, kind === 'index' ? 'etf' : 'stocks', from, target, [...missing, ...anchorDates]);
+  const closes = await fetchGapCloses(item.symbol, kind === 'index' ? 'etf' : 'stocks', from, target, [...missing, ...anchorDates], undefined, { preferYahoo: true });
   const result = repairMissingPoints(item.points, missing, closes, yields, metrics.symbols[item.symbol] || []);
   item.points = result.points;
   if (result.repairs.length) {

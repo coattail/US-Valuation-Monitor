@@ -36,6 +36,39 @@ test('split-day price extension queries overlap and preserves cached SOXX prices
   assert.deepEqual(result.files['index-forward-inputs.json'].indices.soxx.closes,closes);
 });
 
+test('unlisted symbols discover split events once and reuse retained evidence on later sessions', async t => {
+  const dir = await mkdtemp(path.join(os.tmpdir(),'index-auto-split-'));
+  t.after(() => rm(dir,{recursive:true,force:true}));
+  const source = new URL('../data/standardized/',import.meta.url);
+  await Promise.all(['sp500-ttm-closes.json','nasdaq100-forward-closes.json','index-forward-inputs.json','etf-ttm-closes.json','sp500-pb-inputs.json']
+    .map(name => cp(new URL(name,source),path.join(dir,name))));
+  const read = async name => JSON.parse(await readFile(path.join(dir,name),'utf8'));
+  const save = async (name,data) => writeFile(path.join(dir,name),JSON.stringify(data));
+  const etf = await read('etf-ttm-closes.json'), forward = await read('index-forward-inputs.json');
+  const cached = [{date:'2026-11-04',close:120,source:'cache'}];
+  etf.symbols.SMH = cached;
+  forward.indices.smh = {priceSymbol:'SMH',startDate:'2026-11-04',seed:{date:'2026-11-04',value:20,source:'previous-published-estimate'},observations:[],closes:cached};
+  await save('etf-ttm-closes.json',etf); await save('index-forward-inputs.json',forward);
+  const dataset = {indices:[{id:'smh',symbol:'SMH',points:[{date:'2026-11-04'},{date:'2026-11-05'}]}]};
+  const metrics = {symbols:{SMH:[{date:'2026-11-04',pe_ttm:20,source:'ishares-official-latest'}]}};
+  let eventRequests = 0;
+  const options = {refresh:true,dataset,metrics,fetchSplits:async(symbol,from,to)=>{
+    eventRequests++; assert.equal(symbol,'SMH'); assert.equal(from,'2026-11-04'); assert.equal(to,'2026-11-05');
+    return [{symbol:'SMH',date:'2026-11-05',ratio:2,source:'verified-provider'}];
+  },fetchCloses:async()=>[{date:'2026-11-04',close:60,source:'provider'},{date:'2026-11-05',close:63,source:'provider'}]};
+  const first = await loadIndexPublicationInputs(dir,options);
+  const closes = first.files['etf-ttm-closes.json'].symbols.SMH;
+  assert.equal(eventRequests,1); assert.deepEqual(closes[0],cached[0]); assert.equal(closes[1].close,126);
+  for (const [name,file] of Object.entries(first.files)) await save(name,file);
+  dataset.indices[0].points.push({date:'2026-11-06'});
+  const retry = await loadIndexPublicationInputs(dir,{...options,
+    fetchSplits:async()=>{throw new Error('Retained evidence must avoid another metadata request');},
+    fetchCloses:async()=>[{date:'2026-11-05',close:63,source:'provider'},{date:'2026-11-06',close:66,source:'provider'}],
+  });
+  const next = retry.files['etf-ttm-closes.json'].symbols.SMH;
+  assert.deepEqual(next.slice(0,2),closes); assert.equal(next[2].close,132);
+});
+
 test('all 21 published series are reproducible; stale snapshots, series and incomplete prices block publication', async t => {
   const dir = await mkdtemp(path.join(os.tmpdir(),'index-publication-'));
   t.after(() => rm(dir,{recursive:true,force:true}));

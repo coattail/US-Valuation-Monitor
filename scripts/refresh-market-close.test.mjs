@@ -129,3 +129,49 @@ test('missing price never advances the date and an open session is rejected', as
   await assert.rejects(refreshMarketClose('index', { dir, now: new Date('2026-10-14T19:59:00Z'), target: '2026-10-14' }), /uncompleted/);
   assert.deepEqual(parseTreasuryYields('observation_date,DGS10\n2026-10-14,.', 'fred'), []);
 });
+
+test('close retries repair interior sessions even when the latest session is already published', async t => {
+  const before = [{...anchor,date:'2026-10-12'},{...anchor,date:'2026-10-14',pe_ttm:22}];
+  const {dir,read} = await fixture(t,'index',[{id:'dow30',symbol:'DIA',points:before}]);
+  const result = await refreshMarketClose('index',{dir,now,ndxCloses:async()=>[],spxCloses:async()=>[],
+    fetchYield:async()=> 'observation_date,DGS10\n2026-10-13,4.1',
+    fetchCloses:async(symbol,asset,from,to,required)=>{
+      assert.equal(from,'2026-10-12'); assert.ok(required.includes('2026-10-13'));
+      return [{date:'2026-10-12',close:100,source:'test'},{date:'2026-10-13',close:105,source:'test'}];
+    },
+  });
+  assert.deepEqual(result,{added:1,pending:[]});
+  const dataset = await read('valuation-history.json');
+  assert.deepEqual(dataset.indices[0].points.map(row=>row.date),['2026-10-12','2026-10-13','2026-10-14']);
+  assert.deepEqual(dataset.indices[0].points.filter(row=>row.date!=='2026-10-13'),before);
+  assertDatasetMatchesIndexHistoryLock(dataset,await read('index-history-lock.json'));
+  const retry = await refreshMarketClose('index',{dir,now,fetchCloses:()=>{throw new Error('No requests after recovery');}});
+  assert.deepEqual(retry,{added:0,pending:[]});
+});
+
+test('one failed ticker does not discard another ticker recovery; failed ticker stays pending', async t => {
+  const {dir,read} = await fixture(t,'index',[
+    {id:'soxx',symbol:'SOXX',points:[anchor]}, {id:'dow30',symbol:'DIA',points:[anchor]},
+  ]);
+  const result = await refreshMarketClose('index',{dir,now,ndxCloses:async()=>[],spxCloses:async()=>[],
+    fetchYield:async()=> 'observation_date,DGS10\n2026-10-14,4.1',
+    fetchCloses:async symbol=>{if(symbol==='SOXX') throw new Error('Temporary provider failure');return fetchCloses();},
+  });
+  assert.deepEqual(result,{added:1,pending:['SOXX']});
+  const dataset = await read('valuation-history.json');
+  assert.deepEqual(dataset.indices[0].points,[anchor]);
+  assert.equal(dataset.indices[1].points.at(-1).date,'2026-10-14');
+  assertDatasetMatchesIndexHistoryLock(dataset,await read('index-history-lock.json'));
+});
+
+test('an actual-index provider outage retains that index while other ETF sessions recover', async t => {
+  const {dir,read} = await fixture(t,'index',[
+    {id:'nasdaq100',symbol:'QQQ',points:[anchor]}, {id:'dow30',symbol:'DIA',points:[anchor]},
+  ],{QQQ:[{...anchor,source:'wsj-latest'}]});
+  const result = await refreshMarketClose('index',{dir,now,fetchCloses,
+    ndxCloses:async()=>{throw new Error('Provider outage');},spxCloses:async()=>[],
+    fetchYield:async()=> 'observation_date,DGS10\n2026-10-14,4.1',
+  });
+  assert.deepEqual(result,{added:1,pending:['QQQ']});
+  assert.equal((await read('valuation-history.json')).indices[1].points.at(-1).date,'2026-10-14');
+});
