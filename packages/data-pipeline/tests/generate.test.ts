@@ -877,6 +877,43 @@ test("pickAnchorForwardPeForTest accepts verified public forward references even
   assert.equal(picked, 20.38);
 });
 
+test("XLRE official forward PE above TTM remains usable as a build anchor", () => {
+  assert.equal(pickAnchorForwardPeForTest("sector_real_estate", 31.94, {
+    latestForwardSeriesValue: 35.8,
+    officialTrailing: 31.94,
+    officialForward: 35.8,
+    latestHistoryForward: 35.5576,
+  }), 35.8);
+});
+
+test("a live source outage retains XLRE published forward PE above TTM", () => {
+  assert.equal(pickAnchorForwardPeForTest("sector_real_estate", 31.7237, {
+    latestHistoryForward: 35.5576,
+  }), 35.5576);
+});
+
+test("published forward fallback is independent of a changed live trailing anchor", () => {
+  for (const id of ["sector_real_estate", "sector_communication", "dow30"]) {
+    assert.equal(pickAnchorForwardPeForTest(id, 50, { latestHistoryForward: 20 }), 20);
+    assert.equal(pickAnchorForwardPeForTest(id, 20, { officialForward: 30 }), 30);
+  }
+});
+
+test("source outages still fail without a valid official or published forward value", () => {
+  for (const value of [undefined, null, NaN, Infinity, -1, 0, 2, 120, 1000]) {
+    assert.equal(pickAnchorForwardPeForTest("sector_real_estate", 31.94, {
+      officialForward: value,
+      latestHistoryForward: value,
+    }), null);
+  }
+  // Undated web values do not gain the trust of official/published values.
+  assert.equal(pickAnchorForwardPeForTest("sector_real_estate", 31.94, {
+    latestForwardSeriesValue: 35.8,
+    stockAnalysisForward: 35.8,
+    finvizForward: 35.8,
+  }), null);
+});
+
 test("pruneImplausibleForwardSeriesForTest drops Nasdaq 100 forward anchors that sit far above trailing PE", () => {
   const trailingSeries = [
     { date: "2016-03-31", value: 20.25, ts: Date.parse("2016-03-31T00:00:00Z") },

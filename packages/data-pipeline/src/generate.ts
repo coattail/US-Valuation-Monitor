@@ -5760,9 +5760,12 @@ function pickAnchorForwardPe(
     return { value: wsjValue, source: "wsj" };
   }
 
-  const officialValue = pairWithTrailing(candidates.officialTrailing, candidates.officialForward);
-  if (officialValue !== null) {
-    return { value: officialValue, source: "official" };
+  // Dated fund-provider observations have already passed the source/date
+  // checks. Forward earnings may be lower than trailing earnings, so their
+  // P/E can legitimately exceed TTM (e.g. XLRE). A cross-metric heuristic
+  // must not discard an independently validated official observation.
+  if (isReasonableForwardPe(candidates.officialForward ?? undefined)) {
+    return { value: Number(candidates.officialForward), source: "official" };
   }
 
   if (isReasonableForwardPe(candidates.publicForwardReference ?? undefined)) {
@@ -5779,9 +5782,12 @@ function pickAnchorForwardPe(
     return { value: relaxedSeriesValue, source: "series" };
   }
 
-  const relaxedHistoryValue = relaxedWithAnchor(candidates.latestHistoryForward);
-  if (relaxedHistoryValue !== null) {
-    return { value: relaxedHistoryValue, source: "history" };
+  // The previous dataset is validated and history-locked by build-snapshot.
+  // Retain its independent forward metric when live sources are unavailable;
+  // comparing it with a newly fetched TTM can reject valid published history.
+  // Keep the absolute bounds and leave generic web candidates pair-checked.
+  if (isReasonableForwardPe(candidates.latestHistoryForward ?? undefined)) {
+    return { value: Number(candidates.latestHistoryForward), source: "history" };
   }
 
   return null;
