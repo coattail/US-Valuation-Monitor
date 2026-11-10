@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-10T02:42:09.269Z",
+  "generatedAt": "2026-11-10T04:08:12.683Z",
   "symbols": {
     "DIA": [
       {
@@ -1770,8 +1770,8 @@
       {
         "date": "2026-11-09",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-10T02:42:03.203Z",
-        "pe_ttm": 19.78,
+        "capturedAt": "2026-11-10T04:08:09.093Z",
+        "pe_ttm": 19.96,
         "pe_forward": null,
         "pb": null
       }

@@ -14552,7 +14552,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-11-09",
-          "pe_ttm": 19.78,
+          "pe_ttm": 19.96,
           "pe_forward": 4.735277,
           "pb": 3.690224,
           "us10y_yield": 0.035,
