@@ -44,11 +44,20 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
 
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
         uses: actions/deploy-pages@v4
+
+      # Retry a platform-side timeout once. A second failure remains visible.
+      - name: Retry transient Pages deployment failure
+        if: steps.deployment.outcome == 'failure'
+        id: retry
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000

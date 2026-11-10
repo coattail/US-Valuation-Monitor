@@ -153,7 +153,8 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/apply-refresh-artifacts.mjs
-          git add -A data/standardized
+          node scripts/ensure-company-logos.mjs
+          git add -A data/standardized apps/web/assets/company-logos/64
           if git diff --cached --quiet; then
             echo "No dataset changes detected."
             exit 0

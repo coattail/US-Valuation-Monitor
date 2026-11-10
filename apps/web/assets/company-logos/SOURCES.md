@@ -16,3 +16,8 @@ All marks belong to their respective owners and identify the companies represent
 - DHR.png: original PNG from https://companiesmarketcap.com/img/company-logos/256/DHR.png; restores the missing published-universe asset required by CI.
 
 - NOW.png: original PNG from https://companiesmarketcap.com/img/company-logos/256/NOW.png; restores the missing ServiceNow published-universe asset required by CI.
+
+- BX.png: https://companiesmarketcap.com/img/company-logos/256/BX.png
+- _default.png: rendered from the existing local _default.svg; new constituents receive this neutral placeholder during publication until a brand logo is supplied.
+- ACN.png: https://companiesmarketcap.com/img/company-logos/256/ACN.png
+- SONY.png: https://companiesmarketcap.com/img/company-logos/256/SONY.png
