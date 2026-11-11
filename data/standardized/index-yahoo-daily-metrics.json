@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-11T01:56:53.264Z",
+  "generatedAt": "2026-11-11T07:48:53.343Z",
   "symbols": {
     "DIA": [
       {
@@ -1791,8 +1791,8 @@
       {
         "date": "2026-11-10",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-11T00:37:09.933Z",
-        "pe_ttm": 19.13,
+        "capturedAt": "2026-11-11T07:48:50.122Z",
+        "pe_ttm": 19.41,
         "pe_forward": null,
         "pb": null
       }
@@ -2473,9 +2473,9 @@
       {
         "date": "2026-11-10",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-11T00:37:09.933Z",
+        "capturedAt": "2026-11-11T07:48:50.122Z",
         "pe_ttm": null,
-        "pe_forward": 23.4,
+        "pe_forward": 23.77,
         "pb": null
       }
     ],
@@ -3339,9 +3339,9 @@
       {
         "date": "2026-11-10",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-11T00:37:09.933Z",
+        "capturedAt": "2026-11-11T07:48:50.122Z",
         "pe_ttm": null,
-        "pe_forward": 14.83,
+        "pe_forward": 14.85,
         "pb": null
       }
     ],
@@ -5107,9 +5107,9 @@
       {
         "date": "2026-11-10",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-11T00:37:09.933Z",
-        "pe_ttm": 24.61,
-        "pe_forward": 14.7,
+        "capturedAt": "2026-11-11T07:48:50.122Z",
+        "pe_ttm": 24.95,
+        "pe_forward": 14.91,
         "pb": null
       }
     ],
@@ -5789,9 +5789,9 @@
       {
         "date": "2026-11-10",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-11T00:37:09.933Z",
+        "capturedAt": "2026-11-11T07:48:50.122Z",
         "pe_ttm": null,
-        "pe_forward": 14.63,
+        "pe_forward": 15.04,
         "pb": null
       }
     ],
@@ -6881,9 +6881,9 @@
       {
         "date": "2026-11-10",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-11T00:37:09.933Z",
+        "capturedAt": "2026-11-11T07:48:50.122Z",
         "pe_ttm": null,
-        "pe_forward": 17.91,
+        "pe_forward": 18.01,
         "pb": null
       }
     ],
