@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-12T01:55:09.038Z",
+  "generatedAt": "2026-11-12T03:00:11.671Z",
   "symbols": {
     "DIA": [
       {
@@ -1803,9 +1803,17 @@
       },
       {
         "date": "2026-11-10",
-        "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-12T01:54:08.978Z",
         "pe_ttm": 21.78,
+        "pe_forward": null,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-12T01:54:08.978Z"
+      },
+      {
+        "date": "2026-11-11",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-12T03:00:06.113Z",
+        "pe_ttm": 21.42,
         "pe_forward": null,
         "pb": null
       }
@@ -2485,16 +2493,24 @@
       },
       {
         "date": "2026-11-10",
-        "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-12T01:54:08.978Z",
         "pe_ttm": 33.75,
         "pe_forward": 24.25,
         "pb": 6.86,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-12T01:54:08.978Z",
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-11",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-12T03:00:06.113Z",
+        "pe_ttm": null,
+        "pe_forward": 24.25,
+        "pb": null
       }
     ],
     "IJH": [
@@ -5835,16 +5851,24 @@
       },
       {
         "date": "2026-11-10",
-        "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-12T01:54:08.978Z",
         "pe_ttm": 36.72,
         "pe_forward": 16.39,
         "pb": 8.46,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-12T01:54:08.978Z",
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-11",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-12T03:00:06.113Z",
+        "pe_ttm": null,
+        "pe_forward": 16.39,
+        "pb": null
       }
     ],
     "SPY": [
@@ -6932,16 +6956,24 @@
       },
       {
         "date": "2026-11-10",
-        "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-12T01:54:08.978Z",
         "pe_ttm": 27.39,
         "pe_forward": 18.52,
         "pb": 4.91,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-12T01:54:08.978Z",
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-11",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-12T03:00:06.113Z",
+        "pe_ttm": null,
+        "pe_forward": 18.52,
+        "pb": null
       }
     ],
     "XLB": [

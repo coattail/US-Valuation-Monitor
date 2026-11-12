@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-11-12T01:55:14.291Z",
+  "generatedAt": "2026-11-12T03:00:20.365Z",
   "indices": {
     "dow30": {
       "pointCount": 7249,
@@ -17,16 +17,16 @@
       "sha256": "25abf8eb5a060ef05906d99860ae9e9a4331bdc662655a02fb681d694764e5b8"
     },
     "dram": {
-      "pointCount": 154,
+      "pointCount": 155,
       "firstDate": "2026-04-02",
-      "lastDate": "2026-11-10",
-      "sha256": "819171989167a42a2ed3639b65b3d565f17e44705f0d49ff5929d416ef215d5b"
+      "lastDate": "2026-11-11",
+      "sha256": "b2843362c6f627334fd0cf5a94445b5863bd9d381e5e806c3fb4619778ea0660"
     },
     "igv": {
-      "pointCount": 6368,
+      "pointCount": 6369,
       "firstDate": "2001-07-17",
-      "lastDate": "2026-11-10",
-      "sha256": "dd7e8b6f12c2103f0c02e1044f7d4cc9a165ed04e1e524951b3e38565f611bb5"
+      "lastDate": "2026-11-11",
+      "sha256": "c63f7371a7dd5f9b98f77afedb193930486af6994d0bffd0000b75eb313a4eca"
     },
     "nasdaq100": {
       "pointCount": 6962,
@@ -71,10 +71,10 @@
       "sha256": "5077819cccdbdb02c24f897b3605f8382428a96364d140fad12283f0b9ad8559"
     },
     "sector_healthcare": {
-      "pointCount": 5461,
+      "pointCount": 5462,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-10",
-      "sha256": "cd82f4ea6c1e3d0bf64f3ee148101a2d4eb3f63b55305a7fc83ae6ed0f80aea2"
+      "lastDate": "2026-11-11",
+      "sha256": "253d4b2f4e25713c3de7e6e09ea180a240c33e14becb2576007d64de6485f1f0"
     },
     "sector_industrials": {
       "pointCount": 5462,
@@ -83,10 +83,10 @@
       "sha256": "58736c1f2cce79911509056ef0a5913f0811c11ca2b6b12c68597709464a706a"
     },
     "sector_materials": {
-      "pointCount": 7007,
+      "pointCount": 7008,
       "firstDate": "1999-01-04",
-      "lastDate": "2026-11-10",
-      "sha256": "fb6d62247a4a366d4e8d6b37e9d293791677c0f56d87a300082772ef6a65b27f"
+      "lastDate": "2026-11-11",
+      "sha256": "20d9f913f04255df13fccaf1549b4683814c914a964bdcf20e898f1590327d8c"
     },
     "sector_real_estate": {
       "pointCount": 2786,
@@ -113,10 +113,10 @@
       "sha256": "ab856ca04a24ef1809f0fedc0bb5825c310cf10c9bcfd5bff9f1b9e171a68c19"
     },
     "soxx": {
-      "pointCount": 6370,
+      "pointCount": 6371,
       "firstDate": "2001-07-13",
-      "lastDate": "2026-11-10",
-      "sha256": "2a7a8a0f14c639f0101951ecd6313573b90ce4122edf6e634041412967589b1f"
+      "lastDate": "2026-11-11",
+      "sha256": "96f8e8a74ab580bea279b2e0d4ed35cc4212af3275b9124bd585239579a38b38"
     },
     "sp400": {
       "pointCount": 5462,
@@ -131,10 +131,10 @@
       "sha256": "65308f3fd8e790dd2446a423613429b60f6c70c50ef2af6d83f7f5746131edba"
     },
     "us_total_market": {
-      "pointCount": 5461,
+      "pointCount": 5462,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-10",
-      "sha256": "16b4328e7386cb5dd0067a36bab270ca9cf0b903e184e28531d916762e951d95"
+      "lastDate": "2026-11-11",
+      "sha256": "0593d91d22d978e1d28f25b73d098d6b667661fa2ef388e6988498f13993719c"
     }
   }
 }
