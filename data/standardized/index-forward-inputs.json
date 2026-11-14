@@ -789,6 +789,16 @@
           "date": "2026-11-11",
           "close": 2846.262451171875,
           "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5ERUT?period1=1794355200&period2=1794441600&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 2799.06005859375,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5ERUT?period1=1794441600&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 2790.489501953125,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5ERUT?period1=1794441600&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": []
@@ -1531,6 +1541,16 @@
           "date": "2026-11-11",
           "close": 52486.48828125,
           "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EDJI?period1=1794355200&period2=1794441600&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 52297.08984375,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EDJI?period1=1794441600&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 52347.6015625,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EDJI?period1=1794441600&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": []
@@ -2273,6 +2293,16 @@
           "date": "2026-11-11",
           "close": 108.63,
           "source": "https://api.nasdaq.com/api/quote/XLC/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 107.55999755859375,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 108.69000244140625,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -3023,6 +3053,16 @@
           "date": "2026-11-11",
           "close": 120.98,
           "source": "https://api.nasdaq.com/api/quote/XLY/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 120.45999908447266,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLY?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 119.9800033569336,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLY?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -3463,6 +3503,16 @@
           "date": "2026-11-11",
           "close": 74.74,
           "source": "https://api.nasdaq.com/api/quote/IJH/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 73.8499984741211,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 73.76000213623047,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": []
@@ -3895,6 +3945,16 @@
           "date": "2026-11-11",
           "close": 374.25,
           "source": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1794268800&period2=1794441600&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 372.6199951171875,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 371.1099853515625,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": []
@@ -4637,6 +4697,16 @@
           "date": "2026-11-11",
           "close": 91.435,
           "source": "https://api.nasdaq.com/api/quote/XLP/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 91.05999755859375,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 92.3499984741211,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -5387,6 +5457,16 @@
           "date": "2026-11-11",
           "close": 63.36,
           "source": "https://api.nasdaq.com/api/quote/XLE/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 64.33000183105469,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLE?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 64.95999908447266,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLE?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -6137,6 +6217,16 @@
           "date": "2026-11-11",
           "close": 188.9499969482422,
           "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLV?period1=1794268800&period2=1794441600&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 187.8300018310547,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLV?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 188.85000610351562,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLV?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -6887,6 +6977,16 @@
           "date": "2026-11-11",
           "close": 58.61,
           "source": "https://api.nasdaq.com/api/quote/XLF/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 58.209999084472656,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLF?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 58.68000030517578,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLF?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -7637,6 +7737,16 @@
           "date": "2026-11-11",
           "close": 170.98,
           "source": "https://api.nasdaq.com/api/quote/XLI/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 169.44000244140625,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLI?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 168.77999877929688,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLI?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -8387,6 +8497,16 @@
           "date": "2026-11-11",
           "close": 44.575,
           "source": "https://api.nasdaq.com/api/quote/XLRE/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 44.36000061035156,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLRE?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 44.369998931884766,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLRE?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -9137,6 +9257,16 @@
           "date": "2026-11-11",
           "close": 174.37,
           "source": "https://api.nasdaq.com/api/quote/XLK/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 173.77000427246094,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLK?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 170.27999877929688,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLK?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -9887,6 +10017,16 @@
           "date": "2026-11-11",
           "close": 53.02000045776367,
           "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLB?period1=1794268800&period2=1794441600&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 52.34000015258789,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLB?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 52.22999954223633,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLB?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -10637,6 +10777,16 @@
           "date": "2026-11-11",
           "close": 43.84,
           "source": "https://api.nasdaq.com/api/quote/XLU/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 43.810001373291016,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLU?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 44.040000915527344,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/XLU?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": [
@@ -11077,6 +11227,16 @@
           "date": "2026-11-11",
           "close": 506.96,
           "source": "https://api.nasdaq.com/api/quote/SMH/info?assetclass=etf"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 501.7300109863281,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 486.75,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": []
@@ -11509,6 +11669,16 @@
           "date": "2026-11-11",
           "close": 102.2300033569336,
           "source": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1794268800&period2=1794441600&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-12",
+          "close": 101.44999694824219,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1794355200&period2=1794614400&interval=1d&events=splits"
+        },
+        {
+          "date": "2026-11-13",
+          "close": 101.19000244140625,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/IGV?period1=1794355200&period2=1794614400&interval=1d&events=splits"
         }
       ],
       "observations": []
@@ -12029,6 +12199,54 @@
             "originalClose": 155.39999389648438,
             "multiplier": 3,
             "referenceDate": "2026-11-10",
+            "splitDate": "2026-11-05",
+            "source": "https://www.sec.gov/Archives/edgar/data/1100663/000119312526430480/d156277d497.htm",
+            "splitEvents": [
+              {
+                "symbol": "SOXX",
+                "date": "2026-11-05",
+                "ratio": 3,
+                "source": "https://www.sec.gov/Archives/edgar/data/1100663/000119312526430480/d156277d497.htm"
+              }
+            ]
+          }
+        },
+        {
+          "date": "2026-11-12",
+          "close": 464.9700164794922,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1794355200&period2=1794614400&interval=1d&events=splits",
+          "basisAdjustment": {
+            "originalClose": 154.99000549316406,
+            "multiplier": 3,
+            "referenceDate": "2026-11-11",
+            "splitDate": "2026-11-05",
+            "source": "https://www.sec.gov/Archives/edgar/data/1100663/000119312526430480/d156277d497.htm",
+            "splitEvents": [
+              {
+                "symbol": "SOXX",
+                "date": "2026-11-05",
+                "ratio": 3,
+                "source": "https://www.sec.gov/Archives/edgar/data/1100663/000119312526430480/d156277d497.htm"
+              }
+            ]
+          }
+        },
+        {
+          "date": "2026-11-13",
+          "close": 447.90000915527344,
+          "source": "https://query1.finance.yahoo.com/v8/finance/chart/SOXX?period1=1794355200&period2=1794614400&interval=1d&events=splits",
+          "splitEvents": [
+            {
+              "symbol": "SOXX",
+              "date": "2026-11-05",
+              "ratio": 3,
+              "source": "https://www.sec.gov/Archives/edgar/data/1100663/000119312526430480/d156277d497.htm"
+            }
+          ],
+          "basisAdjustment": {
+            "originalClose": 149.3000030517578,
+            "multiplier": 3,
+            "referenceDate": "2026-11-11",
             "splitDate": "2026-11-05",
             "source": "https://www.sec.gov/Archives/edgar/data/1100663/000119312526430480/d156277d497.htm",
             "splitEvents": [
