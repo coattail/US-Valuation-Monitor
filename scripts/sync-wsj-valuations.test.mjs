@@ -77,6 +77,18 @@ test('new WSJ anchors correct the following SPX/NDX estimates without rewriting 
   assert.throws(() => reconcileWsj(dataset, metrics, observations, { now }), /Missing SPX/);
 });
 
+test('a pending latest session defers only its WSJ observation', () => {
+  const { dataset, metrics } = fixture();
+  dataset.indices.find(index => index.id === 'dow30').points.pop();
+  assert.throws(() => reconcileWsj(dataset, metrics, observations, { now }), /WSJ dow30.*missing trading row/);
+  const result = reconcileWsj(dataset, metrics, observations, { now, deferLatest: true });
+  assert.equal(result.changes.length, 3);
+  assert.equal(result.metrics.symbols.DIA, undefined);
+  assert.throws(() => reconcileWsj(dataset, metrics, observations, {
+    now: new Date('2026-10-20T10:00Z'), deferLatest: true,
+  }), /WSJ dow30.*missing trading row/);
+});
+
 test('persisted synchronization updates the lock and ledger; failed fetch leaves all files intact', async t => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'usvm-wsj-'));
   t.after(() => rm(dir, { recursive: true, force: true }));

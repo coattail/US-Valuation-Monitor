@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import { alignClosePriceBasis } from '../src/close-price-basis.ts';
 import { fetchGapCloses, repairMissingPoints } from '../src/gap-repair.ts';
 
+test('a small Nasdaq primary quote and Yahoo overlap difference does not rebase DIA', () => {
+  const nasdaq = 'https://api.nasdaq.com/api/quote/DIA/info?assetclass=etf';
+  const yahoo = 'https://query1.finance.yahoo.com/v8/finance/chart/DIA?interval=1d';
+  const cached = [{ date: '2026-11-11', close: 524.39, source: nasdaq }];
+  const incoming = [
+    { date: '2026-11-11', close: 524.4400024414062, source: yahoo },
+    { date: '2026-11-12', close: 523.20, source: yahoo },
+  ];
+  assert.deepEqual(alignClosePriceBasis('DIA', cached, incoming, '2026-11-12'), incoming);
+  assert.equal(cached[0].close, 524.39);
+  assert.throws(() => alignClosePriceBasis('DIA', [{ ...cached[0], source: yahoo }], incoming, '2026-11-12'), /Unverified/);
+  assert.throws(() => alignClosePriceBasis('DIA', [{ ...cached[0], close: 524.38 }], incoming, '2026-11-12'), /Unverified/);
+});
+
 const prices = [
   { date: '2026-11-04', close: 150.1367, source: 'nasdaq' },
   { date: '2026-11-05', close: 131.9, source: 'nasdaq' },
