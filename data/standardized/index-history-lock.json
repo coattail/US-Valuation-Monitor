@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-11-14T12:19:35.159Z",
+  "generatedAt": "2026-11-14T15:53:50.165Z",
   "indices": {
     "dow30": {
       "pointCount": 7251,
@@ -26,7 +26,7 @@
       "pointCount": 6371,
       "firstDate": "2001-07-17",
       "lastDate": "2026-11-13",
-      "sha256": "46643350c465a4f12e6ab37ab841905e6f939a546419127cafe8968203de8aa2"
+      "sha256": "8be01390231d1c3148c7697c901b17b2039ae4252285f30943943fa3ed265959"
     },
     "nasdaq100": {
       "pointCount": 6964,
@@ -122,7 +122,7 @@
       "pointCount": 5464,
       "firstDate": "2005-02-25",
       "lastDate": "2026-11-13",
-      "sha256": "f850e2209c7d9b86b0b53e57e37e6dbe68aec96308cd7e13c014422b89c89ff8"
+      "sha256": "7cb7dbd9b64e2e7461604086173ab50608e6b7bd68361d5595df5679b9f93304"
     },
     "sp500": {
       "pointCount": 6759,
