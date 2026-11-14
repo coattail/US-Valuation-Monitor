@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-14T04:23:47.227Z",
+  "generatedAt": "2026-11-14T07:39:51.773Z",
   "symbols": {
     "DIA": [
       {
@@ -1840,11 +1840,11 @@
       },
       {
         "date": "2026-11-13",
-        "pe_ttm": 19.97,
-        "pe_forward": null,
-        "pb": null,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-14T04:23:46.947Z"
+        "capturedAt": "2026-11-14T07:39:51.773Z",
+        "pe_ttm": 20.25,
+        "pe_forward": null,
+        "pb": null
       }
     ],
     "IGV": [
@@ -2556,11 +2556,11 @@
       },
       {
         "date": "2026-11-13",
-        "pe_ttm": null,
-        "pe_forward": 23.79,
-        "pb": null,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-14T04:23:41.242Z"
+        "capturedAt": "2026-11-14T07:39:51.773Z",
+        "pe_ttm": null,
+        "pe_forward": 23.81,
+        "pb": null
       }
     ],
     "IJH": [
@@ -3456,11 +3456,11 @@
       },
       {
         "date": "2026-11-13",
-        "pe_ttm": null,
-        "pe_forward": 14.78,
-        "pb": null,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-14T04:20:32.719Z"
+        "capturedAt": "2026-11-14T07:39:51.773Z",
+        "pe_ttm": null,
+        "pe_forward": 14.8,
+        "pb": null
       }
     ],
     "IWM": [
