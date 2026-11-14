@@ -49,12 +49,12 @@ export function alignClosePriceBasis(symbol: string, cached: CloseObservation[],
     `https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol.replace(/-/g, '.'))}/info?assetclass=etf`;
   const isYahooClose = (row: CloseObservation) => /^https:\/\/query[12]\.finance\.yahoo\.com\/v8\/finance\/chart\//.test(row.source);
   // Nasdaq's dated primary quote and Yahoo's history can differ at the same
-  // close. Accept at most one basis point for that specific source transition.
+  // close. Accept at most five basis points for that specific source transition.
   if (overlaps.every(row => {
     const prior = known.get(row.date)!;
     const crossSource = !prior.basisAdjustment && !row.basisAdjustment &&
       ((isNasdaqClosedQuote(prior) && isYahooClose(row)) || (isYahooClose(prior) && isNasdaqClosedQuote(row)));
-    return crossSource ? Math.abs(prior.close / row.close - 1) <= 0.0001 : near(prior.close, row.close);
+    return crossSource ? Math.abs(prior.close / row.close - 1) <= 0.0005 : near(prior.close, row.close);
   })) return incoming;
   if (!overlaps.every(row => near(known.get(row.date)!.close / row.close, factor))) {
     throw new Error(`Inconsistent ${symbol} overlapping price bases`);

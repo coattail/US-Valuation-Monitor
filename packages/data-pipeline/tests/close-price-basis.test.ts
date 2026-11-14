@@ -14,7 +14,10 @@ test('a small Nasdaq primary quote and Yahoo overlap difference does not rebase 
   assert.deepEqual(alignClosePriceBasis('DIA', cached, incoming, '2026-11-12'), incoming);
   assert.equal(cached[0].close, 524.39);
   assert.throws(() => alignClosePriceBasis('DIA', [{ ...cached[0], source: yahoo }], incoming, '2026-11-12'), /Unverified/);
-  assert.throws(() => alignClosePriceBasis('DIA', [{ ...cached[0], close: 524.38 }], incoming, '2026-11-12'), /Unverified/);
+  assert.throws(() => alignClosePriceBasis('DIA', [{ ...cached[0], close: 524.17 }], incoming, '2026-11-12'), /Unverified/);
+  const iwmY = [{ ...incoming[0], close: 283.09, source: yahoo.replace('/DIA?', '/IWM?') }];
+  const iwmN = [{ ...cached[0], close: 283.06, source: nasdaq.replace('/DIA/', '/IWM/') }];
+  assert.deepEqual(alignClosePriceBasis('IWM', iwmN, iwmY, '2026-11-12'), iwmY);
 });
 
 const prices = [
