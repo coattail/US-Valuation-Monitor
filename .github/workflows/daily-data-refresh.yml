@@ -110,8 +110,8 @@ jobs:
         run: node scripts/reconcile-index-valuations.mjs --check
       - name: Stage validated files
         run: node scripts/stage-refresh-artifact.mjs ${{ matrix.dataset }}
-      # Upload before freshness checks: valid progress must be published even
-      # when one symbol remains unavailable. Missing dates still fail the run.
+      # Upload before freshness checks so validated progress is published even
+      # when a provider still owes observations.
       - uses: actions/upload-artifact@v4
         with:
           name: dataset-${{ matrix.dataset }}
@@ -129,6 +129,9 @@ jobs:
           fi
           node scripts/sync-wsj-valuations.mjs --check
       - name: Require all completed sessions
+        env:
+          REFRESH_TARGET: ${{ needs.plan.outputs.target }}
+          DEFER_LATEST_SESSION: ${{ github.event_name == 'schedule' && github.event.schedule != '17 9 * * 2-6' }}
         run: node scripts/validate-data-freshness.mjs ${{ matrix.dataset }}
 
   publish:
@@ -153,6 +156,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ ! -d refresh-artifact/data/standardized ]; then
+            echo "No validated datasets were built."
+            exit 0
+          fi
           node scripts/apply-refresh-artifacts.mjs
           node scripts/ensure-company-logos.mjs
           git add -A data/standardized apps/web/assets/company-logos/64
@@ -174,7 +181,5 @@ jobs:
       - name: Explain incomplete recovery
         if: always() && needs.build.result != 'success'
         run: |
-          echo '::error::At least one dataset failed to build or has missing trading dates. Available validated data was published; inspect the failed build job. The next scheduled run retries recovery.'
           echo '## Incomplete refresh' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Available validated datasets are published independently. Check the build logs for missing symbols/dates. The later recovery schedule will retry.' >> "$GITHUB_STEP_SUMMARY"
-          exit 1
+          echo 'Check the failed build job for affected symbols or dates. The later recovery schedule will retry.' >> "$GITHUB_STEP_SUMMARY"

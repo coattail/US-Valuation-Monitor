@@ -16,6 +16,7 @@ export function findMissingSessions(series, target, since = '2026-09-18') {
 }
 export async function validateFreshness(kind, target = lastCompletedSession(), {
   dataDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../data/standardized'),
+  deferLatest = false,
 } = {}) {
   if (!['index', 'company'].includes(kind)) throw new Error('Expected index or company');
   const dir = path.join(dataDir, `${kind}-series`);
@@ -23,6 +24,7 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
   const expectedCount = kind === 'index' ? 21 : 100;
   if (files.length !== expectedCount) throw new Error(`${kind}: expected ${expectedCount} series, found ${files.length}`);
   const problems = [];
+  const pending = [];
   let awaitingProviderCount = 0;
   let etfCloses, metrics, forwardInputs, pbInputs, wsjPrices;
   if (kind === 'index') {
@@ -39,6 +41,10 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
       continue;
     }
     const missing = findMissingSessions(series, target);
+    if (deferLatest && missing.at(-1) === target) {
+      missing.pop();
+      pending.push(series.symbol);
+    }
     if (missing.length) problems.push(`${series.symbol}: ${missing.join(', ')}`);
     if(kind === 'index' && series.id === 'sp500') {
       try {
@@ -84,8 +90,11 @@ export async function validateFreshness(kind, target = lastCompletedSession(), {
     }
   }
   if (problems.length) throw new Error(`Incomplete ${kind} data through ${target}:\n${problems.join('\n')}`);
-  console.log(`[freshness] ${kind}: ${files.length - awaitingProviderCount} valuation series complete through ${target}; ${awaitingProviderCount} financial-only entries awaiting provider`);
+  if (pending.length) console.warn(`::warning::${kind} awaiting ${target} from providers: ${pending.join(', ')}. The next scheduled refresh retries.`);
+  console.log(`[freshness] ${kind}: ${files.length - awaitingProviderCount - pending.length} valuation series complete through ${target}; ${awaitingProviderCount} financial-only entries awaiting provider`);
 }
 if (path.resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
-  validateFreshness(process.argv[2]).catch(error => { console.error(error.message); process.exitCode = 1; });
+  validateFreshness(process.argv[2], process.env.REFRESH_TARGET, {
+    deferLatest: process.env.DEFER_LATEST_SESSION === 'true',
+  }).catch(error => { console.error(error.message); process.exitCode = 1; });
 }

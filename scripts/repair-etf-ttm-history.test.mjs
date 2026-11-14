@@ -76,4 +76,7 @@ test('freshness rejects complete daily dates with stale TTM values and accepts t
   await repairEtfTtmHistory({...f,write:true});
   await f.save('index-series/dram.json',(await f.read('valuation-history.json')).indices[0]);
   await validateFreshness('index','2026-07-21',{dataDir:f.dir});
+  await validateFreshness('index','2026-09-18',{dataDir:f.dir,deferLatest:true});
+  await assert.rejects(validateFreshness('index','2026-09-18',{dataDir:f.dir}),/Incomplete index data/);
+  await assert.rejects(validateFreshness('index','2026-09-21',{dataDir:f.dir,deferLatest:true}),/2026-09-18/);
 });

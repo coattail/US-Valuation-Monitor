@@ -15,7 +15,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Correct only the dated source observation and its SPX/NDX estimate tail.
 // A source refresh is still necessary when every trading date already exists.
-export function reconcileWsj(dataset, metrics, observations, { now = new Date(), spx = [], ndx = [] } = {}) {
+export function reconcileWsj(dataset, metrics, observations, { now = new Date(), spx = [], ndx = [], deferLatest = false } = {}) {
   const next = structuredClone(dataset), cache = structuredClone(metrics);
   const bySymbol = new Map(Object.entries(cache.symbols));
   const changes = [];
@@ -28,6 +28,10 @@ export function reconcileWsj(dataset, metrics, observations, { now = new Date(),
     const existing = bySymbol.get(index.symbol) || [];
     if (existing.some(row => indexMetricSource(row, 'pe_ttm') === 'wsj-latest' && row.date > date)) continue;
     const point = index.points.find(row => row.date === date);
+    if (!point && deferLatest && date === lastCompletedSession(now)) {
+      console.warn(`[wsj] ${id}/${date}: waiting for the completed session before applying the observation`);
+      continue;
+    }
     if (!point) throw new Error(`WSJ ${id}/${date}: missing trading row; repair dates before source synchronization`);
     const same = existing.find(row => row.date === date);
     const unchanged = same && indexMetricSource(same, 'pe_ttm') === 'wsj-latest' && same.pe_ttm === quote.trailing && same.pe_forward === quote.forward;
@@ -115,7 +119,7 @@ export async function syncWsj({ dir = path.join(root, 'data/standardized'), now 
     console.warn('[wsj] No new observations available; retain cached anchors for daily estimates');
     return { dataset, metrics, changes: [], changed: false, sourceUnavailable: true };
   }
-  const result = reconcileWsj(dataset, metrics, observations, { now,
+  const result = reconcileWsj(dataset, metrics, observations, { now, deferLatest: allowUnavailable,
     spx: (await read('sp500-ttm-closes.json')).observations,
     ndx: (await read('nasdaq100-forward-closes.json')).observations,
   });
