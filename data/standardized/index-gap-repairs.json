@@ -16363,7 +16363,7 @@
         "point": {
           "date": "2026-11-16",
           "pe_ttm": 37.2559,
-          "pe_forward": 23.58,
+          "pe_forward": 23.18,
           "pb": 6.8485,
           "us10y_yield": 0.035,
           "recovery": {
@@ -17293,8 +17293,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-11-16",
-          "pe_ttm": 24.21,
-          "pe_forward": 14.38,
+          "pe_ttm": 24.12,
+          "pe_forward": 14.31,
           "pb": 7.28585,
           "us10y_yield": 0.035,
           "recovery": {
