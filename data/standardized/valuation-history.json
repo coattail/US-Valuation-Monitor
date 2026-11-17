@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-17T14:35:04.163Z",
+  "generatedAt": "2026-11-17T18:40:37.791Z",
   "source": "free-live-proxy-v6+stockanalysis-pe-2+stockmarketperatio-pe-1+multpl-pb-1+wsj-pe-4+stockanalysis-snap-6+curated-public-fpe-8+vendor-index-fpe-2+ndx-bloomberg-fpe-1+ndx-official-ttm-monthly-1+rut-index-close-1+stockanalysis-fpe-7+sp500-pb-prefix-1+sp500-wsj-carry-1+sp500-yardeni-refinitiv-fpe-prefix-1+fallback10y+wsj-reconciled",
   "indices": [
     {
@@ -277272,7 +277272,7 @@
         {
           "date": "2026-11-16",
           "pe_ttm": 21.8,
-          "pe_forward": 14.57,
+          "pe_forward": 14.59,
           "pb": 2.68,
           "us10y_yield": 0.035,
           "recovery": {
@@ -316567,7 +316567,7 @@
         {
           "date": "2026-11-16",
           "pe_ttm": 27.52,
-          "pe_forward": 17.64,
+          "pe_forward": 17.63,
           "pb": 4.9,
           "us10y_yield": 0.035,
           "recovery": {
