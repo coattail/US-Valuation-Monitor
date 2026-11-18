@@ -835,6 +835,11 @@
       "date": "2026-11-16",
       "close": 7416.58984375,
       "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1794873600&interval=1d"
+    },
+    {
+      "date": "2026-11-17",
+      "close": 7340.52978515625,
+      "source": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=1773964800&period2=1794960000&interval=1d"
     }
   ]
 }
