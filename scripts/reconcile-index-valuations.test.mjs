@@ -92,8 +92,14 @@ test('all 21 published series are reproducible; stale snapshots, series and inco
   await save('index-series/sector_technology.json',series);
   await assert.rejects(validateIndexPublication(dir),/Stale series: sector_technology/);
   const prices = await read('nasdaq100-forward-closes.json');
-  prices.observations.pop();
+  const target = JSON.parse(original).indices.find(row => row.id === 'nasdaq100').points.at(-1).date;
+  assert.ok(prices.observations.some(row => row.date === target));
+  prices.observations = prices.observations.filter(row => row.date !== target);
   await save('nasdaq100-forward-closes.json',prices);
-  await assert.rejects(reconcileIndexValuations({dir,write:true,fetchCloses:async()=>[]}),/Incomplete \^NDX WSJ prices/);
+  await assert.rejects(reconcileIndexValuations({dir,write:true,fetchCloses:async(symbol, asset, from, to, missing)=>{
+    assert.equal(symbol,'^NDX');
+    assert.deepEqual(missing,[target]);
+    return [];
+  }}),/Incomplete \^NDX WSJ prices/);
   assert.equal(await readFile(path.join(dir,'valuation-history.json'),'utf8'),original);
 });
