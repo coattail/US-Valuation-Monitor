@@ -54,8 +54,11 @@ test('published PB is fully reproducible and the September one-day source switch
   const points=history.indices.find(row=>row.id==='sp500').points;
   assert.deepEqual(points,applySp500PbPolicy(points,inputs));
   assert.deepEqual(split.points,points);
-  assert.equal(points.at(-1).pb,Number((inputs.closes.at(-1).close/inputs.bookValues.at(-1).value).toFixed(6)));
-  assert.equal(points.at(-1).pb_basis.bookValueDate,inputs.bookValues.at(-1).date);
+  const latest = points.at(-1);
+  const close = inputs.closes.find(row => row.date === latest.date);
+  const book = inputs.bookValues.find(row => row.date === latest.pb_basis.bookValueDate);
+  assert.equal(latest.pb_basis.bookValue, book.value);
+  assert.equal(latest.pb, Number((close.close / book.value).toFixed(6)));
   const before=points.find(row=>row.date==='2026-09-03'),after=points.find(row=>row.date==='2026-09-04');
   const prices=new Map(inputs.closes.map(row=>[row.date,row.close]));
   assert.ok(Math.abs(after.pb/before.pb-prices.get(after.date)/prices.get(before.date))<1e-6);
