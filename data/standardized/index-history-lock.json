@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-11-19T14:34:40.886Z",
+  "generatedAt": "2026-11-19T18:22:45.729Z",
   "indices": {
     "dow30": {
       "pointCount": 7254,
@@ -26,7 +26,7 @@
       "pointCount": 6374,
       "firstDate": "2001-07-17",
       "lastDate": "2026-11-18",
-      "sha256": "179569b71df21563a0fe5580a96d35059b53f9dba1f4b35e3f91bc2a93a82d8b"
+      "sha256": "985cf6991cff69d4cad5c8571e540016bde35f90ee55692f9679c4dff44137e7"
     },
     "nasdaq100": {
       "pointCount": 6967,
@@ -38,7 +38,7 @@
       "pointCount": 6508,
       "firstDate": "2001-01-03",
       "lastDate": "2026-11-18",
-      "sha256": "24e16aec5c8d75b4d062f0b4a61417b19f7072106ed7d323d6c392ea5fa4d564"
+      "sha256": "961f59d6b8d09c5e882b609ac611b5a597fd2238d0404bb394d0724ebac30add"
     },
     "sector_communication": {
       "pointCount": 2117,
@@ -116,13 +116,13 @@
       "pointCount": 6376,
       "firstDate": "2001-07-13",
       "lastDate": "2026-11-18",
-      "sha256": "e780340d5041c619cb94a3617e9453a45be5a6f4490cb5c1b444cc38b7e9df49"
+      "sha256": "b34bb596c73f4169de57662dd41adcb56acffede95b64a98f932aa5946577a54"
     },
     "sp400": {
       "pointCount": 5467,
       "firstDate": "2005-02-25",
       "lastDate": "2026-11-18",
-      "sha256": "261f5d5d44a943ff600825946137964ec5f5a267ea8e5abdff47617bda157245"
+      "sha256": "79e14e1ffbc29db38414279345064ce739bdd0240c57716721e4f8d65c1d2440"
     },
     "sp500": {
       "pointCount": 6762,
@@ -134,7 +134,7 @@
       "pointCount": 5467,
       "firstDate": "2005-02-25",
       "lastDate": "2026-11-18",
-      "sha256": "ceea92600cead239e2c47d9180612b4f574ce2026db095a9c2bf1d5cecccaf12"
+      "sha256": "d1ad5978f969ab0322166dffba80f78e0e3b6be3d57ee4ca67347d999c4a79ac"
     }
   }
 }
