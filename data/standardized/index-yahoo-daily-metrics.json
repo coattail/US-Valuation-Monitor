@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-20T01:46:34.088Z",
+  "generatedAt": "2026-11-20T03:16:38.240Z",
   "symbols": {
     "DIA": [
       {
@@ -1223,6 +1223,14 @@
           "pe_forward": "wsj-latest",
           "pb": "ssga-official-latest"
         }
+      },
+      {
+        "date": "2026-11-19",
+        "pe_ttm": 18.95,
+        "pe_forward": 19.45,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-11-20T03:16:01.869Z"
       }
     ],
     "DRAM": [
@@ -1913,6 +1921,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-11-19T18:22:21.693Z"
+      },
+      {
+        "date": "2026-11-19",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T03:16:24.087Z",
+        "pe_ttm": 6.56,
+        "pe_forward": null,
+        "pb": null
       }
     ],
     "IGV": [
@@ -2663,16 +2679,24 @@
       },
       {
         "date": "2026-11-18",
-        "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-20T01:46:29.832Z",
         "pe_ttm": 36.63,
         "pe_forward": 21.66,
         "pb": 6.71,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T01:46:29.832Z",
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-19",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T03:16:24.087Z",
+        "pe_ttm": null,
+        "pe_forward": 21.66,
+        "pb": null
       }
     ],
     "IJH": [
@@ -3607,16 +3631,24 @@
       },
       {
         "date": "2026-11-18",
-        "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-20T01:46:29.832Z",
         "pe_ttm": 21.29,
         "pe_forward": 14.1,
         "pb": 2.62,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T01:46:29.832Z",
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-19",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T03:16:24.087Z",
+        "pe_ttm": null,
+        "pe_forward": 14.33,
+        "pb": null
       }
     ],
     "IWM": [
@@ -5489,10 +5521,18 @@
       },
       {
         "date": "2026-11-18",
-        "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-20T01:46:29.832Z",
         "pe_ttm": 22.79,
         "pe_forward": 13.58,
+        "pb": null,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T01:46:29.832Z"
+      },
+      {
+        "date": "2026-11-19",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T03:16:24.087Z",
+        "pe_ttm": 25.24,
+        "pe_forward": 15.36,
         "pb": null
       }
     ],
@@ -6244,16 +6284,24 @@
       },
       {
         "date": "2026-11-18",
-        "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-20T01:46:29.832Z",
         "pe_ttm": 35.52,
         "pe_forward": 14.2,
         "pb": 8.15,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T01:46:29.832Z",
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-19",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T03:16:24.087Z",
+        "pe_ttm": null,
+        "pe_forward": 14.2,
+        "pb": null
       }
     ],
     "SPY": [
@@ -7422,16 +7470,24 @@
       },
       {
         "date": "2026-11-18",
-        "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-20T01:46:29.832Z",
         "pe_ttm": 26.84,
         "pe_forward": 17.01,
         "pb": 4.8,
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T01:46:29.832Z",
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-19",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-20T03:16:24.087Z",
+        "pe_ttm": null,
+        "pe_forward": 17.01,
+        "pb": null
       }
     ],
     "XLB": [
