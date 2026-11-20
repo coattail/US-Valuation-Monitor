@@ -8,7 +8,7 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-11-19T18:22:45.729Z",
+  "generatedAt": "2026-11-20T01:46:51.859Z",
   "indices": {
     "dow30": {
       "pointCount": 7254,
@@ -26,7 +26,7 @@
       "pointCount": 6374,
       "firstDate": "2001-07-17",
       "lastDate": "2026-11-18",
-      "sha256": "985cf6991cff69d4cad5c8571e540016bde35f90ee55692f9679c4dff44137e7"
+      "sha256": "7cda0ee47bda9e5d0a713ef5b515625cfa4334fdfb09896ad5bb43501426ee27"
     },
     "nasdaq100": {
       "pointCount": 6967,
@@ -110,19 +110,19 @@
       "pointCount": 3750,
       "firstDate": "2011-12-20",
       "lastDate": "2026-11-18",
-      "sha256": "e44f391e645bd7a14946da8aff1da728647cadb352de2259c83e003ebed1d8b7"
+      "sha256": "338113ca23d85ec06d3ff620a89bd1c2dd6103dbdd9978fce6faefcc4986b3fe"
     },
     "soxx": {
       "pointCount": 6376,
       "firstDate": "2001-07-13",
       "lastDate": "2026-11-18",
-      "sha256": "b34bb596c73f4169de57662dd41adcb56acffede95b64a98f932aa5946577a54"
+      "sha256": "48f3bbc7eac367351fc688c48c414eec9e79f37f1ec4a6f2d87e7dbbf1d8b8a6"
     },
     "sp400": {
       "pointCount": 5467,
       "firstDate": "2005-02-25",
       "lastDate": "2026-11-18",
-      "sha256": "79e14e1ffbc29db38414279345064ce739bdd0240c57716721e4f8d65c1d2440"
+      "sha256": "ecee47f344d26bafec65522b4d5c0f654485f244208c894b19812f2ca5a91876"
     },
     "sp500": {
       "pointCount": 6762,
@@ -134,7 +134,7 @@
       "pointCount": 5467,
       "firstDate": "2005-02-25",
       "lastDate": "2026-11-18",
-      "sha256": "d1ad5978f969ab0322166dffba80f78e0e3b6be3d57ee4ca67347d999c4a79ac"
+      "sha256": "e71b0fdbee03c8bbea8c0c9bb6017ecb412b019e0d59847a176d50533c0326ef"
     }
   }
 }

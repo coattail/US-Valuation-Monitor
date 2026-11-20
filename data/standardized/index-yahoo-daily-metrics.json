@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-19T18:22:40.495Z",
+  "generatedAt": "2026-11-20T01:46:34.088Z",
   "symbols": {
     "DIA": [
       {
@@ -2663,11 +2663,11 @@
       },
       {
         "date": "2026-11-18",
-        "pe_ttm": 36.63,
-        "pe_forward": 22.17,
-        "pb": 6.71,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-19T18:22:17.528Z",
+        "capturedAt": "2026-11-20T01:46:29.832Z",
+        "pe_ttm": 36.63,
+        "pe_forward": 21.66,
+        "pb": 6.71,
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
@@ -3607,11 +3607,11 @@
       },
       {
         "date": "2026-11-18",
-        "pe_ttm": 21.29,
-        "pe_forward": 14.39,
-        "pb": 2.62,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-19T18:19:29.655Z",
+        "capturedAt": "2026-11-20T01:46:29.832Z",
+        "pe_ttm": 21.29,
+        "pe_forward": 14.1,
+        "pb": 2.62,
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
@@ -5489,11 +5489,11 @@
       },
       {
         "date": "2026-11-18",
-        "pe_ttm": 22.88,
-        "pe_forward": 13.65,
-        "pb": null,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-19T18:22:20.830Z"
+        "capturedAt": "2026-11-20T01:46:29.832Z",
+        "pe_ttm": 22.79,
+        "pe_forward": 13.58,
+        "pb": null
       }
     ],
     "SOXX": [
@@ -6244,11 +6244,11 @@
       },
       {
         "date": "2026-11-18",
-        "pe_ttm": 35.52,
-        "pe_forward": 14.31,
-        "pb": 8.15,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-19T18:22:19.924Z",
+        "capturedAt": "2026-11-20T01:46:29.832Z",
+        "pe_ttm": 35.52,
+        "pe_forward": 14.2,
+        "pb": 8.15,
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
@@ -7422,11 +7422,11 @@
       },
       {
         "date": "2026-11-18",
-        "pe_ttm": 26.84,
-        "pe_forward": 17.25,
-        "pb": 4.8,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-19T18:19:55.850Z",
+        "capturedAt": "2026-11-20T01:46:29.832Z",
+        "pe_ttm": 26.84,
+        "pe_forward": 17.01,
+        "pb": 4.8,
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
