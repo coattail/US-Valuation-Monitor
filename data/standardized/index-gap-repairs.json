@@ -2299,7 +2299,7 @@
         "point": {
           "date": "2026-11-19",
           "pe_ttm": 21.22,
-          "pe_forward": 14.17,
+          "pe_forward": 13.8158,
           "pb": 2.62,
           "us10y_yield": 0.035,
           "recovery": {
@@ -2310,9 +2310,16 @@
             "us10yYieldDate": "2026-11-18",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_forward_snapshot": {
-            "source": "stockanalysis-latest",
-            "dateBasis": "first-seen"
+          "pe_forward_estimate": {
+            "method": "source-forward-price-carry",
+            "anchorDate": "2026-11-18",
+            "anchorPe": 14.1,
+            "anchorClose": 71.94000244140625,
+            "close": 70.48999786376953,
+            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794873600&period2=1795046400&interval=1d&events=splits",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794960000&period2=1795132800&interval=1d&events=splits",
+            "priceSymbol": "IJH",
+            "anchorSource": "stockanalysis-latest"
           }
         }
       }
@@ -18045,7 +18052,7 @@
         "point": {
           "date": "2026-11-19",
           "pe_ttm": 36.78,
-          "pe_forward": 22.08,
+          "pe_forward": 22.14,
           "pb": 6.75,
           "us10y_yield": 0.035,
           "recovery": {
@@ -19080,8 +19087,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-11-19",
-          "pe_ttm": 25.24,
-          "pe_forward": 15.36,
+          "pe_ttm": 25.23,
+          "pe_forward": 15.35,
           "pb": 7.058395,
           "us10y_yield": 0.035,
           "recovery": {
@@ -20970,7 +20977,7 @@
         "point": {
           "date": "2026-11-19",
           "pe_ttm": 35.01,
-          "pe_forward": 15.58,
+          "pe_forward": 15.57,
           "pb": 8.06,
           "us10y_yield": 0.035,
           "recovery": {
