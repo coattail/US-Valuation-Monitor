@@ -2299,7 +2299,7 @@
         "point": {
           "date": "2026-11-19",
           "pe_ttm": 20.8609,
-          "pe_forward": 14.33,
+          "pe_forward": 13.8158,
           "pb": 2.5672,
           "us10y_yield": 0.035,
           "recovery": {
@@ -2319,9 +2319,16 @@
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794873600&period2=1795046400&interval=1d&events=splits",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794960000&period2=1795132800&interval=1d&events=splits"
           },
-          "pe_forward_snapshot": {
-            "source": "stockanalysis-latest",
-            "dateBasis": "first-seen"
+          "pe_forward_estimate": {
+            "method": "source-forward-price-carry",
+            "anchorDate": "2026-11-18",
+            "anchorPe": 14.1,
+            "anchorClose": 71.94000244140625,
+            "close": 70.48999786376953,
+            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794873600&period2=1795046400&interval=1d&events=splits",
+            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794960000&period2=1795132800&interval=1d&events=splits",
+            "priceSymbol": "IJH",
+            "anchorSource": "stockanalysis-latest"
           }
         }
       }
@@ -3278,7 +3285,7 @@
         "point": {
           "date": "2026-11-19",
           "pe_ttm": 26.3121,
-          "pe_forward": 16.6755,
+          "pe_forward": 16.88,
           "pb": 4.7056,
           "us10y_yield": 0.035,
           "recovery": {
@@ -3298,16 +3305,9 @@
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1794873600&period2=1795046400&interval=1d&events=splits",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1794960000&period2=1795132800&interval=1d&events=splits"
           },
-          "pe_forward_estimate": {
-            "method": "source-forward-price-carry",
-            "anchorDate": "2026-11-18",
-            "anchorPe": 17.01,
-            "anchorClose": 359.4800109863281,
-            "close": 352.4100036621094,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1794873600&period2=1795046400&interval=1d&events=splits",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1794960000&period2=1795132800&interval=1d&events=splits",
-            "priceSymbol": "VTI",
-            "anchorSource": "stockanalysis-latest"
+          "pe_forward_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       }
