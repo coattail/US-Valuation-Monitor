@@ -2382,7 +2382,7 @@
         "point": {
           "date": "2026-11-20",
           "pe_ttm": 20.651,
-          "pe_forward": 13.4454,
+          "pe_forward": 13.78,
           "pb": 2.5498,
           "us10y_yield": 0.035,
           "recovery": {
@@ -2402,16 +2402,9 @@
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794960000&period2=1795132800&interval=1d&events=splits",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1795046400&period2=1795219200&interval=1d&events=splits"
           },
-          "pe_forward_estimate": {
-            "method": "source-forward-price-carry",
-            "anchorDate": "2026-11-18",
-            "anchorPe": 14.1,
-            "anchorClose": 71.94000244140625,
-            "close": 68.5999984741211,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1794873600&period2=1795046400&interval=1d&events=splits",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1795046400&period2=1795219200&interval=1d&events=splits",
-            "priceSymbol": "IJH",
-            "anchorSource": "stockanalysis-latest"
+          "pe_forward_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       }
@@ -3402,7 +3395,7 @@
         "point": {
           "date": "2026-11-20",
           "pe_ttm": 25.7516,
-          "pe_forward": 15.8138,
+          "pe_forward": 16.01,
           "pb": 4.5926,
           "us10y_yield": 0.035,
           "recovery": {
@@ -3422,16 +3415,9 @@
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1794960000&period2=1795132800&interval=1d&events=splits",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1795046400&period2=1795219200&interval=1d&events=splits"
           },
-          "pe_forward_estimate": {
-            "method": "source-forward-price-carry",
-            "anchorDate": "2026-11-19",
-            "anchorPe": 16.39,
-            "anchorClose": 352.4100036621094,
-            "close": 340.0199890136719,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1794960000&period2=1795132800&interval=1d&events=splits",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/VTI?period1=1795046400&period2=1795219200&interval=1d&events=splits",
-            "priceSymbol": "VTI",
-            "anchorSource": "stockanalysis-latest"
+          "pe_forward_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       }
@@ -18909,7 +18895,7 @@
         "point": {
           "date": "2026-11-20",
           "pe_ttm": 35.0807,
-          "pe_forward": 21.07,
+          "pe_forward": 21.35,
           "pb": 6.4381,
           "us10y_yield": 0.035,
           "recovery": {
@@ -19991,8 +19977,8 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-11-20",
-          "pe_ttm": 20.8577,
-          "pe_forward": 12.6416,
+          "pe_ttm": 22.59,
+          "pe_forward": 13.63,
           "pb": 6.310408,
           "us10y_yield": 0.035,
           "recovery": {
@@ -20003,25 +19989,13 @@
             "us10yYieldDate": "2026-11-19",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "undated-ttm-etf-price-carry",
-            "anchorDate": "2026-11-19",
-            "anchorPe": 23.33,
-            "anchorClose": 447.4800109863281,
-            "close": 400.05999755859375,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1794960000&period2=1795132800&interval=1d&events=splits",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1795046400&period2=1795219200&interval=1d&events=splits"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           },
-          "pe_forward_estimate": {
-            "method": "source-forward-price-carry",
-            "anchorDate": "2026-11-19",
-            "anchorPe": 14.14,
-            "anchorClose": 447.4800109863281,
-            "close": 400.05999755859375,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1794960000&period2=1795132800&interval=1d&events=splits",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/SMH?period1=1795046400&period2=1795219200&interval=1d&events=splits",
-            "priceSymbol": "SMH",
-            "anchorSource": "stockanalysis-latest"
+          "pe_forward_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       }
@@ -20971,7 +20945,7 @@
         "method": "observed-close-ratio-with-previous-published-fundamentals",
         "point": {
           "date": "2026-11-20",
-          "pe_ttm": 5.5898,
+          "pe_ttm": 15.93,
           "pe_forward": 3.780968,
           "pb": 2.946527,
           "us10y_yield": 0.035,
@@ -20983,14 +20957,9 @@
             "us10yYieldDate": "2026-11-19",
             "us10yYieldSource": "previous-published-us10y-yield"
           },
-          "pe_ttm_estimate": {
-            "method": "undated-ttm-etf-price-carry",
-            "anchorDate": "2026-11-18",
-            "anchorPe": 6.56,
-            "anchorClose": 39.150001525878906,
-            "close": 33.36000061035156,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/DRAM?period1=1794873600&period2=1795046400&interval=1d&events=splits",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/DRAM?period1=1795046400&period2=1795219200&interval=1d&events=splits"
+          "pe_ttm_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       }
