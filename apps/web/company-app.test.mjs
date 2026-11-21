@@ -31,11 +31,16 @@ const noopElement = {
   },
   style: { setProperty() {}, removeProperty() {} },
 };
+const detailStats = { innerHTML: "", children: Array(4).fill(noopElement) };
+const detailPercentileTrack = { innerHTML: "" };
+
 globalThis.document = {
   createElement() {
     return { ...noopElement, dataset: {} };
   },
-  getElementById() {
+  getElementById(id) {
+    if (id === "detail-stats") return detailStats;
+    if (id === "detail-percentile-track") return detailPercentileTrack;
     return { ...noopElement, options: [], value: "", innerHTML: "", textContent: "" };
   },
   head: noopElement,
@@ -58,19 +63,28 @@ const {
   formatAxisDateForWidthForTest,
   formatPercentileForTest,
   renderDetailPercentileChartForTest,
+  renderDetailStatsForTest,
 } = await import("./company-app.js");
 
-test("company percentiles do not round non-boundary values to absolute 0% or 100%", () => {
+test("company overview and comparison formatting keeps non-boundary values inside 0% and 100%", () => {
   assert.equal(formatPercentileForTest(0.9996022275, 1), "99.9%");
   assert.equal(formatPercentileForTest(0.0003977725, 1), "0.1%");
   assert.equal(formatPercentileForTest(0.5, 1), "50.0%");
 });
 
-test("company percentile line labels and tooltips match the summary at the boundaries", () => {
-  const percentiles = [0.000198886, 0.5, 0.999801114, 0, 1];
-  const rows = percentiles.map((percentile_full, index) => ({
+test("company detail percentiles all round to one decimal", () => {
+  const cases = [
+    { percentile: 0.000198886, text: "0.0%" },
+    { percentile: 0.0006, text: "0.1%" },
+    { percentile: 0.5, text: "50.0%" },
+    { percentile: 0.999801114, text: "100.0%" },
+    { percentile: 0, text: "0.0%" },
+    { percentile: 1, text: "100.0%" },
+  ];
+  const rows = cases.map(({ percentile }, index) => ({
     date: `2026-11-1${index}`,
-    percentile_full,
+    value: 13.48,
+    percentile_full: percentile,
   }));
   let options;
   window.echarts = {
@@ -84,9 +98,14 @@ test("company percentile line labels and tooltips match the summary at the bound
 
   const [series] = options.series;
   for (const [index, point] of series.data.entries()) {
-    const percentile = percentiles[index];
-    const expected = formatPercentileForTest(percentile);
+    const { percentile, text: expected } = cases[index];
     assert.equal(point[1], percentile * 100);
+    const viewRows = rows.slice(0, index + 1);
+    renderDetailStatsForTest(rows, viewRows);
+    assert.ok(detailStats.innerHTML.includes(
+      `<div class="k">百分位(当前区间)</div><div class="v">${expected}</div>`
+    ));
+    assert.ok(detailPercentileTrack.innerHTML.includes(`<strong>${expected}</strong>`));
     assert.equal(series.endLabel.formatter({ value: point }), expected);
     assert.ok(options.tooltip.formatter([{ data: point, axisValue: point[0] }])
       .endsWith(`<strong>${expected}</strong>`));

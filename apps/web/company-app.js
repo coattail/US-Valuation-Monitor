@@ -273,19 +273,24 @@ function fmtSigned(value, digits = 2, asPct = false) {
 
 function fmtPct(value, digits = 1) {
   const percentile = toFiniteNumber(value);
-  return formatPercentilePoints(percentile === null ? null : percentile * 100, digits);
-}
-
-function formatPercentilePoints(value, digits = 1) {
-  if (!Number.isFinite(value)) return "--";
+  if (percentile === null) return "--";
   const precision = Math.max(0, Number(digits) || 0);
   const displayStep = 1 / 10 ** precision;
-  let percentage = clamp(value, 0, 100);
+  let percentage = clamp(percentile * 100, 0, 100);
   // A rounded boundary reads as an absolute claim. Preserve the distinction
   // between an extreme percentile and a literal 0%/100% result.
   if (percentage > 0 && percentage < displayStep) percentage = displayStep;
   if (percentage < 100 && percentage > 100 - displayStep) percentage = 100 - displayStep;
   return `${percentage.toFixed(precision)}%`;
+}
+
+function formatDetailPercentile(value) {
+  const percentile = toFiniteNumber(value);
+  return formatPercentilePoints(percentile === null ? null : percentile * 100);
+}
+
+function formatPercentilePoints(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)}%` : "--";
 }
 
 function fmtMarketCap(value) {
@@ -1564,7 +1569,7 @@ function renderDetailPercentileTrack(latest) {
   const left = `${(full * 100).toFixed(1)}%`;
 
   elements.detailPercentileTrack.innerHTML = `
-    <div class="title">当前区间位置 <strong>${fmtPct(latest.percentile_full, 1)}</strong></div>
+    <div class="title">当前区间位置 <strong>${formatDetailPercentile(latest.percentile_full)}</strong></div>
     <div class="bar"><span class="pin" style="left:${left}"></span></div>
     <div class="labels">
       <span>0% 低估</span>
@@ -1646,10 +1651,10 @@ function renderDetailStats(fullRows, viewRows) {
 
   const stats = [
     [metricCfg.label, valueText],
-    ["百分位(当前区间)", fmtPct(latest.percentile_full, 1)],
-    ["百分位(全历史)", fmtPct(latestFull.percentile_full ?? latest.percentile_full, 1)],
-    ["滚动百分位(5Y)", fmtPct(latest.percentile_5y, 1)],
-    ["滚动百分位(10Y)", fmtPct(latest.percentile_10y, 1)],
+    ["百分位(当前区间)", formatDetailPercentile(latest.percentile_full)],
+    ["百分位(全历史)", formatDetailPercentile(latestFull.percentile_full ?? latest.percentile_full)],
+    ["滚动百分位(5Y)", formatDetailPercentile(latest.percentile_5y)],
+    ["滚动百分位(10Y)", formatDetailPercentile(latest.percentile_10y)],
     ["区间变动", fmtSigned(change, 2, true)],
     ["区间最低", metricCfg.percentage ? fmtSigned(min * 100, metricCfg.digits, true) : fmt(min, metricCfg.digits)],
     ["区间最高", metricCfg.percentage ? fmtSigned(max * 100, metricCfg.digits, true) : fmt(max, metricCfg.digits)],
@@ -3074,4 +3079,5 @@ export {
   metricValueFromRaw as metricValueFromRawForTest,
   recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
   renderDetailPercentileChart as renderDetailPercentileChartForTest,
+  renderDetailStats as renderDetailStatsForTest,
 };
