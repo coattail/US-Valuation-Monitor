@@ -17,6 +17,8 @@ globalThis.localStorage = {
   removeItem() {},
 };
 const noopElement = {
+  clientWidth: 600,
+  clientHeight: 300,
   addEventListener() {},
   append() {},
   classList: { toggle() {}, add() {}, remove() {} },
@@ -55,12 +57,44 @@ const {
   recomputeRangeRollingStatsForTest,
   formatAxisDateForWidthForTest,
   formatPercentileForTest,
+  renderDetailPercentileChartForTest,
 } = await import("./company-app.js");
 
 test("company percentiles do not round non-boundary values to absolute 0% or 100%", () => {
   assert.equal(formatPercentileForTest(0.9996022275, 1), "99.9%");
   assert.equal(formatPercentileForTest(0.0003977725, 1), "0.1%");
   assert.equal(formatPercentileForTest(0.5, 1), "50.0%");
+});
+
+test("company percentile line labels and tooltips match the summary at the boundaries", () => {
+  const percentiles = [0.000198886, 0.5, 0.999801114, 0, 1];
+  const rows = percentiles.map((percentile_full, index) => ({
+    date: `2026-11-1${index}`,
+    percentile_full,
+  }));
+  let options;
+  window.echarts = {
+    init: () => ({ resize() {}, setOption(value) { options = value; } }),
+  };
+  try {
+    renderDetailPercentileChartForTest(rows);
+  } finally {
+    delete window.echarts;
+  }
+
+  const [series] = options.series;
+  for (const [index, point] of series.data.entries()) {
+    const percentile = percentiles[index];
+    const expected = formatPercentileForTest(percentile);
+    assert.equal(point[1], percentile * 100);
+    assert.equal(series.endLabel.formatter({ value: point }), expected);
+    assert.ok(options.tooltip.formatter([{ data: point, axisValue: point[0] }])
+      .endsWith(`<strong>${expected}</strong>`));
+  }
+  const gap = [series.data[0][0], null];
+  assert.equal(series.endLabel.formatter({ value: gap }), "--");
+  assert.ok(options.tooltip.formatter([{ data: gap, axisValue: gap[0] }])
+    .endsWith("<strong>--</strong>"));
 });
 
 test("company chart dates shorten progressively for phone and tablet widths", () => {
