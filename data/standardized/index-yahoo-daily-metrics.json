@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-20T17:54:02.020Z",
+  "generatedAt": "2026-11-21T01:25:54.549Z",
   "symbols": {
     "DIA": [
       {
@@ -5552,11 +5552,11 @@
       },
       {
         "date": "2026-11-19",
-        "pe_ttm": 25.23,
-        "pe_forward": 15.35,
-        "pb": null,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-20T17:53:43.463Z"
+        "capturedAt": "2026-11-21T01:25:54.549Z",
+        "pe_ttm": 23.33,
+        "pe_forward": 14.14,
+        "pb": null
       }
     ],
     "SOXX": [
@@ -6320,11 +6320,11 @@
       },
       {
         "date": "2026-11-19",
-        "pe_ttm": 35.01,
-        "pe_forward": 15.57,
-        "pb": 8.06,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-20T17:53:42.171Z",
+        "capturedAt": "2026-11-21T01:25:54.549Z",
+        "pe_ttm": 35.01,
+        "pe_forward": 14.15,
+        "pb": 8.06,
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
@@ -7511,11 +7511,11 @@
       },
       {
         "date": "2026-11-19",
-        "pe_ttm": 26.69,
-        "pe_forward": 16.89,
-        "pb": 4.76,
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-20T17:51:18.228Z",
+        "capturedAt": "2026-11-21T01:25:54.549Z",
+        "pe_ttm": 26.69,
+        "pe_forward": 16.39,
+        "pb": 4.76,
         "metricSources": {
           "pe_ttm": "ishares-official-latest",
           "pe_forward": "stockanalysis-latest",
