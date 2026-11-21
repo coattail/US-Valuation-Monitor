@@ -272,10 +272,15 @@ function fmtSigned(value, digits = 2, asPct = false) {
 }
 
 function fmtPct(value, digits = 1) {
-  if (toFiniteNumber(value) === null) return "--";
+  const percentile = toFiniteNumber(value);
+  return formatPercentilePoints(percentile === null ? null : percentile * 100, digits);
+}
+
+function formatPercentilePoints(value, digits = 1) {
+  if (!Number.isFinite(value)) return "--";
   const precision = Math.max(0, Number(digits) || 0);
   const displayStep = 1 / 10 ** precision;
-  let percentage = clamp(Number(value) * 100, 0, 100);
+  let percentage = clamp(value, 0, 100);
   // A rounded boundary reads as an absolute claim. Preserve the distinction
   // between an extreme percentile and a literal 0%/100% result.
   if (percentage > 0 && percentage < displayStep) percentage = displayStep;
@@ -1817,7 +1822,7 @@ function renderDetailPercentileChart(rows) {
         formatter(params) {
           const point = params?.[0];
           if (!point) return "--";
-          return `${formatAxisDate(point.axisValue)}<br/>百分位: <strong>${fmt(point.data[1], 1)}%</strong>`;
+          return `${formatAxisDate(point.axisValue)}<br/>百分位: <strong>${formatPercentilePoints(point.data?.[1])}</strong>`;
         },
       },
       xAxis: {
@@ -1866,7 +1871,7 @@ function renderDetailPercentileChart(rows) {
             position: "right",
             distance: 8,
             formatter(params) {
-              return `${fmt(params.value?.[1], 1)}%`;
+              return formatPercentilePoints(params.value?.[1]);
             },
             color: "rgba(123, 164, 255, 0.95)",
             fontSize: detailLabelFontSize,
@@ -3068,4 +3073,5 @@ export {
   fmtPct as formatPercentileForTest,
   metricValueFromRaw as metricValueFromRawForTest,
   recomputeRangeRollingStats as recomputeRangeRollingStatsForTest,
+  renderDetailPercentileChart as renderDetailPercentileChartForTest,
 };
