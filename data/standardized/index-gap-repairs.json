@@ -2463,7 +2463,7 @@
         "point": {
           "date": "2026-11-23",
           "pe_ttm": 20.4,
-          "pe_forward": 14.24,
+          "pe_forward": 14.19,
           "pb": 2.52,
           "us10y_yield": 0.035,
           "recovery": {
@@ -3501,7 +3501,7 @@
         "point": {
           "date": "2026-11-23",
           "pe_ttm": 25.23,
-          "pe_forward": 17.15,
+          "pe_forward": 17.14,
           "pb": 4.57,
           "us10y_yield": 0.035,
           "recovery": {
