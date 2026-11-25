@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-24T20:15:38.703Z",
+  "generatedAt": "2026-11-25T03:31:28.234Z",
   "symbols": {
     "DIA": [
       {
@@ -1262,6 +1262,14 @@
           "pe_forward": "wsj-latest",
           "pb": "ssga-official-latest"
         }
+      },
+      {
+        "date": "2026-11-24",
+        "pe_ttm": 19.31,
+        "pe_forward": 18.06,
+        "pb": null,
+        "source": "wsj-latest",
+        "capturedAt": "2026-11-25T03:31:06.225Z"
       }
     ],
     "DRAM": [
@@ -1976,6 +1984,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-11-24T20:15:17.872Z"
+      },
+      {
+        "date": "2026-11-24",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-25T03:31:19.920Z",
+        "pe_ttm": 6.56,
+        "pe_forward": null,
+        "pb": null
       }
     ],
     "IGV": [
@@ -2775,6 +2791,14 @@
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-24",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-25T03:31:19.920Z",
+        "pe_ttm": null,
+        "pe_forward": 22.36,
+        "pb": null
       }
     ],
     "IJH": [
@@ -3758,6 +3782,14 @@
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-24",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-25T03:31:19.920Z",
+        "pe_ttm": null,
+        "pe_forward": 14.19,
+        "pb": null
       }
     ],
     "IWM": [
@@ -5696,6 +5728,14 @@
         "pb": null,
         "source": "stockanalysis-latest",
         "capturedAt": "2026-11-24T20:15:16.136Z"
+      },
+      {
+        "date": "2026-11-24",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-25T03:31:19.920Z",
+        "pe_ttm": 21.89,
+        "pe_forward": 13.07,
+        "pb": null
       }
     ],
     "SOXX": [
@@ -6495,6 +6535,14 @@
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-24",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-25T03:31:19.920Z",
+        "pe_ttm": null,
+        "pe_forward": 13.02,
+        "pb": null
       }
     ],
     "SPY": [
@@ -7720,6 +7768,14 @@
           "pe_forward": "stockanalysis-latest",
           "pb": "ishares-official-latest"
         }
+      },
+      {
+        "date": "2026-11-24",
+        "source": "stockanalysis-latest",
+        "capturedAt": "2026-11-25T03:31:19.920Z",
+        "pe_ttm": null,
+        "pe_forward": 16.85,
+        "pb": null
       }
     ],
     "XLB": [
