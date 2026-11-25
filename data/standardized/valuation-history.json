@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-25T03:31:43.606Z",
+  "generatedAt": "2026-11-25T04:55:00.712Z",
   "source": "free-live-proxy-v6+stockanalysis-pe-2+stockmarketperatio-pe-1+wsj-pe-4+stockanalysis-snap-6+curated-public-fpe-8+vendor-index-fpe-2+ndx-bloomberg-fpe-1+ndx-official-ttm-monthly-1+rut-index-close-1+stockanalysis-fpe-6+sp500-pb-prefix-1+sp500-wsj-carry-1+sp500-yardeni-refinitiv-fpe-prefix-1+fallback10y+wsj-reconciled+market-close-estimate",
   "indices": [
     {
@@ -278246,7 +278246,7 @@
         {
           "date": "2026-11-24",
           "pe_ttm": 20.3626,
-          "pe_forward": 14.164,
+          "pe_forward": 14.22,
           "pb": 2.5154,
           "us10y_yield": 0.035,
           "recovery": {
@@ -278266,16 +278266,9 @@
             "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1795132800&period2=1795478400&interval=1d&events=splits",
             "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1795392000&period2=1795564800&interval=1d&events=splits"
           },
-          "pe_forward_estimate": {
-            "method": "source-forward-price-carry",
-            "anchorDate": "2026-11-23",
-            "anchorPe": 14.19,
-            "anchorClose": 70.95999908447266,
-            "close": 70.83000183105469,
-            "anchorPriceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1795132800&period2=1795478400&interval=1d&events=splits",
-            "priceSource": "https://query1.finance.yahoo.com/v8/finance/chart/IJH?period1=1795392000&period2=1795564800&interval=1d&events=splits",
-            "priceSymbol": "IJH",
-            "anchorSource": "stockanalysis-latest"
+          "pe_forward_snapshot": {
+            "source": "stockanalysis-latest",
+            "dateBasis": "first-seen"
           }
         }
       ]
@@ -317671,7 +317664,7 @@
         {
           "date": "2026-11-24",
           "pe_ttm": 25.1284,
-          "pe_forward": 16.85,
+          "pe_forward": 16.87,
           "pb": 4.5516,
           "us10y_yield": 0.035,
           "recovery": {
@@ -828910,7 +828903,7 @@
         {
           "date": "2026-11-24",
           "pe_ttm": 27.7292,
-          "pe_forward": 13.02,
+          "pe_forward": 13.35,
           "pb": 6.5218,
           "us10y_yield": 0.035,
           "recovery": {
@@ -856909,8 +856902,8 @@
         },
         {
           "date": "2026-11-24",
-          "pe_ttm": 21.89,
-          "pe_forward": 13.07,
+          "pe_ttm": 21.83,
+          "pe_forward": 12.98,
           "pb": 6.731407,
           "us10y_yield": 0.035,
           "recovery": {
