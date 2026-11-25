@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-25T04:54:55.941Z",
+  "generatedAt": "2026-11-25T09:56:10.839Z",
   "symbols": {
     "DIA": [
       {
@@ -3786,9 +3786,9 @@
       {
         "date": "2026-11-24",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-25T04:54:52.185Z",
+        "capturedAt": "2026-11-25T09:56:06.887Z",
         "pe_ttm": null,
-        "pe_forward": 14.22,
+        "pe_forward": 14.23,
         "pb": null
       }
     ],
@@ -6539,9 +6539,9 @@
       {
         "date": "2026-11-24",
         "source": "stockanalysis-latest",
-        "capturedAt": "2026-11-25T04:54:52.185Z",
+        "capturedAt": "2026-11-25T09:56:06.887Z",
         "pe_ttm": null,
-        "pe_forward": 13.35,
+        "pe_forward": 13.02,
         "pb": null
       }
     ],
