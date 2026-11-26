@@ -77,6 +77,10 @@ async function main() {
           const prior = (daily.symbols[item.symbol] || []).find(row => row.date === target);
           const observation = { ...prior, date: target, source: provider.source, capturedAt: provider.capturedAt, metricSources: Object.fromEntries(valuationMetrics.map(metric => [metric, prior?.metricSources?.[metric] || prior?.source || ""])), metricCapturedAt: Object.fromEntries(valuationMetrics.map(metric => [metric, prior?.metricCapturedAt?.[metric] || prior?.capturedAt || ""])), metricSessionDates: { ...prior?.metricSessionDates }, comparisons: {} };
           for (const metric of metrics) {
+            if (metric === 'pe_forward') {
+              if (values[metric] == null && prior?.pe_forward != null) continue;
+              delete observation.forwardEstimate;
+            }
             observation[metric] = values[metric];
             observation.metricSources[metric] = provider.source;
             observation.metricCapturedAt[metric] = provider.capturedAt;

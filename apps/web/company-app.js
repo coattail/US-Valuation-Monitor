@@ -43,7 +43,7 @@ const STORAGE_KEYS = {
 
 const METRIC_CONFIG = {
   pe_ttm: { label: "PE (TTM)", digits: 2 },
-  pe_forward: { label: "PE (Forward · Yahoo Current)", digits: 2 },
+  pe_forward: { label: "PE (Forward · Yahoo Finance)", digits: 2 },
   pb: { label: "PB", digits: 2 },
 };
 const NEGATIVE_VALUATION_BASE = 1_000_000;
@@ -433,7 +433,7 @@ function buildMetricAvailabilityNote({ metric, range, rows }) {
   const requestedStart = subtractYears(end, years);
   if (start <= requestedStart) return "";
 
-  return `PE(Forward · Yahoo Current) 最早可用 ${start}；${String(range).toUpperCase()} 按实际可用区间展示。`;
+  return `PE(Forward · Yahoo Finance) 最早可用 ${start}；${String(range).toUpperCase()} 按实际可用区间展示。`;
 }
 
 function percentileWindow(values, startIndex, endIndex, current) {
@@ -599,6 +599,10 @@ function computeLatestPeStats(points) {
   };
 }
 
+function isYahooForwardEstimate(point) {
+  return point?.valuationSources?.pe_forward?.basis === "yahoo-next-fiscal-year-eps";
+}
+
 function metricValueFromRaw(point, metric) {
   const value = toFiniteNumber(point?.[metric]);
   if ((metric === "pe_ttm" || metric === "pe_forward") && value !== null && Math.abs(value) < 1e-8) {
@@ -649,6 +653,7 @@ function normalizeSnapshotDataset(payload) {
         date: String(item.date || item.endDate || lastPoint?.date || ""),
         pe_ttm: toFiniteNumber(item.pe_ttm),
         pe_forward: toFiniteNumber(item.pe_forward),
+        valuationSources: item.valuationSources || lastPoint?.valuationSources,
         pb: toFiniteNumber(item.pb),
         peg: resolveLatestPointPeg(lastPoint, item.peg),
         percentile_5y: Number.isFinite(toFiniteNumber(item.percentile_5y))
@@ -988,6 +993,7 @@ function getMetricSeries(indexId, metric) {
     result.push({
       date: point.date,
       value,
+      ...(metric === "pe_forward" && isYahooForwardEstimate(point) ? { estimated: true } : {}),
       percentile_5y: pct5,
       percentile_10y: pct10,
       percentile_full: pctFull,
@@ -1029,6 +1035,7 @@ function buildSnapshotRows() {
       date: String(indexData.date || latestRaw.date || indexData.endDate || ""),
       pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm),
       pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward),
+      estimatedForward: isYahooForwardEstimate(latestRaw.date === indexData.date ? latestRaw : indexData),
       pb: toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb),
       peg: resolveLatestPointPeg(latestRaw, indexData.peg),
       percentile_5y: latestPe.percentile_5y,
@@ -1133,7 +1140,7 @@ function renderSnapshotGrid(rows) {
         </div>
         <div class="primary-metric"><span>PE <span class="metric-period">TTM</span></span><strong>${hasPe ? `${fmt(row.pe_ttm, 2)}<small>×</small>` : "不适用"}</strong></div>
         <div class="secondary-metrics">
-          <div><span title="Yahoo Finance Current">PE · FWD</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
+          <div><span title="Yahoo Finance">PE · FWD${row.estimatedForward ? " · 估算" : ""}</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
           <div><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
           <div><span>PEG</span><strong>${fmt(row.peg, 2)}</strong></div>
         </div>
@@ -1650,7 +1657,7 @@ function renderDetailStats(fullRows, viewRows) {
     : fmt(latest.value, metricCfg.digits);
 
   const stats = [
-    [metricCfg.label, valueText],
+    [metricCfg.label, latest.estimated ? `${valueText}（估算）` : valueText],
     ["百分位(当前区间)", formatDetailPercentile(latest.percentile_full)],
     ["百分位(全历史)", formatDetailPercentile(latestFull.percentile_full ?? latest.percentile_full)],
     ["滚动百分位(5Y)", formatDetailPercentile(latest.percentile_5y)],
@@ -1693,6 +1700,8 @@ function renderDetailChart(indexMeta, rows) {
   const metricFormatter = (value) =>
     metricCfg.percentage ? `${fmt(value * 100, metricCfg.digits)}%` : fmt(value, metricCfg.digits);
 
+  const estimatedDates = new Set(rows.filter(row => row.estimated).map(row => row.date));
+
   chart.setOption(
     {
       animationDuration: 500,
@@ -1711,7 +1720,7 @@ function renderDetailChart(indexMeta, rows) {
 
           return [
             axisDate,
-            `${metricCfg.label}: <strong>${price ? metricFormatter(price.data[1]) : "--"}</strong>`,
+            `${metricCfg.label}: <strong>${price ? metricFormatter(price.data[1]) : "--"}</strong>${estimatedDates.has(axisDate) ? "（按 Yahoo 下一财年 EPS 估算）" : ""}`,
           ].join("<br/>");
         },
       },
@@ -2277,7 +2286,7 @@ function renderCompareLatestViews(latestRows, metricCfg, lineColorByIndexId) {
             <span class="compare-name-text" title="${item.name} · 数据日期 ${item.latest.date}">${item.name}<small class="series-date">${item.latest.date}</small></span>
           </div>
         </td>
-        <td>${valueText}</td>
+        <td>${valueText}${item.latest.estimated ? "（估算）" : ""}</td>
         <td style="color:${percentileColor(item.latest.percentile_full)}">${fmtPct(item.latest.percentile_full, 1)}</td>
         <td>${regime}</td>
       </tr>`;
