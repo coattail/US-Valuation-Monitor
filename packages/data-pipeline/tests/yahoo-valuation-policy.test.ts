@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseYahooCurrentValuationTable, publishYahooValuationObservations, readYahooClosingQuote } from '../src/yahoo-valuation-policy.mjs';
+import { parseYahooCurrentValuationTable, publishYahooValuationObservations, readYahooClosingQuote, readYahooNextFiscalYearEps } from '../src/yahoo-valuation-policy.mjs';
 import { createYahooDailyMetricSnapshots, parseYahooQuotePageRatioPayload, parseYahooValuationMeasuresFromHtml,
   mergeCurrentYahooSnapshotsIntoHistoryForTest as store } from '../src/build-company-snapshot.ts';
 
@@ -87,4 +87,40 @@ test('dated PB with a stale numerator is rejected while independently dated Forw
   const [verified] = createYahooDailyMetricSnapshots(null, observed('14.92'), null, prices, target);
   assert.equal(verified.pb, 14.92);
   assert.equal(verified.metricSessionDates?.pb, target);
+});
+
+test('Yahoo next fiscal year EPS fills a missing close valuation and retains its estimate basis', () => {
+  const date = '2026-11-27';
+  const url = 'https://finance.yahoo.com/quote/NVDA/analysis/';
+  const html = `<table>
+    <tr><th>Currency in USD</th><th>Current Year (2027)</th><th>Next Year (2028)</th></tr>
+    <tr><td>Avg. Estimate</td><td>423.8B</td><td>726.23B</td></tr>
+  </table><table>
+    <tr><th>Currency in USD</th><th>Current Qtr. (Jan 2027)</th><th>Next Qtr. (Apr 2027)</th><th>Current Year (2027)</th><th>Next Year (2028)</th></tr>
+    <tr><td>Avg. Estimate</td><td>2.88</td><td>3.32</td><td>9.67</td><td>16.61</td></tr>
+    <tr><td>Year Ago EPS</td><td>1.62</td><td>1.87</td><td>4.77</td><td>9.67</td></tr>
+  </table>`;
+  const consensus = readYahooNextFiscalYearEps(html, url, new Date('2026-11-26T01:00Z'));
+  assert.deepEqual(consensus, { asOf: '2026-11-25', eps: 16.61, fiscalYear: 2028, url });
+  const closing = [{ date, close: 165.05, ts: Date.parse(date) }];
+  const estimateRows = createYahooDailyMetricSnapshots(null, null, null, closing, date, consensus);
+  assert.equal(estimateRows[0].pe_forward, 9.94);
+  const [published] = publishYahooValuationObservations([{ date }], estimateRows, 'NVDA');
+  assert.equal(published.valuationSources.pe_forward.eps, 16.61);
+  assert.equal(published.valuationSources.pe_forward.basis, 'yahoo-next-fiscal-year-eps');
+  assert.deepEqual(publishYahooValuationObservations([{ date }], estimateRows, 'GOOGL'), []);
+  for (const asOf of ['2026-11-19', '2026-11-28']) {
+    assert.deepEqual(createYahooDailyMetricSnapshots(null, null, null, closing, date, { ...consensus!, asOf }), []);
+  }
+  const official = { ...fiscalData, pe_forward: 10.05 };
+  const feed = { anchors: [{ date, ...official }], latest: official, source: 'yahoo-forward-pe-timeseries' };
+  const dated = createYahooDailyMetricSnapshots(null, null, feed, closing, date, consensus);
+  assert.equal(dated[0].pe_forward, 10.05);
+  assert.equal(dated[0].forwardEstimate, undefined);
+  for (const [previous, incoming] of [[dated, estimateRows], [estimateRows, dated]]) {
+    const [retained] = store(previous, incoming, {}, {}, date);
+    assert.equal(retained.pe_forward, 10.05);
+    assert.equal(retained.forwardEstimate, undefined);
+    assert.equal(retained.metricSessionDates?.pe_forward, date);
+  }
 });
