@@ -316,24 +316,6 @@ const STOCKANALYSIS_LATEST_SNAPSHOT_INDEX_IDS = new Set([
   "dram",
 ]);
 
-const STOCKANALYSIS_LATEST_MAX_DEVIATION_RATIO_OVERRIDES: Partial<Record<string, number>> = {
-  // Theme-fund multiples can move sharply around earnings and constituent
-  // rebalances. These wider one-point gates accept a traceable live snapshot
-  // without authorizing any rewrite of already-published rows.
-  smh: 0.35,
-  dram: 0.35,
-};
-
-function shouldFetchStockAnalysisLatestSnapshot(indexId: string, prefersWsjLatestSnapshot: boolean): boolean {
-  return STOCKANALYSIS_LATEST_SNAPSHOT_INDEX_IDS.has(indexId) && !prefersWsjLatestSnapshot;
-}
-
-export function shouldFetchStockAnalysisLatestSnapshotForTest(
-  indexId: string,
-  prefersWsjLatestSnapshot = false
-): boolean {
-  return shouldFetchStockAnalysisLatestSnapshot(indexId, prefersWsjLatestSnapshot);
-}
 
 const RECENT_OVERRIDE_INDEX_IDS = new Set<string>();
 const FORWARD_LOCKED_INDEX_IDS = new Set<string>();
@@ -777,8 +759,6 @@ const INDEX_LIVE_SOURCE_CUTOVER_DATE_OVERRIDES: Partial<Record<string, string>> 
 const YCHARTS_CALC_PB = "price_to_book_value";
 const MULTPL_SP500_PB_URL = "https://www.multpl.com/s-p-500-price-to-book/table/by-quarter";
 const YAHOO_PRICE_CARRY_ANCHOR_REL_TOLERANCE = 0.01;
-const INDEX_YAHOO_LATEST_TTM_MAX_DEVIATION_RATIO = 0.06;
-const INDEX_YAHOO_LATEST_FORWARD_MAX_DEVIATION_RATIO = 0.06;
 const INDEX_WSJ_EXPLICIT_SNAPSHOT_MAX_DEVIATION_RATIO = 0.35;
 const OFFICIAL_INDEX_LATEST_MAX_DEVIATION_RATIO = 0.2;
 const OFFICIAL_INDEX_LATEST_PB_MAX_DEVIATION_RATIO = 0.28;
@@ -1781,76 +1761,6 @@ function normalizeIndexYahooDailyMetricSnapshot(raw: unknown): IndexYahooDailyMe
   };
 }
 
-function createIndexYahooDailyMetricSnapshot(
-  date: string,
-  payload: IndexRatioPayload | null
-): IndexYahooDailyMetricSnapshot | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !payload) return null;
-
-  const source = String(payload.source || "").trim();
-  const peTtm = sanitizeSignedRatio(payload.latest.pe_ttm);
-  const peForward = sanitizeSignedRatio(payload.latest.pe_forward);
-  const pb = sanitizeSignedRatio(payload.latest.pb);
-  if (!peTtm && !peForward && !pb) return null;
-
-  return {
-    date,
-    pe_ttm: peTtm,
-    pe_forward: peForward,
-    pb,
-    source,
-    capturedAt: new Date().toISOString(),
-  };
-}
-
-function isMetricCompatibleWithReference(
-  candidateValue: number | null,
-  referenceValue: number | null,
-  maxDeviationRatio: number
-): boolean {
-  if (candidateValue === null) return false;
-  if (referenceValue === null) return true;
-  if (!Number.isFinite(candidateValue) || !Number.isFinite(referenceValue)) return false;
-  const deviationRatio = Math.abs(candidateValue - referenceValue) / Math.max(1e-6, Math.abs(referenceValue));
-  return deviationRatio <= maxDeviationRatio;
-}
-
-function createComparableIndexYahooDailyMetricSnapshot(
-  date: string,
-  payload: IndexRatioPayload | null,
-  referencePoint: RawValuationPoint | undefined
-): IndexYahooDailyMetricSnapshot | null {
-  const snapshot = createIndexYahooDailyMetricSnapshot(date, payload);
-  if (!snapshot) return null;
-
-  const referencePeTtm = sanitizeSignedRatio(referencePoint?.pe_ttm);
-  const referencePeForward = sanitizeSignedRatio(referencePoint?.pe_forward);
-
-  const peTtm = isMetricCompatibleWithReference(
-    sanitizeSignedRatio(snapshot.pe_ttm),
-    referencePeTtm,
-    INDEX_YAHOO_LATEST_TTM_MAX_DEVIATION_RATIO
-  )
-    ? sanitizeSignedRatio(snapshot.pe_ttm)
-    : null;
-  const peForward = isMetricCompatibleWithReference(
-    sanitizeSignedRatio(snapshot.pe_forward),
-    referencePeForward,
-    INDEX_YAHOO_LATEST_FORWARD_MAX_DEVIATION_RATIO
-  )
-    ? sanitizeSignedRatio(snapshot.pe_forward)
-    : null;
-
-  if (!peTtm && !peForward) return null;
-
-  return {
-    ...snapshot,
-    pe_ttm: peTtm,
-    pe_forward: peForward,
-    pb: null,
-  };
-}
-
 function isExplicitIndexYahooLatestMetricSource(source: string): boolean {
   const normalized = String(source || "").trim().toLowerCase();
   if (!normalized) return false;
@@ -2036,6 +1946,10 @@ function alignDateToCloseAtOrBefore(closes: ClosePoint[], date: string): string 
   return aligned?.date || "";
 }
 
+function hasIndexCloseForDate(closes: ClosePoint[], date: string): boolean {
+  return isTradingDate(date) && alignDateToCloseAtOrBefore(closes, date) === date;
+}
+
 function upsertIndexYahooAnchorsIntoStore(
   bySymbol: Map<string, IndexYahooDailyMetricSnapshot[]>,
   symbol: string,
@@ -2049,11 +1963,10 @@ function upsertIndexYahooAnchorsIntoStore(
   for (const anchor of payload.anchors) {
     const value = getIndexRatioAnchorMetricValue(anchor, metric);
     if (value === null) continue;
-    const alignedDate = alignDateToCloseAtOrBefore(closes, anchor.date);
-    if (!alignedDate) continue;
+    if (!hasIndexCloseForDate(closes, anchor.date)) continue;
 
     upsertIndexYahooDailyMetricSnapshot(bySymbol, symbol, {
-      date: alignedDate,
+      date: anchor.date,
       pe_ttm: metric === "pe_ttm" ? value : null,
       pe_forward: metric === "pe_forward" ? value : null,
       pb: metric === "pb" ? value : null,
@@ -5956,12 +5869,9 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let wsjSnapshotCount = 0;
   let wsjSnapshotSkippedCount = 0;
   let wsjCuratedTtmCount = 0;
-  let stockAnalysisSnapshotCount = 0;
-  let stockAnalysisSnapshotSkippedCount = 0;
   let curatedForwardCount = 0;
   let siblisTrailingCount = 0;
   let siblisForwardCount = 0;
-  let siblisSnapshotSkippedCount = 0;
   let macroMicroForwardCount = 0;
   let stockMarketPeRatioTrailingCount = 0;
   let ndxForwardBootstrapCount = 0;
@@ -5977,7 +5887,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   let historyForwardFallbackCount = 0;
   let vendorIndexForwardCount = 0;
   let yahooHistoricalAnchorCount = 0;
-  let yahooLatestSnapshotCount = 0;
   let sp500PbPrefixCount = 0;
   let sp500WsjCarryCount = 0;
   let sp500YardeniRefinitivForwardPrefixCount = 0;
@@ -6025,7 +5934,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           // anchor every reconstructed interval.
         }
       }
-      const latestCloseDate = closes[closes.length - 1]?.date || effectiveEnd;
       const yahooFetchResult = await fetchYahooIndexRatioPayload(meta.symbol).catch(
         () =>
           ({
@@ -6034,9 +5942,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
             trailingPePayload: null,
             forwardPePayload: null,
           }) satisfies IndexYahooRatioPayloadResult
-      );
-      const yahooLatestPayload = mergeIndexRatioPayloads(
-        [yahooFetchResult.quoteLatestPayload, yahooFetchResult.payload].filter(Boolean) as IndexRatioPayload[]
       );
       if (yahooFetchResult.trailingPePayload) {
         yahooHistoricalAnchorCount += upsertIndexYahooAnchorsIntoStore(
@@ -6056,12 +5961,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           "pe_forward"
         );
       }
-      const yahooLatestSnapshot = createComparableIndexYahooDailyMetricSnapshot(latestCloseDate, yahooLatestPayload);
-      if (yahooLatestSnapshot) {
-        upsertIndexYahooDailyMetricSnapshot(indexYahooDailyMetricsBySymbol, meta.symbol, yahooLatestSnapshot);
-        yahooLatestSnapshotCount += 1;
-      }
-
       let anchorPe = baseline.pe;
       let resolvedFrom = "";
       const trendRoutes = TRENDONIFY_ROUTES[meta.id];
@@ -6073,11 +5972,10 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       let ndxBloombergForwardSeries: MonthlyMetricPoint[] | undefined;
       let ndxOfficialMonthlyTtmSeries: MonthlyMetricPoint[] | undefined;
       let pbSeries: MonthlyMetricPoint[] | undefined;
-      let siblisLatestTrailingSnapshot: number | undefined;
-      let siblisLatestForwardSnapshot: number | undefined;
+      let siblisLatestTrailing: MonthlyMetricPoint | undefined;
+      let siblisLatestForward: MonthlyMetricPoint | undefined;
       let officialTrailingApplied = false;
       let officialForwardApplied = false;
-      let officialPbApplied = false;
       const sp500WsjCarryAnchors: Array<{ date: string; value: number }> = [];
       const macroMicroIds = MACROMICRO_CHART_IDS[meta.id];
       const vendorForwardSeries = vendorIndexForwardHistory.get(meta.id);
@@ -6096,10 +5994,8 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         try {
           const siblis = await fetchSiblisSeries(siblisRoute.url);
           if (siblis?.trailing?.length) {
-            const latestTrailing = siblis.trailing[siblis.trailing.length - 1]?.value;
-            if (isReasonablePe(latestTrailing)) {
-              siblisLatestTrailingSnapshot = Number(latestTrailing);
-            }
+            siblisLatestTrailing = siblis.trailing.findLast(row => row.date <= effectiveEnd);
+            const latestTrailing = siblisLatestTrailing?.value;
 
             if (SIBLIS_FULL_HISTORY_INDEX_IDS.has(meta.id)) {
               trailingSeries = siblis.trailing;
@@ -6111,10 +6007,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
             }
           }
           if (siblis?.forward?.length) {
-            const latestForward = siblis.forward[siblis.forward.length - 1]?.value;
-            if (isReasonableForwardPe(latestForward)) {
-              siblisLatestForwardSnapshot = Number(latestForward);
-            }
+            siblisLatestForward = siblis.forward.findLast(row => row.date <= effectiveEnd);
 
             if (SIBLIS_FULL_HISTORY_INDEX_IDS.has(meta.id)) {
               forwardSeries = siblis.forward;
@@ -6393,61 +6286,28 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
       }
 
       if (!SIBLIS_FULL_HISTORY_INDEX_IDS.has(meta.id) && !prefersWsjLatestSnapshot) {
-        if (
-          isLatestSnapshotDeviationAcceptable(
-            trailingSeries,
-            latestCloseDate,
-            siblisLatestTrailingSnapshot,
-            isReasonablePe
-          )
-        ) {
-          trailingSeries = upsertSeriesValueAtDate(
-            trailingSeries,
-            latestCloseDate,
-            Number(siblisLatestTrailingSnapshot)
-          );
+        if (siblisLatestTrailing && hasIndexCloseForDate(valuationCloses, siblisLatestTrailing.date) &&
+            isLatestSnapshotDeviationAcceptable(trailingSeries, siblisLatestTrailing.date, siblisLatestTrailing.value, isReasonablePe)) {
+          trailingSeries = upsertSeriesValueAtDate(trailingSeries, siblisLatestTrailing.date, siblisLatestTrailing.value);
           siblisTrailingCount += 1;
-          anchorPe = Number(siblisLatestTrailingSnapshot);
+          anchorPe = siblisLatestTrailing.value;
           resolvedFrom = "siblis";
-        } else if (isReasonablePe(siblisLatestTrailingSnapshot)) {
-          siblisSnapshotSkippedCount += 1;
         }
-        if (
-          isReasonableForwardPe(siblisLatestForwardSnapshot) &&
-          !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
-          isLatestSnapshotDeviationAcceptable(
-            forwardSeries,
-            latestCloseDate,
-            siblisLatestForwardSnapshot,
-            isReasonableForwardPe,
-            { maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO }
-          )
-        ) {
-          forwardSeries = upsertSeriesValueAtDate(
-            forwardSeries,
-            latestCloseDate,
-            Number(siblisLatestForwardSnapshot)
-          );
+        if (siblisLatestForward && !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
+            hasIndexCloseForDate(valuationCloses, siblisLatestForward.date) &&
+            isLatestSnapshotDeviationAcceptable(forwardSeries, siblisLatestForward.date, siblisLatestForward.value, isReasonableForwardPe,
+              { maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO })) {
+          forwardSeries = upsertSeriesValueAtDate(forwardSeries, siblisLatestForward.date, siblisLatestForward.value);
           siblisForwardCount += 1;
-        } else if (
-          isReasonableForwardPe(siblisLatestForwardSnapshot) &&
-          !FORWARD_LOCKED_INDEX_IDS.has(meta.id)
-        ) {
-          siblisSnapshotSkippedCount += 1;
         }
       }
 
-      let stockAnalysisForwardCandidate: number | undefined;
-      let finvizForwardCandidate: number | undefined;
       let officialAnchorTrailing: number | undefined;
       let officialAnchorForward: number | undefined;
       const officialLatest = await fetchOfficialIndexLatestSnapshot(meta.id).catch(() => null);
-      if (officialLatest?.date && isTradingDate(officialLatest.date) && officialLatest.date <= effectiveEnd) {
+      if (officialLatest?.date && officialLatest.date <= effectiveEnd && hasIndexCloseForDate(closes, officialLatest.date)) {
         let appliedOfficialSnapshot = false;
-        const officialEffectiveDate =
-          officialLatest.date && officialLatest.date <= effectiveEnd
-            ? alignDateToCloseAtOrBefore(closes, officialLatest.date) || latestCloseDate
-            : latestCloseDate;
+        const officialEffectiveDate = officialLatest.date;
         const officialTrailing = isReasonablePe(officialLatest.pe_ttm ?? undefined)
           ? Number(officialLatest.pe_ttm)
           : undefined;
@@ -6483,7 +6343,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
         if (canApplyOfficialPb) {
           pbSeries = upsertSeriesValueAtDate(pbSeries, officialEffectiveDate, Number(officialPb));
-          officialPbApplied = true;
           appliedOfficialSnapshot = true;
         }
 
@@ -6511,16 +6370,14 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
 
       let wsjAnchorTrailing: number | undefined;
       let wsjAnchorForward: number | undefined;
+      const liveWsj = wsjPeSnapshot.get(meta.id);
       const wsjLatest = pickLatestWsjPeSnapshot(
-        wsjPeSnapshot.get(meta.id),
+        liveWsj?.asOfDate && liveWsj.asOfDate <= effectiveEnd && hasIndexCloseForDate(valuationCloses, liveWsj.asOfDate) ? liveWsj : undefined,
         indexYahooDailyMetricsBySymbol.get(meta.symbol) || []
       );
-      if (wsjLatest) {
+      if (wsjLatest?.asOfDate && wsjLatest.asOfDate <= effectiveEnd && hasIndexCloseForDate(valuationCloses, wsjLatest.asOfDate)) {
         let appliedWsjSnapshot = false;
-        const wsjEffectiveDate =
-          wsjLatest.asOfDate && wsjLatest.asOfDate <= effectiveEnd
-            ? alignDateToCloseAtOrBefore(closes, wsjLatest.asOfDate) || latestCloseDate
-            : latestCloseDate;
+        const wsjEffectiveDate = wsjLatest.asOfDate;
         if (prefersWsjLatestSnapshot) {
           indexYahooDailyMetricsBySymbol.set(
             meta.symbol,
@@ -6529,47 +6386,19 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
         const wsjTrailing = isReasonablePe(wsjLatest.trailing) ? Number(wsjLatest.trailing) : undefined;
         const wsjForward = isReasonableForwardPe(wsjLatest.forward) ? Number(wsjLatest.forward) : undefined;
-        const hasExplicitWsjDate = /^\d{4}-\d{2}-\d{2}$/.test(String(wsjLatest.asOfDate || ""));
         wsjAnchorTrailing = wsjTrailing;
         wsjAnchorForward = wsjForward;
         if (meta.id === "sp500" && wsjEffectiveDate >= SP500_WSJ_TTM_CARRY_START_DATE && isReasonablePe(wsjTrailing)) {
           sp500WsjCarryAnchors.push({ date: wsjEffectiveDate, value: Number(wsjTrailing) });
         }
-        const canApplyWsjTrailing = hasExplicitWsjDate
-          ? isLatestSnapshotDeviationAcceptable(
-              trailingSeries,
-              wsjEffectiveDate,
-              wsjTrailing,
-              isReasonablePe,
-              { maxDeviationRatio: INDEX_WSJ_EXPLICIT_SNAPSHOT_MAX_DEVIATION_RATIO }
-            )
-          : prefersWsjLatestSnapshot
-            ? isReasonablePe(wsjTrailing)
-          : isLatestSnapshotDeviationAcceptable(
-              trailingSeries,
-              wsjEffectiveDate,
-              wsjTrailing,
-              isReasonablePe
-            );
-        const canApplyWsjForward = hasExplicitWsjDate
-          ? isLatestSnapshotDeviationAcceptable(
-              forwardSeries,
-              wsjEffectiveDate,
-              wsjForward,
-              isReasonableForwardPe,
-              { maxDeviationRatio: INDEX_WSJ_EXPLICIT_SNAPSHOT_MAX_DEVIATION_RATIO }
-            )
-          : prefersWsjLatestSnapshot
-            ? isReasonableForwardPe(wsjForward)
-          : isLatestSnapshotDeviationAcceptable(
-              forwardSeries,
-              wsjEffectiveDate,
-              wsjForward,
-              isReasonableForwardPe,
-              {
-                maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO,
-              }
-            );
+        const canApplyWsjTrailing = isLatestSnapshotDeviationAcceptable(
+          trailingSeries, wsjEffectiveDate, wsjTrailing, isReasonablePe,
+          { maxDeviationRatio: INDEX_WSJ_EXPLICIT_SNAPSHOT_MAX_DEVIATION_RATIO }
+        );
+        const canApplyWsjForward = isLatestSnapshotDeviationAcceptable(
+          forwardSeries, wsjEffectiveDate, wsjForward, isReasonableForwardPe,
+          { maxDeviationRatio: LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO }
+        );
         const shouldApplyWsjTrailing = (prefersWsjLatestSnapshot || !officialTrailingApplied) && canApplyWsjTrailing;
         const shouldApplyWsjForward =
           (prefersWsjLatestSnapshot || !officialForwardApplied) &&
@@ -6610,7 +6439,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
       }
 
-      let ndxCuratedTtmApplied = false;
       if (meta.id === "nasdaq100") {
         const curatedRef = pickCuratedWsjTtmReference(meta.id, effectiveEnd, 90);
         if (curatedRef) {
@@ -6627,145 +6455,14 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
               anchorPe = Number(scaledLatest);
               resolvedFrom = "wsj-curated";
               wsjCuratedTtmCount += 1;
-              ndxCuratedTtmApplied = true;
             }
           } else if (isReasonablePe(curatedRef.value)) {
             trailingSeries = upsertSeriesValueAtDate(trailingSeries, curatedRef.date, curatedRef.value);
             anchorPe = curatedRef.value;
             resolvedFrom = "wsj-curated";
             wsjCuratedTtmCount += 1;
-            ndxCuratedTtmApplied = true;
           }
         }
-      }
-
-      if (shouldFetchStockAnalysisLatestSnapshot(meta.id, prefersWsjLatestSnapshot)) {
-        let appliedStockAnalysisSnapshot = false;
-        let stockTrailing: number | undefined;
-        let stockForward: number | undefined;
-        let finvizForward: number | undefined;
-
-        try {
-          stockTrailing = await fetchStockAnalysisPe(meta.symbol);
-        } catch {
-          // ignore
-        }
-
-        try {
-          stockForward = await fetchStockAnalysisForwardPe(meta.symbol);
-        } catch {
-          // ignore
-        }
-
-        if (!isReasonableForwardPe(stockForward) && meta.id === "nasdaq100") {
-          try {
-            stockForward = await fetchMacroMicroNasdaq100ForwardPe();
-          } catch {
-            // ignore
-          }
-        }
-
-        if (!isReasonableForwardPe(stockForward)) {
-          try {
-            finvizForward = await fetchFinvizForwardPe(meta.symbol);
-            stockForward = finvizForward;
-          } catch {
-            // ignore
-          }
-        }
-
-        const canApplyStockTrailing = isLatestSnapshotDeviationAcceptable(
-          trailingSeries,
-          effectiveEnd,
-          stockTrailing,
-          isReasonablePe,
-          {
-            maxDeviationRatio:
-              STOCKANALYSIS_LATEST_MAX_DEVIATION_RATIO_OVERRIDES[meta.id] ??
-              LATEST_SNAPSHOT_MAX_DEVIATION_RATIO,
-          }
-        );
-
-        if (
-          isReasonablePe(stockTrailing) &&
-          !(meta.id === "nasdaq100" && ndxCuratedTtmApplied) &&
-          !officialTrailingApplied &&
-          canApplyStockTrailing
-        ) {
-          trailingSeries = upsertSeriesValueAtDate(trailingSeries, effectiveEnd, Number(stockTrailing));
-          anchorPe = Number(stockTrailing);
-          resolvedFrom = "stockanalysis";
-          appliedStockAnalysisSnapshot = true;
-        } else if (
-          isReasonablePe(stockTrailing) &&
-          !(meta.id === "nasdaq100" && ndxCuratedTtmApplied) &&
-          !officialTrailingApplied
-        ) {
-          stockAnalysisSnapshotSkippedCount += 1;
-        }
-
-        const trailingForPair = isReasonablePe(stockTrailing)
-          ? Number(stockTrailing)
-          : trailingSeries?.[trailingSeries.length - 1]?.value;
-        const canApplyStockForward = isLatestSnapshotDeviationAcceptable(
-          forwardSeries,
-          effectiveEnd,
-          stockForward,
-          isReasonableForwardPe,
-          {
-            maxDeviationRatio:
-              STOCKANALYSIS_LATEST_MAX_DEVIATION_RATIO_OVERRIDES[meta.id] ??
-              LATEST_FORWARD_SNAPSHOT_MAX_DEVIATION_RATIO,
-          }
-        );
-        if (
-          !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
-          !officialForwardApplied &&
-          isPlausibleForwardPair(trailingForPair, stockForward) &&
-          canApplyStockForward
-        ) {
-          forwardSeries = upsertSeriesValueAtDate(forwardSeries, effectiveEnd, Number(stockForward));
-          appliedStockAnalysisSnapshot = true;
-        } else if (
-          !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
-          !officialForwardApplied &&
-          isPlausibleForwardPair(trailingForPair, stockForward)
-        ) {
-          stockAnalysisSnapshotSkippedCount += 1;
-        }
-        if (
-          (isReasonablePe(stockTrailing) && !officialTrailingApplied && canApplyStockTrailing) ||
-          (!FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
-            !officialForwardApplied &&
-            isPlausibleForwardPair(trailingForPair, stockForward) &&
-            canApplyStockForward)
-        ) {
-          upsertIndexYahooDailyMetricSnapshot(indexYahooDailyMetricsBySymbol, meta.symbol, {
-            date: latestCloseDate,
-            pe_ttm:
-              isReasonablePe(stockTrailing) && !officialTrailingApplied && canApplyStockTrailing
-                ? Number(stockTrailing)
-                : null,
-            pe_forward:
-              !FORWARD_LOCKED_INDEX_IDS.has(meta.id) &&
-              !officialForwardApplied &&
-              isPlausibleForwardPair(trailingForPair, stockForward) &&
-              canApplyStockForward &&
-              isReasonableForwardPe(stockForward)
-                ? Number(stockForward)
-                : null,
-            pb: null,
-            source: "stockanalysis-latest",
-            capturedAt: new Date().toISOString(),
-          });
-        }
-
-        if (appliedStockAnalysisSnapshot) {
-          stockAnalysisSnapshotCount += 1;
-        }
-
-        stockAnalysisForwardCandidate = isReasonableForwardPe(stockForward) ? Number(stockForward) : undefined;
-        finvizForwardCandidate = isReasonableForwardPe(finvizForward) ? Number(finvizForward) : undefined;
       }
 
       if (meta.id === "nasdaq100" && !trailingSeries?.length) {
@@ -6781,7 +6478,7 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
         }
       }
 
-      if (!resolvedFrom) {
+      if (!resolvedFrom && !historyFallbackMap.get(meta.id)?.length) {
         const anchorCandidates: Array<{ from: string; value?: number }> = [];
 
         if (meta.id === "sp500") {
@@ -6826,26 +6523,11 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
           ? Number(latestHistoryPoint?.pe_forward)
           : undefined;
       })();
-      if (!stockAnalysisForwardCandidate) {
-        try {
-          const stockAnalysisForward = await fetchStockAnalysisForwardPe(meta.symbol);
-          if (isReasonableForwardPe(stockAnalysisForward)) {
-            stockAnalysisForwardCandidate = Number(stockAnalysisForward);
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      if (!finvizForwardCandidate) {
-        try {
-          const finvizForward = await fetchFinvizForwardPe(meta.symbol);
-          if (isReasonableForwardPe(finvizForward)) {
-            finvizForwardCandidate = Number(finvizForward);
-          }
-        } catch {
-          // ignore
-        }
+      let stockAnalysisForwardCandidate: number | undefined;
+      let finvizForwardCandidate: number | undefined;
+      if (!previousHistoryLatestForward && !latestForward && !wsjAnchorForward && !officialAnchorForward) {
+        stockAnalysisForwardCandidate = await fetchStockAnalysisForwardPe(meta.symbol).catch(() => undefined);
+        finvizForwardCandidate = await fetchFinvizForwardPe(meta.symbol).catch(() => undefined);
       }
 
       const pickedAnchorForwardPe = pickAnchorForwardPe(meta.id, anchorPe, {
@@ -7326,12 +7008,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   if (wsjCuratedTtmCount > 0) {
     source += `+wsj-curated-ttm-${wsjCuratedTtmCount}`;
   }
-  if (stockAnalysisSnapshotCount > 0) {
-    source += `+stockanalysis-snap-${stockAnalysisSnapshotCount}`;
-  }
-  if (stockAnalysisSnapshotSkippedCount > 0) {
-    source += `+stockanalysis-snap-skipped-${stockAnalysisSnapshotSkippedCount}`;
-  }
   if (curatedForwardCount > 0) {
     source += `+curated-public-fpe-${curatedForwardCount}`;
   }
@@ -7340,9 +7016,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   }
   if (siblisForwardCount > 0) {
     source += `+siblis-fpe-${siblisForwardCount}`;
-  }
-  if (siblisSnapshotSkippedCount > 0) {
-    source += `+siblis-snap-skipped-${siblisSnapshotSkippedCount}`;
   }
   if (macroMicroForwardCount > 0) {
     source += `+macromicro-fpe-${macroMicroForwardCount}`;
@@ -7376,9 +7049,6 @@ export async function generateDataset(endDate?: string, options: GenerateDataset
   }
   if (yahooHistoricalAnchorCount > 0) {
     source += `+yahoo-historical-anchor-${yahooHistoricalAnchorCount}`;
-  }
-  if (yahooLatestSnapshotCount > 0) {
-    source += `+yahoo-latest-snapshot-${yahooLatestSnapshotCount}`;
   }
   if (sp500PbPrefixCount > 0) {
     source += `+sp500-pb-prefix-${sp500PbPrefixCount}`;

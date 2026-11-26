@@ -1,6 +1,8 @@
 // NYSE regular sessions: https://www.nyse.com/markets/hours-calendars
 // Conservatively wait until 16:00 ET even on early-close sessions.
 const DAY = 86400000;
+// The first session requiring explicit valuation-source evidence on publication.
+export const VALUATION_SESSION_EVIDENCE_START = '2026-11-27';
 export const shiftDate = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY).toISOString().slice(0, 10);
 const iso = (year: number, month: number, day: number) => new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
 const weekday = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -14,7 +16,9 @@ function goodFriday(y: number) {
   return shiftDate(iso(y, Math.floor((h + l - 7 * m + 114) / 31), (h + l - 7 * m + 114) % 31 + 1), -2);
 }
 export function isTradingDate(date: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || weekday(date) % 6 === 0) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const instant = new Date(`${date}T00:00:00Z`);
+  if (!Number.isFinite(instant.getTime()) || instant.toISOString().slice(0, 10) !== date || instant.getUTCDay() % 6 === 0) return false;
   const y = Number(date.slice(0, 4));
   const jan1 = iso(y, 1, 1);
   // NYSE does not observe a Saturday New Year's Day on the preceding Friday.

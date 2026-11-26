@@ -1,16 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseYahooCurrentValuationTable, publishYahooValuationObservations } from '../src/yahoo-valuation-policy.mjs';
-import { parseYahooValuationMeasuresFromHtml, mergeYahooLatestQuotePayloadsForTest as merge,
-  createYahooDailyMetricSnapshots, mergeCurrentYahooSnapshotsIntoHistoryForTest as store } from '../src/build-company-snapshot.ts';
+import { parseYahooCurrentValuationTable, publishYahooValuationObservations, readYahooClosingQuote } from '../src/yahoo-valuation-policy.mjs';
+import { createYahooDailyMetricSnapshots, parseYahooQuotePageRatioPayload, parseYahooValuationMeasuresFromHtml,
+  mergeCurrentYahooSnapshotsIntoHistoryForTest as store } from '../src/build-company-snapshot.ts';
 
-const table = (ttm = '16.97') => `<table><thead><tr><th></th><th>Current</th><th>6/30/2026</th></tr></thead>
+const table = (ttm = '17.73', pb = '14.95') => `<table><thead><tr><th></th><th>Current</th><th>6/30/2026</th></tr></thead>
   <tbody><tr><td><span>Trailing P/E</span><sup>3</sup></td><td><span>${ttm}</span></td><td>27.26</td></tr>
-  <tr><td>Forward P/E</td><td>20.76</td><td>25.33</td></tr><tr><td>Price/Book</td><td>6.02</td><td>9.04</td></tr>
-  <tr><td>PEG Ratio (current)</td><td>0.57</td><td>0.96</td></tr></tbody></table>`;
+  <tr><td>Forward P/E</td><td>9.88</td><td>25.33</td></tr><tr><td>Price/Book</td><td>${pb}</td><td>9.04</td></tr></tbody></table>`;
+const quoteHtml = (label, price, ttm) => `<section data-testid="quote-hdr">
+    <fin-streamer data-field="regularMarketPrice" data-value="${price}">${price}</fin-streamer>
+    <span>${label}</span><fin-streamer data-field="postMarketPrice" data-value="199.00">199</fin-streamer>
+  </section><span title="PE Ratio (TTM)">PE Ratio (TTM)</span><fin-streamer data-value="${ttm}" data-field="trailingPE">${ttm}</fin-streamer>
+  <span>EPS (TTM)</span><fin-streamer data-field="epsTrailingTwelveMonths" data-value="9.31">9.31</fin-streamer>`;
+const prices = [
+  { date: '2026-11-20', close: 125.53, ts: Date.parse('2026-11-20') },
+  { date: '2026-11-23', close: 165.05, ts: Date.parse('2026-11-23') },
+];
+const target = '2026-11-23';
+const fiscalData = { pe_ttm: null, pe_forward: 9.88, pb: null, peg: null };
 
 test('explicit Current cells survive nested markup and footnotes; missing Current never borrows history', () => {
-  assert.deepEqual(parseYahooCurrentValuationTable(table()), { pe_ttm: 16.97, pe_forward: 20.76, pb: 6.02, peg: 0.57 });
+  assert.deepEqual(parseYahooCurrentValuationTable(table()), { ...fiscalData, pe_ttm: 17.73, pb: 14.95 });
   for (const missing of ['--', 'N/A', '<span class="loading"></span>']) {
     assert.equal(parseYahooCurrentValuationTable(table(missing)).pe_ttm, null);
     assert.equal(parseYahooValuationMeasuresFromHtml(table(missing))?.latest.pe_ttm, null);
@@ -18,93 +28,63 @@ test('explicit Current cells survive nested markup and footnotes; missing Curren
   assert.equal(parseYahooCurrentValuationTable(`<script>${table()}</script>`), null);
 });
 
-test('quote TTM wins over Current while Forward PE and PB keep their independent Current values', () => {
-  const canonical = parseYahooValuationMeasuresFromHtml(table());
-  const quote = { anchors: [], latest: { pe_ttm: 14.74, pe_forward: null, pb: null, peg: null }, source: 'yahoo-quote-page-latest:finance.yahoo.com' };
-  const selected = merge([quote], canonical);
-  assert.equal(selected.latest.pe_ttm, 14.74);
-  assert.equal(selected.comparisons?.pe_ttm, undefined);
-  const observations = createYahooDailyMetricSnapshots(selected, '2026-10-29', { pe_ttm: '2026-10-27', pe_forward: '2026-10-27' }, { pe_ttm: 99, pe_forward: 88 });
-  const saved = store([], observations, { pe_ttm: '2026-10-27', pe_forward: '2026-10-27' }, { pe_ttm: ['2026-10-27'], pe_forward: ['2026-10-27'] }, '2026-10-29');
-  assert.equal(saved.at(-1).date, '2026-10-29');
-  assert.equal(saved.at(-1).pe_ttm, 14.74);
-  assert.equal(saved.at(-1).pe_forward, 20.76);
-  const repaired = publishYahooValuationObservations([{ date: '2026-10-28', pe_ttm: 14.87 }, { date: '2026-10-29', pe_ttm: 14.74, pb: 5 }], saved, 'GOOGL');
-  assert.equal(repaired[0].pe_ttm, 14.87);
-  assert.equal(repaired[1].pb, 6.02);
-  assert.equal(repaired[1].valuationSources.pe_ttm.symbol, 'GOOGL');
-  assert.equal(repaired[1].valuationSources.pe_ttm.basis, 'quote');
+test('a verified NVDA close keeps its 17.73 TTM through a later intraday refresh and a stale multiple', () => {
+  const afterClose = (pe = 17.73) => parseYahooQuotePageRatioPayload(quoteHtml('At close: November 23 at 4:00:01 PM EST', 165.05, pe));
+  const intraday = parseYahooQuotePageRatioPayload(quoteHtml('As of 3:09:51 PM EST. Market Open.', 152.12, 16.34));
+  const stale = afterClose(13.48);
+  const undatedTable = parseYahooValuationMeasuresFromHtml(`<aside>As of 11/23/2026</aside>${table()}`);
+  const original = createYahooDailyMetricSnapshots(afterClose(), null, null, prices, target);
+  assert.equal(original[0].pe_ttm, 17.73);
+  assert.equal(original[0].metricSessionDates?.pe_ttm, target);
+  for (const quote of [intraday, stale]) {
+    const incoming = createYahooDailyMetricSnapshots(quote, undatedTable, null, prices, target);
+    assert.deepEqual(incoming, []);
+    assert.equal(store(original, incoming, {}, {}, target)[0].pe_ttm, 17.73);
+  }
+  assert.deepEqual(createYahooDailyMetricSnapshots(afterClose(), null, null, [prices[0]], target), []);
+  const syntheticClose = { ...prices[1], estimated: true as const };
+  assert.deepEqual(createYahooDailyMetricSnapshots(afterClose(), null, null, [syntheticClose], target), []);
 });
 
-test('a dated old Current observation never replaces the latest quote', () => {
-  const canonical = parseYahooValuationMeasuresFromHtml(`<section>As of 4/23/2026${table()}</section>`);
-  const quote = { anchors: [], latest: { pe_ttm: 14.74, pe_forward: null, pb: null, peg: null }, source: 'yahoo-quote-page-latest' };
-  const snapshots = createYahooDailyMetricSnapshots(merge([quote], canonical), '2026-10-29', {}, {});
-  assert.equal(snapshots.find(row => row.date === '2026-04-23').pe_ttm, 16.97);
-  assert.equal(snapshots.find(row => row.date === '2026-10-29').pe_ttm, 14.74);
+test('statistics dates and forward feed dates stay on their original close sessions', () => {
+  const dated = parseYahooValuationMeasuresFromHtml(`<section data-testid="valuation-measures"><span>As of 11/20/2026</span>${table('17.73', '--')}</section>`);
+  const forward = { anchors: [{ date: target, ...fiscalData }], latest: fiscalData, source: 'yahoo-forward-pe-timeseries' };
+  const rows = createYahooDailyMetricSnapshots(null, dated, forward, prices, target);
+  assert.deepEqual(rows.map(row => [row.date, row.pe_ttm, row.pe_forward, row.pb, row.metricSessionDates]), [
+    ['2026-11-20', null, 9.88, null, { pe_forward: '2026-11-20', pb: '2026-11-20', peg: '2026-11-20' }],
+    ['2026-11-23', null, 9.88, null, { pe_forward: '2026-11-23' }],
+  ]);
 });
 
-test('a later quote refresh replaces the old Current TTM observation on the same date', () => {
-  const canonical = parseYahooValuationMeasuresFromHtml(table());
-  const observations = createYahooDailyMetricSnapshots(merge([], canonical), '2026-10-29', {}, {});
-  const quote = { date: '2026-10-29', pe_ttm: 14.74, pe_forward: null, pb: null, peg: null, source: 'yahoo-quote-page-latest' };
-  const saved = store(observations, [quote], {}, {}, '2026-10-29');
-  assert.equal(saved[0].pe_ttm, 14.74);
-  assert.match(saved[0].metricSources.pe_ttm, /yahoo-quote-page/);
-  assert.equal(saved[0].pb, 6.02);
+test('only fields with their own verified date can publish on a new session', () => {
+  const date = '2026-11-27';
+  const original = [{ date, pe_ttm: 12.4, pb: 11.37, pe_forward: 7, peg: 2 }];
+  const observation = { date, pe_ttm: 17.73, pb: 11.37, source: 'yahoo-quote-page-latest', metricSessionDates: { pe_ttm: date } };
+  const [point] = publishYahooValuationObservations(original, [observation], 'NVDA');
+  assert.equal(point.pe_ttm, 17.73);
+  assert.equal(point.pb, null);
+  assert.equal(point.pe_forward, null);
+  assert.equal(point.peg, null);
+  assert.equal(point.valuationSources.pe_ttm.verifiedSession, date);
+  assert.deepEqual(publishYahooValuationObservations(original, [{ ...observation, metricSessionDates: {} }], 'NVDA'), []);
 });
 
-test('missing Current PE never clears quote TTM; unavailable Current PB still remains missing', () => {
-  const canonical = parseYahooValuationMeasuresFromHtml(table('--').replace('6.02', '--'));
-  const quote = { anchors: [], latest: { pe_ttm: 14.74, pe_forward: null, pb: null, peg: null }, source: 'yahoo-quote-page-latest' };
-  const rows = createYahooDailyMetricSnapshots(merge([quote], canonical), '2026-10-29', {}, {});
-  const saved = store([], rows, {}, {}, '2026-10-29');
-  assert.equal(saved[0].pe_ttm, 14.74);
-  assert.equal(saved[0].pb, null);
-  const published = publishYahooValuationObservations([{ date: '2026-10-29', pe_ttm: 99, pb: 5 }], saved, 'TEST');
-  assert.equal(published[0].pe_ttm, 14.74);
-  assert.equal(published[0].pb, null);
+test('Yahoo closing quote identifies US and UK close labels across New Year', () => {
+  const now = new Date('2026-01-01T15:00:00Z');
+  for (const label of ['At close: December 31 at 4:00:00 PM EST', 'At close: 31 December at 16:00:00 GMT-5']) {
+    assert.deepEqual(readYahooClosingQuote(quoteHtml(label, 100, 10), now), { date: '2025-12-31', close: 100 });
+  }
+  assert.equal(readYahooClosingQuote(quoteHtml('At close: November 31 at 4:00:00 PM EST', 100, 10), new Date('2026-12-01T15:00Z')), null);
 });
 
-test('a later Current-only refresh cannot replace an already recorded quote TTM', () => {
-  const canonical = parseYahooValuationMeasuresFromHtml(table());
-  const current = createYahooDailyMetricSnapshots(merge([], canonical), '2026-10-29', {}, {});
-  const quote = { date: '2026-10-29', pe_ttm: 14.74, pe_forward: null, pb: null, peg: null, source: 'yahoo-quote-page-latest', capturedAt: '2026-10-30T07:16:21Z' };
-  const saved = store([quote], current, {}, {}, '2026-10-29');
-  assert.equal(saved[0].pe_ttm, 14.74);
-  assert.match(saved[0].metricSources.pe_ttm, /yahoo-quote-page-latest/);
-});
-
-test('an entirely unavailable Current table does not silently revive quote values', () => {
-  const html = table('--').replace('20.76', '--').replace('6.02', '--').replace('0.57', '--');
-  const canonical = parseYahooValuationMeasuresFromHtml(html);
-  const selected = merge([], canonical);
-  assert.ok(selected);
-  const rows = createYahooDailyMetricSnapshots(selected, '2026-10-29', {}, {});
-  const saved = store([], rows, {}, {}, '2026-10-29');
-  assert.equal(saved.length, 1);
-  assert.equal(saved[0].pe_ttm, null);
-});
-
-test('a new Current observation is not assigned to a stale company price tail', () => {
-  const canonical = parseYahooValuationMeasuresFromHtml(table());
-  const selected = merge([], canonical);
-  assert.deepEqual(createYahooDailyMetricSnapshots(selected, '2026-10-28', {}, {}, '2026-10-29'), []);
-});
-
-test('refreshing another Current metric leaves the quote TTM value untouched', () => {
-  const [point] = publishYahooValuationObservations([{ date: '2026-10-29', pe_ttm: 14.74, pb: 5 }], [{ date: '2026-10-29', pb: 6.02, source: 'yahoo-key-statistics-valuation-measures:current-table' }], 'GOOG');
-  assert.equal(point.pe_ttm, 14.74);
-  assert.equal(point.pb, 6.02);
-  assert.equal(point.valuationSources.pe_ttm, undefined);
-});
-
-test('a sparse Current refresh preserves the original quote TTM source across later refreshes', () => {
-  const quote = { date: '2026-10-29', pe_ttm: 14.74, pe_forward: null, pb: null, peg: null, source: 'yahoo-quote-page-latest', capturedAt: '2026-10-30T07:16:21Z' };
-  const missing = createYahooDailyMetricSnapshots(merge([], parseYahooValuationMeasuresFromHtml(table('--'))), '2026-10-29', {}, {});
-  const saved = store([quote], missing, {}, {}, '2026-10-29');
-  assert.equal(saved[0].pe_ttm, 14.74);
-  assert.match(saved[0].metricSources.pe_ttm, /yahoo-quote-page-latest/);
-  const another = createYahooDailyMetricSnapshots(merge([], parseYahooValuationMeasuresFromHtml(table())), '2026-10-29', {}, {});
-  assert.equal(store(saved, another, {}, {}, '2026-10-29')[0].pe_ttm, 14.74);
+test('dated PB with a stale numerator is rejected while independently dated Forward PE is kept', () => {
+  const financials = '<table><tr><td>Book Value Per Share (mrq)</td><td>11.06</td></tr></table>';
+  const observed = pb => parseYahooValuationMeasuresFromHtml(`<section data-testid="valuation-measures"><span>As of 11/23/2026</span>${table('17.73', pb)}</section>${financials}`);
+  const [stale] = createYahooDailyMetricSnapshots(null, observed('11.37'), null, prices, target);
+  assert.equal(stale.pe_forward, 9.88);
+  assert.equal(stale.pb, null);
+  assert.equal(stale.metricSessionDates?.pb, undefined);
+  const [verified] = createYahooDailyMetricSnapshots(null, observed('14.92'), null, prices, target);
+  assert.equal(verified.pb, 14.92);
+  assert.equal(verified.metricSessionDates?.pb, target);
 });

@@ -1,15 +1,12 @@
+import { valuationMetrics } from "../packages/data-pipeline/src/yahoo-valuation-policy.mjs";
+import { repairCompanyMetricHistory } from "../packages/data-pipeline/src/company-data-corrections.mjs";
+import { isTradingDate, VALUATION_SESSION_EVIDENCE_START } from "../packages/data-pipeline/src/market-calendar.ts";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const companySeriesDir = path.join(repoRoot, "data", "standardized", "company-series");
-const yahooDailyMetricsPath = path.join(
-  repoRoot,
-  "data",
-  "standardized",
-  "company-yahoo-daily-metrics.json"
-);
+const defaultDataDir = path.join(repoRoot, "data", "standardized");
 const RECENT_YAHOO_ANCHOR_MAX_AGE_DAYS = 14;
 const YAHOO_ANCHOR_MAX_RELATIVE_ERROR = 0.02;
 
@@ -58,6 +55,12 @@ export function validateCompanySeriesPayloads(
       errors.push(`invalid company series payload: symbol=${symbol || "missing"} points=${points.length}`);
       continue;
     }
+    const repaired = repairCompanyMetricHistory(symbol, points);
+    for (let i = 0; repaired !== points && i < points.length; i++) {
+      if (repaired[i] !== points[i] && valuationMetrics.some(metric => repaired[i][metric] !== points[i][metric])) {
+        errors.push(`${symbol} is missing the verified historical repair on ${points[i].date}`);
+      }
+    }
     payloadBySymbol.set(symbol, payload);
 
     const latestDate = String(points.at(-1)?.date || "");
@@ -65,6 +68,19 @@ export function validateCompanySeriesPayloads(
     const yahooRows = Array.isArray(yahooMetricsBySymbol?.[symbol])
       ? yahooMetricsBySymbol[symbol]
       : [];
+    const yahooByDate = new Map(yahooRows.map(row => [row.date, row]));
+    for (const point of points) {
+      if (point.date < VALUATION_SESSION_EVIDENCE_START) continue;
+      const row = yahooByDate.get(point.date);
+      if (!isTradingDate(point.date)) errors.push(`${symbol} published a non-trading session ${point.date}`);
+      for (const metric of valuationMetrics) {
+        if (point[metric] == null) continue;
+        if (point.valuationSources?.[metric]?.verifiedSession !== point.date ||
+            row?.metricSessionDates?.[metric] !== point.date || point[metric] !== row?.[metric]) {
+          errors.push(`${symbol} published unverified ${metric} on ${point.date}`);
+        }
+      }
+    }
     for (const row of yahooRows) {
       if (row.date !== latestDate) continue;
       for (const key of ['pe_ttm', 'pe_forward', 'pb', 'peg']) {
@@ -84,6 +100,7 @@ export function validateCompanySeriesPayloads(
             row.value !== null &&
             /^\d{4}-\d{2}-\d{2}$/.test(date) &&
             date <= latestDate &&
+            (date < VALUATION_SESSION_EVIDENCE_START || row.metricSessionDates?.[key] === date) &&
             publishedByDate.has(date)
           );
         })
@@ -221,19 +238,20 @@ export function validateCompanySnapshotAgreement(companyPayloads, snapshot) {
   }
 }
 
-async function main() {
+export async function validateCompanyPublication(dataDir = defaultDataDir, requireHistoricalCoverage = true) {
+  const companySeriesDir = path.join(dataDir, "company-series");
   const names = (await readdir(companySeriesDir))
     .filter((name) => /^company_[a-z0-9_]+\.json$/i.test(name))
     .sort();
   const companyPayloads = await Promise.all(
     names.map(async (name) => JSON.parse(await readFile(path.join(companySeriesDir, name), "utf8")))
   );
-  const yahooPayload = JSON.parse(await readFile(yahooDailyMetricsPath, "utf8"));
-  validateCompanySnapshotAgreement(companyPayloads, JSON.parse(await readFile(path.join(repoRoot, "data/standardized/company-valuation-snapshot.json"), "utf8")));
+  const yahooPayload = JSON.parse(await readFile(path.join(dataDir, "company-yahoo-daily-metrics.json"), "utf8"));
+  validateCompanySnapshotAgreement(companyPayloads, JSON.parse(await readFile(path.join(dataDir, "company-valuation-snapshot.json"), "utf8")));
   const summary = validateCompanySeriesPayloads(
     companyPayloads,
     yahooPayload?.symbols || {},
-    { requireNvdaHistory: true, requireTsmForwardHistory: true }
+    { requireNvdaHistory: requireHistoricalCoverage, requireTsmForwardHistory: requireHistoricalCoverage }
   );
 
   console.log(
@@ -244,7 +262,7 @@ async function main() {
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
-  main().catch((error) => {
+  validateCompanyPublication().catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

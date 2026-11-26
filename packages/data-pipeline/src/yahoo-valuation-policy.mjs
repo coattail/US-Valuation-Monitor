@@ -1,3 +1,5 @@
+import { isTradingDate, VALUATION_SESSION_EVIDENCE_START } from './market-calendar.ts';
+
 export const valuationMetrics = ['pe_ttm', 'pe_forward', 'pb', 'peg'];
 const text = html => String(html).replace(/<sup\b[^>]*>[\s\S]*?<\/sup>/gi, '')
   .replace(/<[^>]*>/g, ' ').replace(/&(?:nbsp|#160);/gi, ' ').replace(/&amp;/gi, '&')
@@ -6,6 +8,89 @@ const number = value => typeof value === 'number' && Number.isFinite(value) && v
 const labels = { 'trailing p/e': 'pe_ttm', 'forward p/e': 'pe_forward', 'price/book': 'pb',
   'price/book (mrq)': 'pb', 'peg ratio (current)': 'peg', 'peg ratio (5yr expected)': 'peg',
   'peg ratio (5 yr expected)': 'peg' };
+
+const marketDate = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+const months = 'January February March April May June July August September October November December'.split(' ');
+const attr = (tag, name) => tag.match(new RegExp(`\\b${name}=["']([^"']*)["']`, 'i'))?.[1];
+const noScripts = html => String(html).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+
+// The quote heading identifies the regular session. Intraday, pre-market and
+// after-hours prices are never used to date a trailing multiple.
+export function readYahooClosingQuote(html, asOf = new Date()) {
+  const body = noScripts(html);
+  const quote = body.match(/\bdata-testid=["']quote-hdr["'][\s\S]*?(?=<\/section>|<\/header>|<h[12]\b[^>]*>\s*Summary|$)/i)?.[0];
+  if (!quote) return null;
+  const closeLabel = text(quote).match(/\bAt close:\s*(?:([A-Za-z]+)\s+(\d{1,2})|(\d{1,2})\s+([A-Za-z]+))\s+at\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[AP]\.?M\.?\s+)?(?:EST|EDT|GMT-4|GMT-5)\b/i);
+  if (!closeLabel) return null;
+  const month = months.findIndex(name => name.toLowerCase() === (closeLabel[1] || closeLabel[4]).toLowerCase()) + 1;
+  if (!month) return null;
+  const today = marketDate.format(asOf);
+  const suffix = `-${String(month).padStart(2, '0')}-${(closeLabel[2] || closeLabel[3]).padStart(2, '0')}`;
+  let year = Number(today.slice(0, 4));
+  if (`${year}${suffix}` > today && today.slice(5, 7) === '01' && month === 12) year -= 1;
+  const date = `${year}${suffix}`;
+  if (date > today || !isTradingDate(date)) return null;
+  const priceTag = [...quote.matchAll(/<fin-streamer\b[^>]*>/gi)].map(match => match[0])
+    .find(tag => attr(tag, 'data-field') === 'regularMarketPrice');
+  const close = Number(attr(priceTag || '', 'data-value'));
+  return Number.isFinite(close) && close > 0 ? { date, close } : null;
+}
+
+export function readYahooTrailingEps(html) {
+  const body = noScripts(html);
+  const field = [...body.matchAll(/<fin-streamer\b[^>]*>/gi)].map(match => match[0])
+    .find(tag => attr(tag, 'data-field') === 'epsTrailingTwelveMonths');
+  const value = attr(field || '', 'data-value');
+  const visible = text(body).match(/\bEPS\s*\(TTM\)\s+(-?\d+(?:\.\d+)?)(?=\s|$)/i)?.[1];
+  const eps = Number(value ?? visible);
+  return Number.isFinite(eps) && eps !== 0 ? eps : null;
+}
+
+export function readYahooBookValuePerShare(html) {
+  const value = text(noScripts(html)).match(/\bBook Value Per Share\s*\(mrq\)\s+(-?\d+(?:,\d{3})*(?:\.\d+)?)(?=\s|$)/i)?.[1];
+  return value ? number(Number(value.replaceAll(',', ''))) : null;
+}
+
+// The source displays multiples and per-share fundamentals to two decimals.
+export function valuationMatchesClose(ratio, close, denominator) {
+  if (![ratio, close, denominator].every(Number.isFinite) || close <= 0 || denominator === 0) return false;
+  const expected = close / denominator;
+  return Math.sign(expected) === Math.sign(ratio) &&
+    Math.abs(ratio - expected) <= 0.006 + Math.abs(expected * 0.005 / Math.max(Math.abs(denominator) - 0.005, 0.005));
+}
+
+// Only a date attached to the valuation table or its own Valuation Measures
+// heading can date the Current cells. Quote headers and other widgets update
+// independently, and their dates are not evidence for these cells.
+export function readYahooValuationMeasuresRegion(html) {
+  return noScripts(html).match(/<section\b[^>]*\bdata-testid=["']valuation-measures["'][^>]*>[\s\S]*?<\/section>/i)?.[0] || '';
+}
+
+export function readYahooValuationTableDate(html) {
+  const body = noScripts(html);
+  const dated = /\bAs of\s+(\d{1,2}\/\d{1,2}\/\d{4})\b/i;
+  const sectionDate = text(readYahooValuationMeasuresRegion(body)).match(dated)?.[1];
+  if (sectionDate) return sectionDate;
+  for (const match of body.matchAll(/<table\b[^>]*>[\s\S]*?<\/table>/gi)) {
+    if (!parseYahooCurrentValuationTable(match[0])) continue;
+    const inside = text(match[0]).match(dated)?.[1];
+    const preceding = body.slice(Math.max(0, match.index - 4000), match.index)
+      .match(/<h[1-6]\b[^>]*>\s*Valuation Measures\s*<\/h[1-6]>((?:(?!<\/?(?:h[1-6]|section|table)\b)[\s\S])*)$/i)?.[1];
+    return inside || text(preceding || '').match(dated)?.[1] || '';
+  }
+  return '';
+}
+
+export function verifyYahooQuoteTtm(payload, target, close) {
+  const quote = payload?.closingQuote;
+  const ratio = payload?.latest?.pe_ttm;
+  const eps = payload?.trailingEps;
+  if (quote?.date !== target || !Number.isFinite(ratio) || !Number.isFinite(eps) || eps === 0) return false;
+  if (close !== undefined && (!Number.isFinite(close) || Math.abs(quote.close - close) > 0.011)) return false;
+  return valuationMatchesClose(ratio, quote.close, eps);
+}
 
 // Read the explicit Current cell, including a missing Current cell. Never scan
 // into a historical column, another row, embedded JSON or a loading skeleton.
@@ -36,11 +121,18 @@ export function isCurrentTable(source = '') { return source.includes(':current-t
 // observations only to their own symbol/date and retain metric-level evidence.
 export function publishYahooValuationObservations(points, observations, symbol) {
   const byDate = new Map(observations.map(row => [row.date, row]));
-  return points.map(point => {
+  return points.flatMap(point => {
     const row = byDate.get(point.date);
-    if (!row) return point;
+    const requireSession = point.date >= VALUATION_SESSION_EVIDENCE_START;
+    if (!row && !requireSession) return [point];
     const next = { ...point, valuationSources: { ...point.valuationSources } };
     for (const metric of valuationMetrics) {
+      const hasVerifiedSession = row?.metricSessionDates?.[metric] === point.date;
+      if (requireSession && !hasVerifiedSession) {
+        next[metric] = null;
+        delete next.valuationSources[metric];
+        continue;
+      }
       const value = number(row[metric]);
       const source = row.metricSources?.[metric] || row.source || '';
       const explicitMissing = Object.hasOwn(row, metric) && row[metric] === null && isCurrentTable(source) && !source.includes('+');
@@ -48,13 +140,15 @@ export function publishYahooValuationObservations(points, observations, symbol) 
       next[metric] = value;
       next.valuationSources[metric] = {
         symbol, source, date: row.date, capturedAt: row.metricCapturedAt?.[metric] || row.capturedAt || '',
+        ...(hasVerifiedSession ? { verifiedSession: row.date } : {}),
         basis: isCurrentTable(source) && !source.includes('+') ? 'current-table' : source.includes('quote-') ? 'quote' : 'provider-observation',
         url: `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.replaceAll('.', '-'))}/${isCurrentTable(source) ? 'key-statistics/' : ''}`,
         ...(row.comparisons?.[metric] ? { comparison: row.comparisons[metric] } : {}),
       };
     }
     if (!Object.keys(next.valuationSources).length) delete next.valuationSources;
-    return next;
+    // A session with no verified valuation does not advance publication.
+    return requireSession && !valuationMetrics.some(metric => number(next[metric]) !== null) ? [] : [next];
   });
 }
 

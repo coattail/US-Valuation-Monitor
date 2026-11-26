@@ -1,6 +1,6 @@
-import { parseYahooCurrentValuationTable, isCurrentTable, publishYahooValuationObservations, matchesYahooPageSymbol } from './yahoo-valuation-policy.mjs';
+import { parseYahooCurrentValuationTable, isCurrentTable, publishYahooValuationObservations, matchesYahooPageSymbol, readYahooClosingQuote, readYahooTrailingEps, readYahooValuationTableDate, readYahooValuationMeasuresRegion, readYahooBookValuePerShare, valuationMatchesClose, verifyYahooQuoteTtm } from './yahoo-valuation-policy.mjs';
 import { applyOfficialEarnings, normalizeListedCompany } from "./official-earnings.mjs";
-import { lastCompletedSession as getLastCompletedUsMarketDate, shiftDate, tradingDates } from "./market-calendar.ts";
+import { lastCompletedSession as getLastCompletedUsMarketDate, shiftDate, tradingDates, isTradingDate } from "./market-calendar.ts";
 import { capCompanyPublicationToYahoo, restoreCompanyPublishedArchive } from "./company-yahoo-publication.ts";
 import { repairCompanyMetricHistory, preserveSpcxUnavailableMetrics } from "./company-data-corrections.mjs";
 import path from "node:path";
@@ -21,6 +21,7 @@ interface ClosePoint {
   date: string;
   close: number;
   ts: number;
+  estimated?: true;
 }
 
 interface RatioAnchor {
@@ -40,6 +41,9 @@ interface RatioPayload {
     peg: number | null;
   };
   source: string;
+  closingQuote?: { date: string; close: number } | null;
+  trailingEps?: number | null;
+  bookValuePerShare?: number | null;
   metricSources?: Partial<Record<RatioMetricKey, string>>;
   comparisons?: Record<string, unknown>;
 }
@@ -170,16 +174,15 @@ interface YahooDailyMetricSnapshot {
   metricSources?: Partial<Record<RatioMetricKey, string>>;
   comparisons?: Record<string, unknown>;
   metricCapturedAt?: Partial<Record<RatioMetricKey, string>>;
+  metricSessionDates?: Partial<Record<RatioMetricKey, string>>;
 }
 
 interface YahooRatioPayloadResult {
-  payload: RatioPayload | null;
-  quoteLatestPayload: RatioPayload | null;
+  quotePagePayload: RatioPayload | null;
   pageValuationPayload: RatioPayload | null;
   trailingPePayload: RatioPayload | null;
   forwardPePayload: RatioPayload | null;
   latestMetricDates: Partial<Record<RatioMetricKey, string>>;
-  latestMetricValues: Partial<Record<RatioMetricKey, number | null>>;
   metricAnchorDates: Partial<Record<RatioMetricKey, string[]>>;
 }
 
@@ -257,7 +260,6 @@ const FORWARD_PE_REBASE_MIN_VALUE = 4;
 // The Current column in Yahoo's Valuation Measures table is the source of
 // truth for the latest company Forward P/E.  The fundamentals timeseries is
 // retained for historical anchors only and must not overwrite that value.
-const YAHOO_PAGE_FORWARD_PE_MAX_AGE_DAYS = 10;
 // The Yahoo fundamentals endpoint occasionally returns today's ratio with a
 // months-old asOfDate.  The daily snapshot store is point-in-time history, so a
 // newly discovered anchor that far behind the latest close must not be backfilled.
@@ -411,11 +413,7 @@ function sanitizeYahooRatioPayloadMetrics(payload: RatioPayload | null): RatioPa
     return null;
   }
 
-  return {
-    anchors,
-    latest,
-    source,
-  };
+  return { ...payload, anchors, latest, source };
 }
 
 function getRatioAnchorMetricValue(anchor: RatioAnchor, metric: RatioMetricKey): number | null {
@@ -1164,6 +1162,7 @@ function densifyCloseSeriesWithRecentDailyVol(closePoints: ClosePoint[]): CloseP
             date: dates[j],
             ts: toTs(dates[j]),
             close: Math.max(runningClose, 1e-8),
+            estimated: true,
           });
         }
         filled.push(right);
@@ -1178,6 +1177,7 @@ function densifyCloseSeriesWithRecentDailyVol(closePoints: ClosePoint[]): CloseP
         date: dates[j],
         ts: toTs(dates[j]),
         close: Math.max(runningClose, 1e-8),
+        estimated: true,
       });
     }
 
@@ -2048,11 +2048,13 @@ function parseYahooQuotePageRatioPayload(rawText: string): RatioPayload | null {
       peg: null,
     },
     source: "yahoo-quote-page-latest",
+    closingQuote: readYahooClosingQuote(raw),
+    trailingEps: readYahooTrailingEps(raw),
   };
 }
 
 function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | null {
-  const raw = String(rawText || "");
+  const raw = readYahooValuationMeasuresRegion(rawText) || String(rawText || "");
   if (!raw.trim()) return null;
 
   const normalizedPlain = decodeHtml(stripTags(stripScriptsAndStyles(raw)))
@@ -2113,12 +2115,7 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
     return null;
   };
 
-  const asOfDate =
-    toIsoDateFromYahooAsOfText(
-      normalizedPlain.match(/\bAs of\s+(\d{1,2}\/\d{1,2}\/\d{4})\b/i)?.[1] ||
-        raw.match(/\bAs of\s+(\d{1,2}\/\d{1,2}\/\d{4})\b/i)?.[1] ||
-        ""
-    ) || "";
+  const asOfDate = toIsoDateFromYahooAsOfText(readYahooValuationTableDate(raw));
   const currentTable = parseYahooCurrentValuationTable(raw);
   const peTtm = currentTable ? currentTable.pe_ttm : parseLabelMetric(["Trailing P/E"], 2, 400);
   const peForward = currentTable ? currentTable.pe_forward : parseLabelMetric(["Forward P/E"], 2, 400);
@@ -2154,194 +2151,8 @@ function parseYahooValuationMeasuresFromHtml(rawText: string): RatioPayload | nu
       peg: datedAnchor ? null : peg,
     },
     source: `yahoo-key-statistics-valuation-measures${currentTable ? ":current-table" : ""}`,
-  };
-}
-
-function parseYahooKeyStatisticsRatioPayload(rawText: string): RatioPayload | null {
-  const text = String(rawText || "");
-  if (!text) return null;
-  const valuationMeasuresPayload = parseYahooValuationMeasuresFromHtml(text);
-  const normalizedText = text.includes('\\"') ? text.replace(/\\"/g, '"') : text;
-  const haystacks = [text, normalizedText];
-
-  const pickRawNumberByKeys = (keys: string[]): number | null => {
-    for (const key of keys) {
-      const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(`"${escaped}"\\s*:\\s*\\{[^{}]{0,320}?"raw"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`, "i");
-
-      for (const haystack of haystacks) {
-        const match = haystack.match(regex);
-        if (!match) continue;
-
-        const value = sanitizeSignedRatio(Number(match[1]));
-        if (value !== null) return value;
-      }
-    }
-    return null;
-  };
-
-  const peTtm = pickRawNumberByKeys(["trailingPE", "trailingPe"]);
-
-  const rawPayload =
-    peTtm
-      ? {
-          anchors: [],
-          latest: {
-            pe_ttm: peTtm,
-            pe_forward: null,
-            pb: null,
-            peg: null,
-          },
-          source: "yahoo-key-statistics-latest-raw",
-        }
-      : null;
-
-  return mergeRatioPayloadList(
-    [valuationMeasuresPayload, rawPayload].filter(Boolean) as RatioPayload[]
-  );
-}
-
-function parseYahooQuoteSummaryRatioPayload(rawText: string): RatioPayload | null {
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(rawText) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-
-  const result = (
-    ((parsed.quoteSummary as Record<string, unknown> | undefined)?.result as unknown[]) || []
-  ).find((item) => item && typeof item === "object") as Record<string, unknown> | undefined;
-  if (!result) return null;
-
-  const defaultKeyStatistics = (result.defaultKeyStatistics as Record<string, unknown> | undefined) || {};
-  const financialData = (result.financialData as Record<string, unknown> | undefined) || {};
-  const summaryDetail = (result.summaryDetail as Record<string, unknown> | undefined) || {};
-
-  const pickRaw = (...sources: unknown[]): number | null => {
-    for (const source of sources) {
-      if (!source || typeof source !== "object") continue;
-      const value = sanitizeSignedRatio((source as { raw?: unknown }).raw);
-      if (value !== null) return value;
-    }
-    return null;
-  };
-
-  const peTtm = pickRaw(
-    summaryDetail.trailingPE,
-    defaultKeyStatistics.trailingPE,
-    defaultKeyStatistics.trailingPe
-  );
-  const peForward = pickRaw(
-    summaryDetail.forwardPE,
-    defaultKeyStatistics.forwardPE,
-    defaultKeyStatistics.forwardPe,
-    financialData.forwardPE,
-    financialData.forwardPe
-  );
-  const pb = pickRaw(summaryDetail.priceToBook, defaultKeyStatistics.priceToBook, financialData.priceToBook);
-  const peg = pickRaw(defaultKeyStatistics.pegRatio, defaultKeyStatistics.peg);
-
-  if (!peTtm && !peForward && !pb && !peg) return null;
-
-  return {
-    anchors: [],
-    latest: {
-      pe_ttm: peTtm,
-      pe_forward: peForward,
-      pb,
-      peg,
-    },
-    source: "yahoo-quote-summary-latest",
-  };
-}
-
-function parseYahooQuoteApiRatioPayload(rawText: string): RatioPayload | null {
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(rawText) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-
-  const result = (((parsed.quoteResponse as Record<string, unknown> | undefined)?.result as unknown[]) || []).find(
-    (item) => item && typeof item === "object"
-  ) as Record<string, unknown> | undefined;
-  if (!result) return null;
-
-  const peTtm = sanitizeSignedRatio(result.trailingPE);
-  const peForward = sanitizeSignedRatio(result.forwardPE);
-  const pb = sanitizeSignedRatio(result.priceToBook);
-  const peg = sanitizeSignedRatio(result.pegRatio);
-  if (!peTtm && !peForward && !pb && !peg) return null;
-
-  return {
-    anchors: [],
-    latest: {
-      pe_ttm: peTtm,
-      pe_forward: peForward,
-      pb,
-      peg,
-    },
-    source: "yahoo-quote-api-latest",
-  };
-}
-
-function parseYahooTrailingPegTimeseriesPayload(rawText: string): RatioPayload | null {
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(rawText) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-
-  const resultList = (((parsed.timeseries as Record<string, unknown> | undefined)?.result as unknown[]) || []).filter(
-    (item) => item && typeof item === "object"
-  ) as Array<Record<string, unknown>>;
-  if (!resultList.length) return null;
-
-  const sourceRows = resultList
-    .map((item) => (Array.isArray(item.trailingPegRatio) ? item.trailingPegRatio : []))
-    .find((rows) => rows.length) as Array<Record<string, unknown>> | undefined;
-  if (!sourceRows || !sourceRows.length) return null;
-
-  const byDate = new Map<string, RatioAnchor>();
-  let latestPeg: number | null = null;
-  let latestDate = "";
-  for (const row of sourceRows) {
-    if (!row || typeof row !== "object") continue;
-    const asOfDate = String(row.asOfDate || "");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) continue;
-
-    const rawValue = (row.reportedValue as Record<string, unknown> | undefined)?.raw;
-    const peg = sanitizeSignedRatio(rawValue);
-    if (peg === null) continue;
-
-    byDate.set(asOfDate, {
-      date: asOfDate,
-      pe_ttm: null,
-      pe_forward: null,
-      pb: null,
-      peg,
-    });
-
-    if (!latestDate || asOfDate >= latestDate) {
-      latestDate = asOfDate;
-      latestPeg = peg;
-    }
-  }
-
-  if (!byDate.size && latestPeg === null) return null;
-
-  return {
-    anchors: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
-    latest: {
-      pe_ttm: null,
-      pe_forward: null,
-      pb: null,
-      peg: latestPeg,
-    },
-    source: "yahoo-trailing-peg-timeseries",
+    bookValuePerShare: readYahooBookValuePerShare(rawText),
+    closingQuote: readYahooClosingQuote(rawText),
   };
 }
 
@@ -2467,13 +2278,10 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
     .filter(Boolean);
   const period1 = Math.floor(toTs(HISTORY_START_DATE) / 1000);
   const period2 = Math.floor(Date.now() / 1000) + 86400 * 30;
-  let quoteSummaryPayload: RatioPayload | null = null;
-  let quoteApiPayload: RatioPayload | null = null;
   let quotePagePayload: RatioPayload | null = null;
   let pageValuationPayload: RatioPayload | null = null;
   let trailingPePayload: RatioPayload | null = null;
   let forwardPePayload: RatioPayload | null = null;
-  let trailingPegPayload: RatioPayload | null = null;
 
   const fetchYahooPayloadText = async (url: string): Promise<string | null> => {
     try {
@@ -2484,41 +2292,8 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
   };
 
   for (const candidate of candidates) {
-    if (!quoteSummaryPayload) {
-      const quoteSummaryUrls = [
-        `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(candidate)}?modules=defaultKeyStatistics,financialData,summaryDetail`,
-        `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(candidate)}?modules=defaultKeyStatistics,financialData,summaryDetail`,
-      ];
-
-      for (const url of quoteSummaryUrls) {
-        const text = await fetchYahooPayloadText(url);
-        if (!text) continue;
-        const payload = parseYahooQuoteSummaryRatioPayload(text);
-        if (payload) {
-          quoteSummaryPayload = payload;
-          break;
-        }
-      }
-    }
-
-    if (!quoteApiPayload) {
-      const quoteApiUrls = [
-        `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(candidate)}`,
-        `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(candidate)}`,
-      ];
-      for (const url of quoteApiUrls) {
-        const text = await fetchYahooPayloadText(url);
-        if (!text) continue;
-        const payload = parseYahooQuoteApiRatioPayload(text);
-        if (payload) {
-          quoteApiPayload = payload;
-          break;
-        }
-      }
-    }
-
     const fetchTimeseriesPayload = async (
-      type: "trailingPeRatio" | "forwardPeRatio" | "trailingPegRatio"
+      type: "trailingPeRatio" | "forwardPeRatio"
     ): Promise<RatioPayload | null> => {
       const timeseriesUrl =
         `https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/` +
@@ -2527,8 +2302,7 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
       const text = await fetchYahooPayloadText(timeseriesUrl);
       if (!text) return null;
       if (type === "trailingPeRatio") return parseYahooTrailingPeTimeseriesPayload(text);
-      if (type === "forwardPeRatio") return parseYahooForwardPeTimeseriesPayload(text);
-      return parseYahooTrailingPegTimeseriesPayload(text);
+      return parseYahooForwardPeTimeseriesPayload(text);
     };
 
     try {
@@ -2543,124 +2317,54 @@ async function fetchYahooKeyStatisticsRatioPayload(symbol: string): Promise<Yaho
       // continue
     }
 
-    try {
-      trailingPegPayload = trailingPegPayload || (await fetchTimeseriesPayload("trailingPegRatio"));
-    } catch {
-      // continue
-    }
   }
 
-  let keyStatisticsPayload: RatioPayload | null = null;
-
-  parseKeyStatisticsHtml:
   for (const candidate of candidates) {
     for (const host of YAHOO_KEY_STATISTICS_HOSTS) {
+      const quoteUrl = `${host}/quote/${encodeURIComponent(candidate)}/`;
       const urls = [
-        `${host}/quote/${encodeURIComponent(candidate)}/key-statistics/`,
-        `${host}/quote/${encodeURIComponent(candidate)}/`,
+        quotePagePayload?.closingQuote ? null : quoteUrl,
+        pageValuationPayload?.anchors.length ? null : `${quoteUrl}key-statistics/`,
       ];
-
-      for (const url of urls) {
-        for (let attempt = 0; attempt < 2; attempt += 1) {
-          try {
-            const html = await fetchText(url, 0, 15000, false, { userAgent: "Mozilla/5.0" });
-
-            if (!matchesYahooPageSymbol(html, candidate)) throw new Error("Unexpected Yahoo page symbol");
-            const quotePageRatioPayload = parseYahooQuotePageRatioPayload(html);
-            if (quotePageRatioPayload && (!quotePagePayload || url.endsWith(`/${encodeURIComponent(candidate)}/`))) {
-              quotePagePayload = {
-                ...quotePageRatioPayload,
-                source: `${quotePageRatioPayload.source}:${host.replace(/^https?:\/\//i, "")}`,
-              };
-            }
-
-            const valuationMeasuresPayload = parseYahooValuationMeasuresFromHtml(html);
-            if (valuationMeasuresPayload && (!pageValuationPayload ||
-                (url.includes("/key-statistics/") && isCurrentTable(valuationMeasuresPayload.source)))) {
-              pageValuationPayload = {
-                ...valuationMeasuresPayload,
-                source: `${valuationMeasuresPayload.source}:${host.replace(/^https?:\/\//i, "")}`,
-              };
-            }
-
-            const payload = parseYahooKeyStatisticsRatioPayload(html);
-            if (payload) {
-              keyStatisticsPayload = {
-                ...payload,
-                source: `${payload.source}:${host.replace(/^https?:\/\//i, "")}`,
-              };
-              // Do not stop on a raw/compact quote value: the independent Current table is required.
-              if (isCurrentTable(pageValuationPayload?.source || "") && url.endsWith(`/${encodeURIComponent(candidate)}/`)) break parseKeyStatisticsHtml;
-            }
-            break;
-          } catch {
-            // retry once, then fallback to next url/host
-          }
+      const [quoteHtml, statsHtml] = await Promise.all(
+        urls.map(url => url ? fetchYahooPayloadText(url) : null)
+      );
+      const sourceHost = host.replace(/^https?:\/\//i, "");
+      if (quoteHtml && matchesYahooPageSymbol(quoteHtml, candidate)) {
+        const quote = parseYahooQuotePageRatioPayload(quoteHtml);
+        if (quote?.closingQuote && verifyYahooQuoteTtm(quote, quote.closingQuote.date)) {
+          quotePagePayload = { ...quote, source: `${quote.source}:${sourceHost}` };
         }
       }
+      for (const html of [quoteHtml, statsHtml]) {
+        if (!html || !matchesYahooPageSymbol(html, candidate)) continue;
+        const statistics = parseYahooValuationMeasuresFromHtml(html);
+        if (statistics?.anchors.length && (!pageValuationPayload ||
+            statistics.anchors[0].date >= pageValuationPayload.anchors[0].date)) {
+          pageValuationPayload = { ...statistics, source: `${statistics.source}:${sourceHost}` };
+        }
+      }
+      if (quotePagePayload?.closingQuote && pageValuationPayload?.anchors.length) break;
     }
+    if (quotePagePayload?.closingQuote && pageValuationPayload?.anchors.length) break;
   }
 
-  quoteSummaryPayload = sanitizeYahooRatioPayloadMetrics(quoteSummaryPayload);
-  quoteApiPayload = sanitizeYahooRatioPayloadMetrics(quoteApiPayload);
   quotePagePayload = sanitizeYahooRatioPayloadMetrics(quotePagePayload);
   pageValuationPayload = sanitizeYahooRatioPayloadMetrics(pageValuationPayload);
   trailingPePayload = sanitizeYahooRatioPayloadMetrics(trailingPePayload);
   forwardPePayload = sanitizeYahooRatioPayloadMetrics(forwardPePayload);
-  trailingPegPayload = sanitizeYahooRatioPayloadMetrics(trailingPegPayload);
-  keyStatisticsPayload = sanitizeYahooRatioPayloadMetrics(keyStatisticsPayload);
-
-  const quoteLatestPayload = mergeYahooLatestQuotePayloads(
-    [
-      trailingPegPayload,
-      keyStatisticsPayload,
-      trailingPePayload,
-      forwardPePayload,
-      quoteSummaryPayload,
-      quoteApiPayload,
-      quotePagePayload,
-    ].filter(Boolean) as RatioPayload[],
-    isCurrentTable(pageValuationPayload?.source || "") ? pageValuationPayload : null
-  );
-  const payload = mergeRatioPayloadList(
-    [
-      trailingPegPayload,
-      quoteSummaryPayload,
-      quoteApiPayload,
-      quotePagePayload,
-      keyStatisticsPayload,
-      trailingPePayload,
-      forwardPePayload,
-    ].filter(Boolean) as RatioPayload[]
-  );
-  const latestTtmDate = getLatestMetricAnchorDate(trailingPePayload, "pe_ttm");
-  const latestForwardDate = getLatestMetricAnchorDate(forwardPePayload, "pe_forward");
-  const latestPegDate = getLatestMetricAnchorDate(trailingPegPayload, "peg");
-  const quoteLatestTtmDates = getMetricAnchorDates(quoteLatestPayload, "pe_ttm");
-  const quoteLatestForwardDates = getMetricAnchorDates(quoteLatestPayload, "pe_forward");
   return {
-    payload,
-    quoteLatestPayload,
+    quotePagePayload,
     pageValuationPayload,
     trailingPePayload,
     forwardPePayload,
     latestMetricDates: {
-      pe_ttm: latestTtmDate,
-      pe_forward: latestForwardDate,
-      peg: latestPegDate,
-    },
-    latestMetricValues: {
-      pe_ttm: getMetricAnchorValueOnDate(trailingPePayload, "pe_ttm", latestTtmDate),
-      pe_forward: getMetricAnchorValueOnDate(forwardPePayload, "pe_forward", latestForwardDate),
-      peg: getMetricAnchorValueOnDate(trailingPegPayload, "peg", latestPegDate),
+      pe_ttm: getLatestMetricAnchorDate(trailingPePayload, "pe_ttm"),
+      pe_forward: getLatestMetricAnchorDate(forwardPePayload, "pe_forward"),
     },
     metricAnchorDates: {
-      pe_ttm: mergeMetricAnchorDates(getMetricAnchorDates(trailingPePayload, "pe_ttm"), quoteLatestTtmDates),
-      pe_forward: mergeMetricAnchorDates(
-        getMetricAnchorDates(forwardPePayload, "pe_forward"),
-        quoteLatestForwardDates
-      ),
-      peg: getMetricAnchorDates(trailingPegPayload, "peg"),
+      pe_ttm: getMetricAnchorDates(trailingPePayload, "pe_ttm"),
+      pe_forward: getMetricAnchorDates(forwardPePayload, "pe_forward"),
     },
   };
 }
@@ -2971,44 +2675,6 @@ function selectLatestYahooRatioOverride(
   );
 }
 
-function buildYahooPageForwardPeOverride(
-  pageValuationPayload: RatioPayload | null,
-  targetDate: string
-): RatioPayload | null {
-  if (!pageValuationPayload || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) return null;
-
-  const targetTs = toTs(targetDate);
-  const latestAnchor = [...(pageValuationPayload.anchors || [])]
-    .filter((anchor) => {
-      const anchorTs = toTs(anchor.date);
-      const ageDays = Number.isFinite(anchorTs) && Number.isFinite(targetTs)
-        ? (targetTs - anchorTs) / 86_400_000
-        : Number.POSITIVE_INFINITY;
-      return (
-        anchor.date <= targetDate &&
-        ageDays >= 0 &&
-        ageDays <= YAHOO_PAGE_FORWARD_PE_MAX_AGE_DAYS &&
-        sanitizeYahooMetricValue("pe_forward", anchor.pe_forward, pageValuationPayload.source) !== null
-      );
-    })
-    .sort((left, right) => left.date.localeCompare(right.date))
-    .at(-1);
-  if (!latestAnchor) return null;
-
-  const peForward = sanitizeYahooMetricValue(
-    "pe_forward",
-    latestAnchor.pe_forward,
-    pageValuationPayload.source
-  );
-  if (peForward === null) return null;
-
-  return {
-    anchors: [],
-    latest: { pe_ttm: null, pe_forward: peForward, pb: null, peg: null },
-    source: `${pageValuationPayload.source}+yahoo-page-forward-pe-current`,
-  };
-}
-
 function buildEffectiveYahooDailyMetricSnapshots(
   closePoints: ClosePoint[],
   snapshots: YahooDailyMetricSnapshot[]
@@ -3122,19 +2788,6 @@ function getLatestMetricAnchorDate(payload: RatioPayload | null, metric: RatioMe
     .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
     .sort((a, b) => a.localeCompare(b));
   return dates[dates.length - 1] || "";
-}
-
-function getMetricAnchorValueOnDate(
-  payload: RatioPayload | null,
-  metric: RatioMetricKey,
-  date: string
-): number | null {
-  if (!payload || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  for (const anchor of payload.anchors || []) {
-    if (anchor.date !== date) continue;
-    return getRatioAnchorMetricValue(anchor, metric);
-  }
-  return null;
 }
 
 function getMetricAnchorDates(payload: RatioPayload | null, metric: RatioMetricKey): string[] {
@@ -3420,109 +3073,56 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
     capturedAt,
     ...(item.metricSources ? { metricSources: item.metricSources as YahooDailyMetricSnapshot["metricSources"] } : {}),
     ...(item.metricCapturedAt ? { metricCapturedAt: item.metricCapturedAt as YahooDailyMetricSnapshot["metricCapturedAt"] } : {}),
+    ...(item.metricSessionDates ? { metricSessionDates: item.metricSessionDates as YahooDailyMetricSnapshot["metricSessionDates"] } : {}),
     ...(item.comparisons ? { comparisons: item.comparisons as Record<string, unknown> } : {}),
   };
 }
 
 function createYahooDailyMetricSnapshots(
-  payload: RatioPayload | null,
-  fallbackDate: string,
-  latestMetricDates: Partial<Record<RatioMetricKey, string>>,
-  latestMetricValues: Partial<Record<RatioMetricKey, number | null>>,
-  completedDate = fallbackDate
+  quote: RatioPayload | null,
+  statistics: RatioPayload | null,
+  forward: RatioPayload | null,
+  closes: ClosePoint[],
+  completedDate: string
 ): YahooDailyMetricSnapshot[] {
-  if (!payload) return [];
-
-  const source = String(payload.source || "").trim();
-  if (!source) return [];
-
-  const valuesByMetric: Partial<Record<RatioMetricKey, number | null>> = {
-    pe_ttm: sanitizeYahooMetricValue("pe_ttm", payload.latest.pe_ttm, source),
-    pe_forward: sanitizeYahooMetricValue("pe_forward", payload.latest.pe_forward, source),
-    pb: sanitizeYahooMetricValue("pb", payload.latest.pb, source),
-    peg: sanitizeYahooMetricValue("peg", payload.latest.peg, source),
-  };
-
+  const closeByDate = new Map(closes.filter(row => !row.estimated).map(row => [row.date, row.close]));
   const byDate = new Map<string, YahooDailyMetricSnapshot>();
-  const metrics: RatioMetricKey[] = ["pe_ttm", "pe_forward", "pb", "peg"];
-  const effectiveFallbackDate = /^\d{4}-\d{2}-\d{2}$/.test(fallbackDate) ? fallbackDate : "";
-
-  const setMetric = (targetDate: string, metric: RatioMetricKey, value: number | null, metricSource = ""): void => {
-    const current = byDate.get(targetDate) || {
-      date: targetDate,
-      pe_ttm: null,
-      pe_forward: null,
-      pb: null,
-      peg: null,
-      source,
-      capturedAt: new Date().toISOString(),
+  const capturedAt = new Date().toISOString();
+  const setMetric = (date: string, metric: RatioMetricKey, value: number | null, source: string) => {
+    if (date > completedDate || !isTradingDate(date) || !(Number(closeByDate.get(date)) > 0)) return;
+    const row = byDate.get(date) || {
+      date, pe_ttm: null, pe_forward: null, pb: null, peg: null, source, capturedAt,
+      metricSources: {}, metricCapturedAt: {}, metricSessionDates: {},
     };
-
-    if (metric === "pe_ttm") current.pe_ttm = value;
-    else if (metric === "pe_forward") current.pe_forward = value;
-    else if (metric === "pb") current.pb = value;
-    else current.peg = value;
-
-    if (metricSource) {
-      current.metricSources = { ...current.metricSources, [metric]: metricSource };
-      current.metricCapturedAt = { ...current.metricCapturedAt, [metric]: current.capturedAt || "" };
-    }
-    if (metricSource && payload.comparisons?.[metric]) current.comparisons = { ...current.comparisons, [metric]: payload.comparisons[metric] };
-    byDate.set(targetDate, current);
+    row[metric] = value;
+    row.metricSources![metric] = source;
+    row.metricCapturedAt![metric] = capturedAt;
+    row.metricSessionDates![metric] = date;
+    byDate.set(date, row);
   };
 
-  for (const anchor of payload.anchors || []) {
-    const targetDate = String(anchor?.date || "").trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) continue;
-
-    for (const metric of metrics) {
-      const value = sanitizeYahooMetricValue(metric, getRatioAnchorMetricValue(anchor, metric), source);
-      if (value === null) continue;
-      setMetric(targetDate, metric, value);
+  if (forward) {
+    for (const anchor of forward.anchors) {
+      if (anchor.pe_forward !== null) setMetric(anchor.date, "pe_forward", anchor.pe_forward, forward.source);
     }
   }
-
-  const isYahooQuoteLatestSource = hasAnyYahooSourceTag(source, [
-    "yahoo-quote-api-latest",
-    "yahoo-quote-summary-latest",
-    "yahoo-quote-page-latest",
-  ]);
-
-  for (const metric of metrics) {
-    // Undated Current/quote values cannot be assigned to a stale price tail.
-    if (effectiveFallbackDate !== completedDate) continue;
-    const directLatestValue = valuesByMetric[metric] ?? null;
-    const useCurrentTable = isCurrentTable(payload.metricSources?.[metric] || "") && directLatestValue !== null;
-    const useDirectQuoteTtm = (metric === "pe_ttm" && isYahooQuoteLatestSource && directLatestValue !== null) || useCurrentTable;
-    const value =
-      (metric === "pe_ttm" || metric === "pe_forward") && !useDirectQuoteTtm
-        ? sanitizeSignedRatio(latestMetricValues?.[metric] ?? directLatestValue)
-        : directLatestValue;
-    if (value === null || value === undefined) {
-      if (isCurrentTable(payload.metricSources?.[metric] || "")) setMetric(effectiveFallbackDate, metric, null, payload.metricSources?.[metric]);
-      continue;
+  if (statistics) {
+    for (const anchor of statistics.anchors) {
+      for (const metric of ["pe_forward", "pb", "peg"] as const) {
+        const value = anchor[metric];
+        const book = statistics.bookValuePerShare;
+        if (metric === "pb" && value !== null && book !== null && book !== undefined &&
+            !valuationMatchesClose(value, closeByDate.get(anchor.date), book)) continue;
+        if (value !== null || (isCurrentTable(statistics.source) && !byDate.get(anchor.date)?.[metric])) {
+          setMetric(anchor.date, metric, value, statistics.source);
+        }
+      }
     }
-
-    const hintDate = String(latestMetricDates?.[metric] || "").trim();
-    // Company PE(TTM) is refreshed from Yahoo quote data after each trading-day close.
-    // Yahoo's trailingPeRatio timeseries can lag or use a different update date, so quote latest TTM
-    // must be stamped to the latest close date. Other PE metrics keep their explicit Yahoo date hint.
-    const targetDate = useDirectQuoteTtm
-      ? effectiveFallbackDate
-      : metric === "pe_ttm" || metric === "pe_forward"
-        ? /^\d{4}-\d{2}-\d{2}$/.test(hintDate)
-          ? hintDate
-          : directLatestValue !== null
-            ? effectiveFallbackDate
-            : ""
-        : /^\d{4}-\d{2}-\d{2}$/.test(hintDate)
-          ? hintDate
-          : effectiveFallbackDate;
-    if (!targetDate) continue;
-
-    setMetric(targetDate, metric, value, (useCurrentTable || useDirectQuoteTtm) ? payload.metricSources?.[metric] : "");
   }
-
+  const quoteDate = quote?.closingQuote?.date;
+  if (quote && quoteDate && closeByDate.has(quoteDate) && verifyYahooQuoteTtm(quote, quoteDate, closeByDate.get(quoteDate))) {
+    setMetric(quoteDate, "pe_ttm", quote.latest.pe_ttm, quote.source);
+  }
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
@@ -3530,7 +3130,6 @@ function alignSnapshotMetricsToLatestDates(
   snapshots: YahooDailyMetricSnapshot[],
   latestMetricDates: Partial<Record<RatioMetricKey, string>>,
   metricAnchorDates: Partial<Record<RatioMetricKey, string[]>>,
-  latestCloseDate = ""
 ): YahooDailyMetricSnapshot[] {
   if (!Array.isArray(snapshots) || !snapshots.length) return [];
 
@@ -3548,10 +3147,10 @@ function alignSnapshotMetricsToLatestDates(
     .filter((item): item is YahooDailyMetricSnapshot => !!item)
     .map((item) => {
       const nextItem: YahooDailyMetricSnapshot = { ...item };
+      if (Object.keys(nextItem.metricSessionDates || {}).length) return nextItem;
       const isDirectLatestQuoteTtm =
         nextItem.pe_ttm !== null &&
-        nextItem.date === latestCloseDate &&
-        hasAnyYahooSourceTag(nextItem.source, [
+        hasAnyYahooSourceTag(nextItem.metricSources?.pe_ttm || nextItem.source, [
           "yahoo-quote-api-latest",
           "yahoo-quote-summary-latest",
           "yahoo-quote-page-latest",
@@ -3595,8 +3194,7 @@ function mergeCurrentYahooSnapshotsIntoHistory(
   const alignedCurrent = alignSnapshotMetricsToLatestDates(
     currentSnapshots,
     latestMetricDates,
-    metricAnchorDates,
-    latestCloseDate
+    metricAnchorDates
   );
   const latestCloseTs = /^\d{4}-\d{2}-\d{2}$/.test(latestCloseDate) ? toTs(latestCloseDate) : 0;
   for (const snapshot of alignedCurrent) {
@@ -3611,6 +3209,7 @@ function mergeCurrentYahooSnapshotsIntoHistory(
     const current = byDate.get(snapshot.date);
     const metricSources = current?.metricSources || snapshot.metricSources ? { ...Object.fromEntries((["pe_ttm", "pe_forward", "pb", "peg"] as RatioMetricKey[]).filter(metric => current?.[metric] != null).map(metric => [metric, current?.source || ""])), ...current?.metricSources } : null;
     const comparisons = { ...current?.comparisons };
+    const metricSessionDates = { ...current?.metricSessionDates };
     const metricCapturedAt = metricSources ? Object.fromEntries(Object.keys(current?.metricSources || {}).map(metric => [metric, current?.metricCapturedAt?.[metric as RatioMetricKey] || current?.capturedAt || ""])) : null;
     for (const metric of ["pe_ttm", "pe_forward", "pb", "peg"] as RatioMetricKey[]) {
       if (snapshot[metric] == null && !isCurrentTable(snapshot.metricSources?.[metric] || "")) continue;
@@ -3628,6 +3227,8 @@ function mergeCurrentYahooSnapshotsIntoHistory(
       }
       if (metricSources) metricSources[metric] = incomingSource;
       if (metricCapturedAt) metricCapturedAt[metric] = snapshot.metricCapturedAt?.[metric] || snapshot.capturedAt || "";
+      if (snapshot.metricSessionDates?.[metric]) metricSessionDates[metric] = snapshot.metricSessionDates[metric];
+      else delete metricSessionDates[metric];
       if (snapshot.comparisons?.[metric]) comparisons[metric] = snapshot.comparisons[metric];
       else delete comparisons[metric];
     }
@@ -3640,6 +3241,7 @@ function mergeCurrentYahooSnapshotsIntoHistory(
       source: snapshot.source || current?.source || "yahoo-daily-snapshot",
       capturedAt: snapshot.capturedAt || current?.capturedAt || "",
       ...(metricSources ? { metricSources, metricCapturedAt } : {}),
+      ...(Object.keys(metricSessionDates).length ? { metricSessionDates } : {}),
       ...(Object.keys(comparisons).length ? { comparisons } : {}),
     });
   }
@@ -4144,59 +3746,6 @@ function carryForwardMissingPeTtmByPreviousClose(
   });
 
   return changed ? nextPoints : valuationPoints;
-}
-
-function mergeYahooLatestQuotePayloads(payloads: RatioPayload[], currentTable: RatioPayload | null = null): RatioPayload | null {
-  const merged = mergeRatioPayloadList(currentTable ? [currentTable, ...payloads] : payloads);
-  if (!merged) return null;
-  // Restore the original TTM selection order independently of Current-table metrics.
-  const legacyTtm = mergeRatioPayloadList(payloads);
-  if (legacyTtm) {
-    merged.latest.pe_ttm = legacyTtm.latest.pe_ttm;
-    const selected = payloads.find(payload => payload.latest.pe_ttm === legacyTtm.latest.pe_ttm && payload.latest.pe_ttm !== null);
-    if (selected) merged.metricSources = { ...merged.metricSources, pe_ttm: selected.source };
-  }
-
-  for (let i = payloads.length - 1; i >= 0; i -= 1) {
-    const payload = payloads[i];
-    const source = String(payload?.source || "");
-    if (!hasAnyYahooSourceTag(source, ["yahoo-quote-api-latest", "yahoo-quote-summary-latest", "yahoo-quote-page-latest"])) {
-      continue;
-    }
-
-    const quotePeTtm = sanitizeYahooMetricValue("pe_ttm", payload.latest.pe_ttm, source);
-    if (quotePeTtm !== null) {
-      merged.latest.pe_ttm = quotePeTtm;
-      merged.metricSources = { ...merged.metricSources, pe_ttm: source };
-      break;
-    }
-  }
-
-  if (currentTable) {
-    for (const metric of ["pe_forward", "pb", "peg"] as RatioMetricKey[]) {
-      const sameDateAnchor = currentTable.anchors.find(anchor => anchor.date === getLastCompletedUsMarketDate());
-      const current = sanitizeYahooMetricValue(metric, currentTable.latest[metric] ?? sameDateAnchor?.[metric], currentTable.source);
-      const fallbackPayload = (metric === "pe_ttm" ? [...payloads].reverse() : payloads)
-        .find(payload => sanitizeYahooMetricValue(metric, payload.latest[metric], payload.source) !== null);
-      const fallback = fallbackPayload ? sanitizeYahooMetricValue(metric, fallbackPayload.latest[metric], fallbackPayload.source) : null;
-      if (current === null && (!currentTable.anchors.length || sameDateAnchor)) {
-        merged.latest[metric] = null;
-        merged.metricSources = { ...merged.metricSources, [metric]: currentTable.source };
-        continue;
-      }
-      if (current === null) {
-        if (fallbackPayload) merged.metricSources = { ...merged.metricSources, [metric]: fallbackPayload.source };
-        continue;
-      }
-      merged.latest[metric] = current;
-      merged.metricSources = { ...merged.metricSources, [metric]: currentTable.source };
-      if (fallback !== null && Math.abs(current / fallback - 1) > 0.02) {
-        merged.comparisons = { ...merged.comparisons, [metric]: { current, fallback, fallbackSource: fallbackPayload?.source || merged.source } };
-      }
-    }
-    merged.source = [currentTable.source, merged.source].join("+");
-  }
-  return merged;
 }
 
 function mergeRatioPayloadList(payloads: RatioPayload[]): RatioPayload | null {
@@ -7549,11 +7098,6 @@ async function main(): Promise<void> {
       observeSource(company.symbol, "companiesmarketcap-pb", fetchCompaniesMarketCapMetricSeries(company.slug, "pb-ratio")),
       observeSource(company.symbol, "ycharts", fetchYchartsSeriesBundle(company.symbol)),
     ]);
-    const yahooLatestPayload = yahooFetchResult?.payload || null;
-    const yahooQuoteLatestPayload = yahooFetchResult?.quoteLatestPayload || null;
-    const yahooLatestPeg = sanitizeSignedRatio(
-      yahooQuoteLatestPayload?.latest.peg ?? yahooLatestPayload?.latest.peg ?? null
-    );
 
     const stockPayload = mergeRatioPayloadList(
       [stockQuarterlyPayload, stockStatisticsPayload].filter(Boolean) as RatioPayload[]
@@ -7640,7 +7184,6 @@ async function main(): Promise<void> {
           rank: company.rank,
           marketCap: company.marketCap,
           peg:
-            yahooLatestPeg ??
             sanitizeSignedRatio(reusedLatestPoint?.peg) ??
             previousSeries.peg ??
             null,
@@ -7658,15 +7201,13 @@ async function main(): Promise<void> {
 
     const lastCloseDate = closePoints[closePoints.length - 1]?.date || "";
     const historicalYahooDailySnapshots = yahooDailyMetricsBySymbol.get(company.symbol) || [];
-    const currentYahooDailySnapshots = lastCloseDate
-      ? createYahooDailyMetricSnapshots(
-        yahooQuoteLatestPayload,
-        lastCloseDate,
-        yahooFetchResult?.latestMetricDates || {},
-        yahooFetchResult?.latestMetricValues || {},
-        companySeriesCapDate
-      )
-      : [];
+    const currentYahooDailySnapshots = createYahooDailyMetricSnapshots(
+      yahooFetchResult?.quotePagePayload || null,
+      yahooFetchResult?.pageValuationPayload || null,
+      yahooFetchResult?.forwardPePayload || null,
+      closePoints,
+      companySeriesCapDate
+    );
     const yahooDailySnapshots = mergeCurrentYahooSnapshotsIntoHistory(
       historicalYahooDailySnapshots,
       currentYahooDailySnapshots,
@@ -7676,18 +7217,8 @@ async function main(): Promise<void> {
     );
     yahooDailyMetricsBySymbol.set(company.symbol, yahooDailySnapshots);
     const effectiveYahooSnapshots = buildEffectiveYahooDailyMetricSnapshots(closePoints, yahooDailySnapshots);
-    const snapshotLatestRatioOverride =
-      shouldUseYahooLatestOverride && lastCloseDate
-        ? selectLatestYahooRatioOverride(yahooDailySnapshots, effectiveYahooSnapshots, lastCloseDate)
-        : null;
-    const pageForwardPeOverride =
-      shouldUseYahooLatestOverride && lastCloseDate
-        ? buildYahooPageForwardPeOverride(yahooFetchResult?.pageValuationPayload || null, lastCloseDate)
-        : null;
-    const preferredLatestRatioOverride = shouldUseYahooLatestOverride
-      ? mergeRatioPayloadList(
-          [pageForwardPeOverride, snapshotLatestRatioOverride].filter(Boolean) as RatioPayload[]
-        )
+    const preferredLatestRatioOverride = shouldUseYahooLatestOverride && lastCloseDate
+      ? selectLatestYahooRatioOverride(yahooDailySnapshots, effectiveYahooSnapshots, lastCloseDate)
       : null;
     if (shouldUseYahooLatestOverride) {
       if (preferredLatestRatioOverride) {
@@ -7703,9 +7234,8 @@ async function main(): Promise<void> {
     ) {
       const proxySeries = deriveForwardPeProxySeriesFromTtmPe(
         mergedLongPeSeries,
-        yahooQuoteLatestPayload?.latest.pe_ttm ?? yahooLatestPayload?.latest.pe_ttm ?? stockPayload?.latest.pe_ttm,
-        yahooQuoteLatestPayload?.latest.pe_forward ??
-          yahooLatestPayload?.latest.pe_forward ??
+        preferredLatestRatioOverride?.latest.pe_ttm ?? stockPayload?.latest.pe_ttm,
+        preferredLatestRatioOverride?.latest.pe_forward ??
           stockPayload?.latest.pe_forward,
         lastCloseDate,
         8
@@ -7858,7 +7388,7 @@ async function main(): Promise<void> {
           rank: company.rank,
           marketCap: company.marketCap,
           peg:
-            yahooLatestPeg ??
+            preferredLatestRatioOverride?.latest.peg ??
             sanitizeSignedRatio(reusedLatestPoint?.peg) ??
             previousSeries.peg ??
             null,
@@ -7887,7 +7417,7 @@ async function main(): Promise<void> {
       marketCap: company.marketCap,
       peg:
         sanitizeSignedRatio(latestPointWithYahooDailyMetrics?.peg) ??
-        yahooLatestPeg,
+        preferredLatestRatioOverride?.latest.peg,
       forwardStartDate:
         forwardStartDate || pointsWithYahooDailyMetrics[pointsWithYahooDailyMetrics.length - 1]?.date || "",
       points: pointsWithYahooDailyMetrics,
@@ -8009,7 +7539,6 @@ export {
   carryForwardLatestYahooPeTtmByClose as carryForwardLatestYahooPeTtmByCloseForTest,
   carryForwardMissingPeTtmByPreviousClose as carryForwardMissingPeTtmByPreviousCloseForTest,
   mergeYahooDrivenRatioPayload as mergeYahooDrivenRatioPayloadForTest,
-  mergeYahooLatestQuotePayloads as mergeYahooLatestQuotePayloadsForTest,
   mergeCurrentYahooSnapshotsIntoHistory as mergeCurrentYahooSnapshotsIntoHistoryForTest,
   fillMissingCompanySeriesFromPrevious as fillMissingCompanySeriesFromPreviousForTest,
   preserveExistingPeTtmHistory as preserveExistingPeTtmHistoryForTest,
@@ -8019,7 +7548,6 @@ export {
   parseYahooValuationMeasuresFromHtml,
   parseYahooQuotePageRatioPayload,
   parseYahooQuotePageRatioPayload as parseYahooQuotePageRatioPayloadForTest,
-  buildYahooPageForwardPeOverride as buildYahooPageForwardPeOverrideForTest,
   selectLatestYahooRatioOverride as selectLatestYahooRatioOverrideForTest,
 };
 

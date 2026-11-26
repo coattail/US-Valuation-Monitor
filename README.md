@@ -26,11 +26,12 @@ A production-oriented valuation monitoring project for:
 
 - **Index valuation data** stays on its historical non-Yahoo source chain to avoid short-term regime noise.
 - Core index TTM/forward P/E observations are reconciled with dated WSJ quotes after close and during overnight company runs, even when every trading date already exists. Run `npm run refresh:wsj:index` to retry only this synchronization. Source freshness and published-value equality are checked separately from trading-date coverage; see [the WSJ audit](./docs/wsj-reconciliation-2026-10-17.md).
-- ETF TTM reconciliation retains the first sighting of repeated undated page snapshots, applies actual daily close returns between anchors, and replaces earlier estimates when a changed source snapshot arrives. All index refresh modes run this policy; tooltips distinguish dated quotes, undated snapshots and estimates. See [the ETF TTM audit](./docs/etf-ttm-daily-audit.md).
+- ETF TTM reconciliation preserves recorded historical anchors, applies actual daily close returns between anchors, and replaces estimates when a dated source observation arrives. Tooltips distinguish dated quotes, historical first sightings and estimates. See [the ETF TTM audit](./docs/etf-ttm-daily-audit.md).
 - Forward PE follows field-specific publication dates: weekly WSJ quotes use daily actual-index closes between observations; official ETF quotes replace delayed estimates. DRAM's disputed historical TTM interval uses a fixed, explicitly labeled retrospective reconstruction. See [the full daily update audit](./docs/index-daily-update-audit-2026-10-25.md).
-- **Company latest valuation** is aligned to Yahoo trusted metrics when available.
-- If a Yahoo daily snapshot has an untrusted source for `pe_forward`, that day is stored as `null` (not forced/interpolated).
-- For symbols with source-regime transition (e.g., yesterday unavailable, latest day available), historical `forward PE` is rebased by a fixed factor using latest-day price movement to connect to Yahoo latest smoothly and transparently.
+- **Company daily valuations** require independent session evidence for each field. The TTM P/E quote must identify a completed regular session and agree with its closing price and trailing EPS. Forward P/E and P/B use the source's own valuation date. P/B is cross-checked against book value per share when available.
+- New company observations with an unverified metric leave that field empty. A session with no verified valuation keeps the prior publication date. Scheduled refresh, manual Yahoo reconciliation and static publication enforce these rules.
+- Index and ETF updates use dated provider observations and same-session closes. During a source delay, supported estimates use actual closing price changes from a prior source anchor. Undated page reads cannot create a new daily observation.
+
 
 ## Quick Start
 

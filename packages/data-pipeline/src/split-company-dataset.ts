@@ -2,7 +2,7 @@ import { applyOfficialEarnings } from "./official-earnings.mjs";
 import { lastCompletedSession, tradingDates } from "./market-calendar.ts";
 import { repairCompanyMetricHistory } from "./company-data-corrections.mjs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 
 import { midrankPercentileRank } from "../../core/src/stats.ts";
@@ -190,7 +190,7 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
   };
 }
 
-function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
+export function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
   const points = Array.isArray(item.points) ? item.points : [];
   const latestPoint = points[points.length - 1] || {};
   const peStats = computeLatestPeStats(toFiniteNumber(latestPoint.pe_ttm) === null ? [] : points);
@@ -334,7 +334,9 @@ async function main(): Promise<void> {
   console.log(`[company] series count: ${indices.length}`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

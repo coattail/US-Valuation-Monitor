@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTextFetcher } from '../packages/data-pipeline/src/fetch-text.ts';
 import { parseYahooValuationMeasuresFromHtml, parseYahooQuotePageRatioPayload } from '../packages/data-pipeline/src/build-company-snapshot.ts';
-import { isCurrentTable, publishYahooValuationObservations, valuationMetrics, matchesYahooPageSymbol } from '../packages/data-pipeline/src/yahoo-valuation-policy.mjs';
+import { isCurrentTable, publishYahooValuationObservations, valuationMetrics, matchesYahooPageSymbol, verifyYahooQuoteTtm, valuationMatchesClose } from '../packages/data-pipeline/src/yahoo-valuation-policy.mjs';
 import { lastCompletedSession } from '../packages/data-pipeline/src/market-calendar.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -58,32 +58,37 @@ async function main() {
       if (!item) return;
       const latest = item.points.at(-1);
       const provider = quoteTtm ? await readQuoteTtm(item.symbol) : await readCurrentValuation(item.symbol);
-      const sourceDate = provider?.anchors.at(-1)?.date || target;
+      const sourceDate = (quoteTtm ? provider?.closingQuote?.date : provider?.anchors.at(-1)?.date) || '';
       const values = provider?.anchors.at(-1) || provider?.latest;
+      const sessionVerified = quoteTtm ? verifyYahooQuoteTtm(provider, target) : sourceDate === target;
       const record = { symbol: item.symbol, publishedDate: latest?.date || '', status: 'source-unavailable', sourceUrl: provider?.url || `https://finance.yahoo.com/quote/${item.symbol}/key-statistics/`, sourceDate, capturedAt: provider?.capturedAt || '', metrics: {} };
       if (provider) {
-        record.status = latest?.date === target && sourceDate === target ? 'verified' : 'date-mismatch';
+        const metrics = selectedMetrics.filter(metric => {
+          if (metric !== 'pb' || values.pb == null || provider.bookValuePerShare == null) return true;
+          return provider.closingQuote?.date === sourceDate &&
+            valuationMatchesClose(values.pb, provider.closingQuote.close, provider.bookValuePerShare);
+        });
+        record.status = latest?.date === target && sessionVerified && metrics.length === selectedMetrics.length ? 'verified' : 'unverified-session';
         for (const metric of selectedMetrics) {
           const published = latest?.[metric] ?? null;
           record.metrics[metric] = { published, current: values[metric], relativeDifference: published && values[metric] != null ? Math.abs(values[metric] / published - 1) : null };
         }
-        if (record.status === 'verified' && write) {
+        if (latest?.date === target && sessionVerified && metrics.length && write) {
           const prior = (daily.symbols[item.symbol] || []).find(row => row.date === target);
-          const observation = { ...prior, date: target, source: provider.source, capturedAt: provider.capturedAt, metricSources: Object.fromEntries(valuationMetrics.map(metric => [metric, prior?.metricSources?.[metric] || prior?.source || ""])), metricCapturedAt: Object.fromEntries(valuationMetrics.map(metric => [metric, prior?.metricCapturedAt?.[metric] || prior?.capturedAt || ""])), comparisons: {} };
-          for (const metric of selectedMetrics) {
+          const observation = { ...prior, date: target, source: provider.source, capturedAt: provider.capturedAt, metricSources: Object.fromEntries(valuationMetrics.map(metric => [metric, prior?.metricSources?.[metric] || prior?.source || ""])), metricCapturedAt: Object.fromEntries(valuationMetrics.map(metric => [metric, prior?.metricCapturedAt?.[metric] || prior?.capturedAt || ""])), metricSessionDates: { ...prior?.metricSessionDates }, comparisons: {} };
+          for (const metric of metrics) {
             observation[metric] = values[metric];
             observation.metricSources[metric] = provider.source;
             observation.metricCapturedAt[metric] = provider.capturedAt;
+            observation.metricSessionDates[metric] = target;
             const published = latest[metric];
             if (published && values[metric] != null && Math.abs(values[metric] / published - 1) > 0.02) observation.comparisons[metric] = { current: values[metric], fallback: published, fallbackSource: prior?.metricSources?.[metric] || prior?.source || 'previous-publication' };
           }
           daily.symbols[item.symbol] = [...(daily.symbols[item.symbol] || []).filter(row => row.date !== target), observation].sort((a, b) => a.date.localeCompare(b.date));
-          const selectedObservation = { date: target, source: provider.source, capturedAt: provider.capturedAt,
-            metricSources: Object.fromEntries(selectedMetrics.map(metric => [metric, observation.metricSources[metric]])),
-            metricCapturedAt: Object.fromEntries(selectedMetrics.map(metric => [metric, observation.metricCapturedAt[metric]])),
-            comparisons: Object.fromEntries(selectedMetrics.filter(metric => observation.comparisons[metric]).map(metric => [metric, observation.comparisons[metric]])),
-            ...Object.fromEntries(selectedMetrics.map(metric => [metric, observation[metric]])) };
-          item.points = publishYahooValuationObservations(item.points, [selectedObservation], item.symbol);
+          const [verified] = publishYahooValuationObservations([latest], [observation], item.symbol);
+          record.written = true;
+          if (verified) item.points[item.points.length - 1] = verified;
+          else item.points.pop();
         }
       }
       audit.companies.push(record);
@@ -98,7 +103,7 @@ async function main() {
   audit.verifiedCount = audit.companies.filter(item => item.status === 'verified').length;
   audit.status = audit.verifiedCount === series.length ? 'complete' : 'partial';
   await writeFile(path.join(data, 'company-valuation-audit.json'), `${JSON.stringify(audit, null, 2)}\n`);
-  if (write && audit.verifiedCount) {
+  if (write && audit.companies.some(row => row.written)) {
     const generatedAt = new Date().toISOString();
     const snapshot = JSON.parse(await readFile(path.join(data, 'company-valuation-snapshot.json'), 'utf8'));
     await writeFile(path.join(data, 'company-valuation-history.json'), `${JSON.stringify({ generatedAt, source: `${snapshot.source}+${quoteTtm ? "yahoo-quote-ttm-reconciliation" : "yahoo-key-statistics-current-reconciliation"}`, indices: series.map(item => ({ ...item, id: item.indexId })) })}\n`);
