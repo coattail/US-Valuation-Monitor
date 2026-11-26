@@ -18,7 +18,6 @@ import {
   preserveValidatedIndexHistoryForTest,
   parseFredIndexCloseSeriesForTest,
   parseHistoryOfMarketNdxForwardSeriesForTest,
-  shouldFetchStockAnalysisLatestSnapshotForTest,
   validateNasdaq100OfficialMonthlyTtmSeriesForTest,
 } from "../src/generate.ts";
 
@@ -486,14 +485,6 @@ test("pins Russell 2000 PE history to public Siblis observations", () => {
   assert.equal(corrected[2].pe_forward, 21.38);
   assert.equal(corrected[3].pe_ttm, 27.56);
   assert.equal(corrected[3].pe_forward, 24.29);
-});
-
-test("daily latest snapshots include every thematic ETF without overriding WSJ-priority indices", () => {
-  for (const indexId of ["igv", "soxx", "smh", "dram"]) {
-    assert.equal(shouldFetchStockAnalysisLatestSnapshotForTest(indexId), true);
-  }
-  assert.equal(shouldFetchStockAnalysisLatestSnapshotForTest("sector_energy"), false);
-  assert.equal(shouldFetchStockAnalysisLatestSnapshotForTest("nasdaq100", true), false);
 });
 
 test("parses the public Bloomberg BEst Nasdaq-100 forward PE history", () => {

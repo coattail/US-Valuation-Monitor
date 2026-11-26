@@ -14,15 +14,21 @@ test('publishes a successful group when the other fails and removes departed sym
     await mkdir(path.join(source,'company-series'),{recursive:true});
     await writeFile(path.join(dest,'company-series/old.json'),'{}');
     await writeFile(path.join(dest,'index-series/existing.json'),'preserved');
-    await writeFile(path.join(source,'company-series/new.json'),'{}');
-    await writeFile(path.join(source,'company-valuation-snapshot.json'),JSON.stringify({indices:[{id:'new'}]}));
+    const row = { date:'2026-11-25', pe_ttm:20 };
+    const seriesFile = path.join(source,'company-series/company_new.json');
+    await writeFile(seriesFile,JSON.stringify({ indexId:'company_new', symbol:'NEW', points:[row] }));
+    await writeFile(path.join(source,'company-valuation-snapshot.json'),JSON.stringify({indices:[{id:'company_new',symbol:'NEW',date:'2026-11-25',pe_ttm:20}]}));
     await writeFile(path.join(source,'company-yahoo-daily-metrics.json'),'{}');
     assert.deepEqual(await applyArtifacts(root,artifact),['company']);
-    assert.deepEqual(await readdir(path.join(dest,'company-series')),['new.json']);
+    assert.deepEqual(await readdir(path.join(dest,'company-series')),['company_new.json']);
     assert.equal(await readFile(path.join(dest,'index-series/existing.json'),'utf8'),'preserved');
-    await rm(path.join(source,'company-series/new.json'));
+    const unverified = { ...row, date:'2026-11-27' };
+    await writeFile(seriesFile,JSON.stringify({ indexId:'company_new', symbol:'NEW', points:[unverified] }));
+    await writeFile(path.join(source,'company-valuation-snapshot.json'),JSON.stringify({indices:[{id:'company_new',symbol:'NEW',...unverified}]}));
+    await assert.rejects(applyArtifacts(root,artifact),/unverified pe_ttm/);
+    await rm(seriesFile);
     await assert.rejects(applyArtifacts(root,artifact),/Incomplete/);
-    assert.deepEqual(await readdir(path.join(dest,'company-series')),['new.json']);
+    assert.deepEqual(await readdir(path.join(dest,'company-series')),['company_new.json']);
   } finally { await rm(dir,{recursive:true,force:true}); }
 });
 

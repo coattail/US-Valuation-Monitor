@@ -1,6 +1,7 @@
 import { access, cp, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateCompanyPublication } from './validate-company-series.mjs';
 export async function applyArtifacts(root, artifacts) {
   const source = path.join(artifacts, 'data/standardized');
   const destination = path.join(root, 'data/standardized');
@@ -18,6 +19,7 @@ export async function applyArtifacts(root, artifacts) {
     }
     for (const file of files) await access(path.join(source, file));
     try { await access(path.join(source, `${kind}-gap-repairs.json`)); files.push(`${kind}-gap-repairs.json`); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (kind === 'company') await validateCompanyPublication(source, false);
     groups.push({ kind, files });
   }
   if (!groups.length) throw new Error('No validated dataset artifacts to publish');

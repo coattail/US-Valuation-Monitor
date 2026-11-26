@@ -48,8 +48,12 @@ test('unavailable or future-dated providers cannot manufacture a new current-day
   const before = await readFile(path.join(f.dir,'index-yahoo-daily-metrics.json'),'utf8');
   await syncIndexSources({...f,fetchOfficial:async()=>{throw new Error('source unavailable');}});
   assert.equal(await readFile(path.join(f.dir,'index-yahoo-daily-metrics.json'),'utf8'),before);
-  await syncIndexSources({...f,fetchOfficial:async()=>({date:'2026-07-22',pe_ttm:99,source:'ishares-official-latest'}),fetchUndated:async()=>({})});
+  await syncIndexSources({...f,fetchOfficial:async()=>({date:'2026-07-22',pe_ttm:99,source:'ishares-official-latest'})});
   assert.equal(await readFile(path.join(f.dir,'index-yahoo-daily-metrics.json'),'utf8'),before);
+  for (const date of [undefined, '2026-07-15', '2026-07-19']) {
+    await syncIndexSources({...f,fetchOfficial:async()=>({date,pe_ttm:99,source:'ishares-official-latest'})});
+    assert.equal(await readFile(path.join(f.dir,'index-yahoo-daily-metrics.json'),'utf8'),before);
+  }
   await repairEtfTtmHistory({...f,write:true});
   assert.equal((await f.read('valuation-history.json')).indices[0].points.at(-1).pe_ttm,39);
 });

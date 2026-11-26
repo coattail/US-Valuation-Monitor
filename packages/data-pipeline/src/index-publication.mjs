@@ -3,6 +3,8 @@ import { isDeepStrictEqual } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isTradingDate, VALUATION_SESSION_EVIDENCE_START } from './market-calendar.ts';
+import { indexMetricSource } from './index-source-policy.ts';
 import { applyWsjIndexPolicy, wsjMetricAnchors, WSJ_INDEX_PRICES } from './wsj-index-policy.ts';
 import { applyEtfTtmPricePolicy, applyEtfPbPricePolicy, ETF_TTM_SYMBOLS, ETF_PB_SYMBOLS, ETF_TTM_START, etfTtmAnchors, etfPbAnchors } from './etf-ttm-policy.ts';
 import { applySp500PbPolicy } from './sp500-pb-policy.ts';
@@ -103,6 +105,16 @@ export function reconcileIndexDataset(dataset, metrics, prices, files) {
   const next = structuredClone(dataset);
   for (const index of next.indices) {
     const snapshots = metrics.symbols[index.symbol] || [];
+    for (const row of snapshots) {
+      if (row.date < VALUATION_SESSION_EVIDENCE_START) continue;
+      for (const metric of ['pe_ttm', 'pe_forward', 'pb']) {
+        if (!Number.isFinite(row[metric])) continue;
+        const source = indexMetricSource(row, metric);
+        if (!source || !isTradingDate(row.date) || /stockanalysis-latest|yahoo-quote|yahoo-key-statistics/.test(source)) {
+          throw new Error(`Unverified ${index.symbol} ${metric} valuation date ${row.date}`);
+        }
+      }
+    }
     if (WSJ_INDEX_PRICES[index.id]) index.points = applyWsjIndexPolicy(index.points, index.id, snapshots, prices[index.id] || []);
     if (files) {
       if (index.id === 'sp500') index.points = applySp500PbPolicy(index.points,files['sp500-pb-inputs.json'],false);
