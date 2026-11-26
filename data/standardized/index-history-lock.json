@@ -8,133 +8,133 @@
     "pb",
     "us10y_yield"
   ],
-  "generatedAt": "2026-11-25T19:21:57.396Z",
+  "generatedAt": "2026-11-26T02:46:50.156Z",
   "indices": {
     "dow30": {
-      "pointCount": 7258,
+      "pointCount": 7259,
       "firstDate": "1998-01-20",
-      "lastDate": "2026-11-24",
-      "sha256": "bcb097ef84e7c4ab451edd08f2d5177f1eb0aab01a99469f2142a11f3fda0799"
+      "lastDate": "2026-11-25",
+      "sha256": "432deea4d0f39e68ce6a1a97459b2a13b77cf5981986fd2e9ab60009fb244fe0"
     },
     "dram": {
-      "pointCount": 164,
+      "pointCount": 165,
       "firstDate": "2026-04-02",
-      "lastDate": "2026-11-24",
-      "sha256": "888d58c37c93d0dd4936ddea223e58b5237f17a8a39fb64810428cf9edd97336"
+      "lastDate": "2026-11-25",
+      "sha256": "666e1540522b23c4ab55c334bac5d99f1a620d497528c67d3174d732eca1b1e6"
     },
     "igv": {
-      "pointCount": 6378,
+      "pointCount": 6379,
       "firstDate": "2001-07-17",
-      "lastDate": "2026-11-24",
-      "sha256": "28b7f789ec17a3924b9a0889424958211efd6c28a58f14fc2d317a9853296354"
+      "lastDate": "2026-11-25",
+      "sha256": "2bb505552d69aafc4a2aca3a3e72a4819766249c3a9b4c623901a1e23878da4b"
     },
     "nasdaq100": {
-      "pointCount": 6971,
+      "pointCount": 6972,
       "firstDate": "1999-03-10",
-      "lastDate": "2026-11-24",
-      "sha256": "7c2bf2f5b9e6169020c05c5c73d500b0cc003517b95c2b6d10444423393d540b"
+      "lastDate": "2026-11-25",
+      "sha256": "3193fdef5f62fc5c4fd2fb553560fd1573c439a348c588fcce7857775e53fbd7"
     },
     "russell2000": {
-      "pointCount": 6512,
+      "pointCount": 6513,
       "firstDate": "2001-01-03",
-      "lastDate": "2026-11-24",
-      "sha256": "e56740a18b26b844b4b2018e1d3d876fa7a77b1bbef2a28315001f8e852bfea7"
+      "lastDate": "2026-11-25",
+      "sha256": "de5871fa5f0ffc97059c1501fb9c888b0e6722bcdbc6988eaa7f491041322f21"
     },
     "sector_communication": {
-      "pointCount": 2121,
+      "pointCount": 2122,
       "firstDate": "2018-06-19",
-      "lastDate": "2026-11-24",
-      "sha256": "5029bfce4dd9575527427eeba3be5e31c058710c29ab48775e6558447fccca86"
+      "lastDate": "2026-11-25",
+      "sha256": "9c09e504ed0c9c49775e463f7cc5044dfc308d94f8ca1b8c5a9904b8eb2c0e35"
     },
     "sector_consumer_discretionary": {
-      "pointCount": 5471,
+      "pointCount": 5472,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-24",
-      "sha256": "6f387c34158f86818631df9f9eb694cb0f6d6bf687f15beb5746a1df651af0f6"
+      "lastDate": "2026-11-25",
+      "sha256": "f5602d31a0abb9f35a74aa93fecfcc17c6f11a23c04552b1b9426dae249ef1f0"
     },
     "sector_consumer_staples": {
-      "pointCount": 5471,
+      "pointCount": 5472,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-24",
-      "sha256": "468d2237bf8565cece8617a30132a76a0d2e5138a45d172b1a74fc238ff82bb5"
+      "lastDate": "2026-11-25",
+      "sha256": "093759577968be3c0bebb8b43404ef147d9cdf714d3c9e7d49f0507a1866119d"
     },
     "sector_energy": {
-      "pointCount": 7017,
+      "pointCount": 7018,
       "firstDate": "1999-01-04",
-      "lastDate": "2026-11-24",
-      "sha256": "22eb025395612c8bd3d11018ee5ed79016ad39668eff190ebfdbfe370917cd4a"
+      "lastDate": "2026-11-25",
+      "sha256": "938ef5143cc710192018a6945f1fef7af6e52be5a9d368fa7fb633d3e6e3d5a4"
     },
     "sector_financials": {
-      "pointCount": 5471,
+      "pointCount": 5472,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-24",
-      "sha256": "6edbca1f58d0d304df73b5019c9db8f5ef6b662eea16a58780f71425c70c586f"
+      "lastDate": "2026-11-25",
+      "sha256": "5d29a398807814c264cb1a8395d6b28571a89490e64f81620ddfc68d02bea1ee"
     },
     "sector_healthcare": {
-      "pointCount": 5471,
+      "pointCount": 5472,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-24",
-      "sha256": "05c21acc1283bd979b846f86db210c24df721a4ef738c663c523986fe9c756b3"
+      "lastDate": "2026-11-25",
+      "sha256": "cefc5d8bc33c5739eb19766927b1f78b4fcb90a6f8a58da1ef9a71368fb001b5"
     },
     "sector_industrials": {
-      "pointCount": 5471,
+      "pointCount": 5472,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-24",
-      "sha256": "32d9f8a4f02ee3c89dbc0502da4cf7128aa4a4748c4090b7fcf53f9571b1521e"
+      "lastDate": "2026-11-25",
+      "sha256": "ab3c55da50d12bb58e5fdec901d8f73038eb48bf26d2c3938ca70447f8f9df59"
     },
     "sector_materials": {
-      "pointCount": 7017,
+      "pointCount": 7018,
       "firstDate": "1999-01-04",
-      "lastDate": "2026-11-24",
-      "sha256": "03ec081355e12cb4785a1277a9801e5f95950d0380a28fc4adcfac22c05f3a23"
+      "lastDate": "2026-11-25",
+      "sha256": "6a05c01da4fe4293c064d88cf5f1c24c8d73614c1ab1a945cd9698048b96ef3e"
     },
     "sector_real_estate": {
-      "pointCount": 2795,
+      "pointCount": 2796,
       "firstDate": "2015-10-08",
-      "lastDate": "2026-11-24",
-      "sha256": "800f1864a64f39040e759c074bf3bb434fc6f89999d3134334569f958d289b15"
+      "lastDate": "2026-11-25",
+      "sha256": "f243504f1973b366b63d5aa78e7b189076c20239d2f440043aa379ba671cadf1"
     },
     "sector_technology": {
-      "pointCount": 7017,
+      "pointCount": 7018,
       "firstDate": "1999-01-04",
-      "lastDate": "2026-11-24",
-      "sha256": "d210c6c4a91087ed70528496db5b6a4f8e7757658a0da8da431b967ed300be93"
+      "lastDate": "2026-11-25",
+      "sha256": "7c06c857fd0ebe00a675fe01825dc9ffafe9df221acae9a8c6da2266c6f69893"
     },
     "sector_utilities": {
-      "pointCount": 5471,
+      "pointCount": 5472,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-24",
-      "sha256": "d39ce94bbb81f3339956153d372397df68eed35899ae7f2ff86ea3b64e876e3f"
+      "lastDate": "2026-11-25",
+      "sha256": "77a78e9d230fc8c07a831aca54e37172796aa5150a4f438aa9263ae35ad5ebd9"
     },
     "smh": {
-      "pointCount": 3754,
+      "pointCount": 3755,
       "firstDate": "2011-12-20",
-      "lastDate": "2026-11-24",
-      "sha256": "bb51ca4161eaa79f912e92f1cf7e0ea4a8f8581057e6248a3282097d99f14e48"
+      "lastDate": "2026-11-25",
+      "sha256": "2947bd1c4711d7ee432f0793cd1778f65462e3feacce7b521202a2b4c2707e52"
     },
     "soxx": {
-      "pointCount": 6380,
+      "pointCount": 6381,
       "firstDate": "2001-07-13",
-      "lastDate": "2026-11-24",
-      "sha256": "02366a5c255088f14f5bcd1564df3e1ebd2f8688fb7f25e110c8c34761304673"
+      "lastDate": "2026-11-25",
+      "sha256": "7b727a5966ef36e937524b881ad5af5ba2fa1fc12f526fcd64b4a9c77d3a46f0"
     },
     "sp400": {
-      "pointCount": 5471,
+      "pointCount": 5472,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-24",
-      "sha256": "73c8c778aab34014f80d1c707f32ea570c0d4954189b664f3f61087ad73f8efe"
+      "lastDate": "2026-11-25",
+      "sha256": "9ca3c6c37f2da8de0bc2ffb077c23a9666f3e7f37ded56c46fe684d9ab15c852"
     },
     "sp500": {
-      "pointCount": 6766,
+      "pointCount": 6767,
       "firstDate": "1999-12-31",
-      "lastDate": "2026-11-24",
-      "sha256": "bd44e3b1d7ab001d4b015830ec43fb75c774368d4bbcdf7b4a55c881a775fe4a"
+      "lastDate": "2026-11-25",
+      "sha256": "705ddb9aab4c6b9d7c314aa71a2920e6167b69b822998ac6a6126660938f021e"
     },
     "us_total_market": {
-      "pointCount": 5471,
+      "pointCount": 5472,
       "firstDate": "2005-02-25",
-      "lastDate": "2026-11-24",
-      "sha256": "0f6514d1a7f2e81b52f2e5850c5628ef8fa5b7339c2dc5d0a235160d7acbc2ec"
+      "lastDate": "2026-11-25",
+      "sha256": "32ce7af3dff610a5e678353d48f53fcdae1e6190e06596ff41df3f94f304a831"
     }
   }
 }
