@@ -1,4 +1,4 @@
-import { valuationMetrics, yahooForwardEstimateValue, YAHOO_FORWARD_ESTIMATE_BASIS } from "../packages/data-pipeline/src/yahoo-valuation-policy.mjs";
+import { valuationMetrics, yahooForwardSourcePriority } from "../packages/data-pipeline/src/yahoo-valuation-policy.mjs";
 import { repairCompanyMetricHistory } from "../packages/data-pipeline/src/company-data-corrections.mjs";
 import { isTradingDate, VALUATION_SESSION_EVIDENCE_START } from "../packages/data-pipeline/src/market-calendar.ts";
 import { readFile, readdir } from "node:fs/promises";
@@ -69,24 +69,15 @@ export function validateCompanySeriesPayloads(
       ? yahooMetricsBySymbol[symbol]
       : [];
     const yahooByDate = new Map(yahooRows.map(row => [row.date, row]));
-    const agreesWithForwardEstimate = (point, row) => {
-      const evidence = point.valuationSources?.pe_forward;
-      if (evidence?.basis !== YAHOO_FORWARD_ESTIMATE_BASIS) return false;
-      const calculated = yahooForwardEstimateValue(point.date, evidence, symbol);
-      return calculated !== null && evidence.symbol === symbol && evidence.date === point.date &&
-        calculated === point.pe_forward && calculated === row?.pe_forward &&
-        yahooForwardEstimateValue(point.date, row.forwardEstimate, symbol) === calculated;
-    };
     for (const point of points) {
-      const row = yahooByDate.get(point.date);
-      const estimatedForward = point.valuationSources?.pe_forward?.basis === YAHOO_FORWARD_ESTIMATE_BASIS;
-      if (estimatedForward && !agreesWithForwardEstimate(point, row)) errors.push(`${symbol} published an invalid Forward PE estimate on ${point.date}`);
       if (point.date < VALUATION_SESSION_EVIDENCE_START) continue;
+      const row = yahooByDate.get(point.date);
       if (!isTradingDate(point.date)) errors.push(`${symbol} published a non-trading session ${point.date}`);
       for (const metric of valuationMetrics) {
-        if (point[metric] == null || (metric === "pe_forward" && estimatedForward)) continue;
+        if (point[metric] == null) continue;
         if (point.valuationSources?.[metric]?.verifiedSession !== point.date ||
-            row?.metricSessionDates?.[metric] !== point.date || point[metric] !== row?.[metric]) {
+            row?.metricSessionDates?.[metric] !== point.date || point[metric] !== row?.[metric] ||
+            (metric === 'pe_forward' && yahooForwardSourcePriority(row?.metricSources?.[metric] || row?.source) === 0)) {
           errors.push(`${symbol} published unverified ${metric} on ${point.date}`);
         }
       }
@@ -110,8 +101,7 @@ export function validateCompanySeriesPayloads(
             row.value !== null &&
             /^\d{4}-\d{2}-\d{2}$/.test(date) &&
             date <= latestDate &&
-            (date < VALUATION_SESSION_EVIDENCE_START || row.metricSessionDates?.[key] === date ||
-              (key === 'pe_forward' && yahooForwardEstimateValue(date, row.forwardEstimate, symbol) === row.value)) &&
+            (date < VALUATION_SESSION_EVIDENCE_START || row.metricSessionDates?.[key] === date) &&
             publishedByDate.has(date)
           );
         })

@@ -4,12 +4,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTextFetcher } from '../packages/data-pipeline/src/fetch-text.ts';
 import { parseYahooValuationMeasuresFromHtml, parseYahooQuotePageRatioPayload } from '../packages/data-pipeline/src/build-company-snapshot.ts';
-import { isCurrentTable, publishYahooValuationObservations, valuationMetrics, matchesYahooPageSymbol, verifyYahooQuoteTtm, valuationMatchesClose } from '../packages/data-pipeline/src/yahoo-valuation-policy.mjs';
+import { isCurrentTable, publishYahooValuationObservations, valuationMetrics, matchesYahooPageSymbol, verifyYahooQuoteTtm, valuationMatchesClose, yahooForwardSourcePriority } from '../packages/data-pipeline/src/yahoo-valuation-policy.mjs';
 import { lastCompletedSession } from '../packages/data-pipeline/src/market-calendar.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const data = path.join(root, 'data/standardized');
-const hosts = ['finance.yahoo.com', 'uk.finance.yahoo.com', 'fr.finance.yahoo.com'];
+const hosts = ['finance.yahoo.com', 'uk.finance.yahoo.com', 'ca.finance.yahoo.com', 'sg.finance.yahoo.com'];
 const fetchHtml = createTextFetcher({ userAgent: 'Mozilla/5.0', directFallback: true, requestBudgetMs: 12000 });
 
 // A second source read audits what users compare against, independently of the
@@ -20,7 +20,7 @@ export async function readCurrentValuation(symbol, fetcher = fetchHtml) {
     try {
       const html = await fetcher(url, 0, 12000);
       if (!matchesYahooPageSymbol(html, symbol)) throw new Error("Yahoo returned another symbol");
-      const payload = parseYahooValuationMeasuresFromHtml(html);
+      const payload = parseYahooValuationMeasuresFromHtml(html, host);
       if (!payload || !isCurrentTable(payload.source)) continue;
       return { ...payload, source: `${payload.source}:${host}`, url, capturedAt: new Date().toISOString() };
     } catch { /* Try the next Yahoo region; never infer values from blocked HTML. */ }
@@ -77,10 +77,9 @@ async function main() {
           const prior = (daily.symbols[item.symbol] || []).find(row => row.date === target);
           const observation = { ...prior, date: target, source: provider.source, capturedAt: provider.capturedAt, metricSources: Object.fromEntries(valuationMetrics.map(metric => [metric, prior?.metricSources?.[metric] || prior?.source || ""])), metricCapturedAt: Object.fromEntries(valuationMetrics.map(metric => [metric, prior?.metricCapturedAt?.[metric] || prior?.capturedAt || ""])), metricSessionDates: { ...prior?.metricSessionDates }, comparisons: {} };
           for (const metric of metrics) {
-            if (metric === 'pe_forward') {
-              if (values[metric] == null && prior?.pe_forward != null) continue;
-              delete observation.forwardEstimate;
-            }
+            if (metric === 'pe_forward' && prior?.pe_forward != null &&
+                (values.pe_forward == null || yahooForwardSourcePriority(prior.metricSources?.pe_forward || prior.source) >
+                 yahooForwardSourcePriority(provider.source))) continue;
             observation[metric] = values[metric];
             observation.metricSources[metric] = provider.source;
             observation.metricCapturedAt[metric] = provider.capturedAt;
