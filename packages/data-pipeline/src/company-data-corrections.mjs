@@ -1,5 +1,3 @@
-import { yahooForwardEstimateValue, YAHOO_FORWARD_ESTIMATE_BASIS } from './yahoo-valuation-policy.mjs';
-
 // Yahoo's old table parser skipped unavailable cells and borrowed values from
 // the next metric (SPCX: Forward PE -> trailing PE, Price/Sales -> PEG).
 // SEC loss statement: https://www.sec.gov/Archives/edgar/data/1181412/000162828026052535/spcx-20260630.htm
@@ -26,7 +24,7 @@ export function preserveSpcxUnavailableMetrics(company, snapshots = []) {
 
 // Yahoo's published multiples mixed intraday and lagging snapshots for these NVDA
 // sessions. Reprice using verified closes and the fundamentals already released
-// on November 17. The dated Yahoo quote and Next Year EPS support Forward PE.
+// on November 17. Forward P/E comes from independently dated Yahoo observations.
 const nvdaCloses = {
   '2026-11-20': 125.53,
   '2026-11-23': 165.05,
@@ -38,10 +36,13 @@ const nvdaFundamentals = {
   pe_ttm: { denominator: 9.31, url: 'https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2027/' },
   pb: { denominator: 11.06, url: 'https://finance.yahoo.com/quote/NVDA/key-statistics/' },
 };
-const nvdaDatedForward = { value: 7.93, url: 'https://finance.yahoo.com/quote/NVDA/?err=1' };
-const nvdaForwardConsensus = {
-  asOf: '2026-11-23', eps: 16.61, fiscalYear: 2028,
-  url: 'https://uk.finance.yahoo.com/quote/NVDA/analysis/?err_load=1',
+const nvdaDirectForward = {
+  '2026-11-20': { value: 7.9302, source: 'yahoo-forward-pe-timeseries',
+    url: 'https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NVDA?symbol=NVDA&type=trailingForwardPeRatio&period1=1794528000&period2=1795824000' },
+  '2026-11-23': { value: 9.30, source: 'yahoo-key-statistics-valuation-measures:finance.yahoo.com',
+    url: 'https://finance.yahoo.com/quote/NVDA/?p=NVDA' },
+  '2026-11-25': { value: 8.991117, source: 'yahoo-quote-api-forward',
+    url: 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=NVDA' },
 };
 function repairNvdaValuations(rows) {
   if (!rows.some(row => Object.hasOwn(nvdaCloses, row.date))) return rows;
@@ -59,32 +60,29 @@ function repairNvdaValuations(rows) {
       evidence[metric] = { symbol: 'NVDA', date: row.date, basis: 'close-fundamentals', source: sources[metric], url, priceUrl: nvdaCloseUrl, close, denominator };
       delete dates[metric];
     }
-    const source = sources.pe_forward || evidence.pe_forward?.source || '';
-    const isDatedFeed = source.startsWith('yahoo-forward-pe-timeseries') &&
-      (dates.pe_forward === row.date || evidence.pe_forward?.verifiedSession === row.date) &&
-      Number.isFinite(next.pe_forward);
-    if (row.date === '2026-11-20') {
-      next.pe_forward = nvdaDatedForward.value;
-      sources.pe_forward = 'yahoo-key-statistics-valuation-measures:finance.yahoo.com';
-      dates.pe_forward = row.date;
-      evidence.pe_forward = { symbol: 'NVDA', date: row.date, basis: 'provider-observation',
-        verifiedSession: row.date, source: sources.pe_forward, url: nvdaDatedForward.url };
-      delete next.forwardEstimate;
-    } else if (!isDatedFeed) {
-      const estimate = { ...nvdaForwardConsensus, close };
-      next.pe_forward = yahooForwardEstimateValue(row.date, estimate, 'NVDA');
-      sources.pe_forward = YAHOO_FORWARD_ESTIMATE_BASIS;
-      delete dates.pe_forward;
-      if (ledger) next.forwardEstimate = estimate;
-      evidence.pe_forward = { ...estimate, symbol: 'NVDA', date: row.date,
-        basis: YAHOO_FORWARD_ESTIMATE_BASIS, source: YAHOO_FORWARD_ESTIMATE_BASIS };
+    const existingForwardSource = sources.pe_forward || evidence.pe_forward?.source;
+    const verifiedForward = dates.pe_forward === row.date || evidence.pe_forward?.verifiedSession === row.date;
+    if (!verifiedForward || !['yahoo-forward-pe-timeseries', 'yahoo-quote-api-forward'].includes(existingForwardSource)) {
+      const forward = nvdaDirectForward[row.date];
+      next.pe_forward = forward?.value ?? null;
+      if (forward) {
+        dates.pe_forward = row.date;
+        sources.pe_forward = forward.source;
+        evidence.pe_forward = { symbol: 'NVDA', date: row.date, verifiedSession: row.date,
+          basis: 'provider-observation', source: forward.source, url: forward.url };
+      } else {
+        delete dates.pe_forward;
+        delete sources.pe_forward;
+        delete evidence.pe_forward;
+      }
     }
+    delete next.forwardEstimate;
     if (dates.peg !== row.date && evidence.peg?.verifiedSession !== row.date) {
       next.peg = null;
       delete evidence.peg;
       delete sources.peg;
     }
-    if (ledger) return { ...next, metricSources: sources, metricSessionDates: dates };
+    if (ledger) return { ...next, metricSources: sources, ...(Object.keys(dates).length || row.metricSessionDates ? { metricSessionDates: dates } : {}) };
     return { ...next, valuationSources: evidence };
   });
 }
