@@ -3052,12 +3052,18 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
   if (date > maxAcceptedDate) return null;
 
   const source = String(item.source || "").trim();
-  let peTtm = sanitizeYahooMetricValue("pe_ttm", item.pe_ttm, source);
-  const forwardSource = (item.metricSources as YahooDailyMetricSnapshot["metricSources"])?.pe_forward || source;
-  let peForward = sanitizeYahooMetricValue("pe_forward", item.pe_forward, forwardSource);
-  const pb = sanitizeYahooMetricValue("pb", item.pb, source);
-  const pegSource = (item.metricSources as YahooDailyMetricSnapshot["metricSources"])?.peg || source;
-  let peg = sanitizeYahooMetricValue("peg", item.peg, pegSource);
+  const metricSources = item.metricSources as YahooDailyMetricSnapshot["metricSources"];
+  const metricValue = (metric: RatioMetricKey) => {
+    const metricSource = metricSources?.[metric] || source;
+    if (metricSource === "reconstructed-close-fundamentals" && (metric === "pe_ttm" || metric === "pb")) {
+      return sanitizeSignedRatio(item[metric]);
+    }
+    return sanitizeYahooMetricValue(metric, item[metric], metricSource);
+  };
+  let peTtm = metricValue("pe_ttm");
+  let peForward = metricValue("pe_forward");
+  const pb = metricValue("pb");
+  let peg = metricValue("peg");
   const capturedAt = String(item.capturedAt || "").trim();
   const isLegacyLoadingSkeletonArtifact =
     source.includes("yahoo-key-statistics-valuation-measures") &&
@@ -3083,7 +3089,7 @@ function normalizeYahooDailyMetricSnapshot(raw: unknown): YahooDailyMetricSnapsh
     peg,
     source,
     capturedAt,
-    ...(item.metricSources ? { metricSources: item.metricSources as YahooDailyMetricSnapshot["metricSources"] } : {}),
+    ...(metricSources ? { metricSources } : {}),
     ...(item.metricCapturedAt ? { metricCapturedAt: item.metricCapturedAt as YahooDailyMetricSnapshot["metricCapturedAt"] } : {}),
     ...(item.metricSessionDates ? { metricSessionDates: item.metricSessionDates as YahooDailyMetricSnapshot["metricSessionDates"] } : {}),
     ...(item.comparisons ? { comparisons: item.comparisons as Record<string, unknown> } : {}),
