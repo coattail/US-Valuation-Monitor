@@ -57,6 +57,19 @@ test('statistics dates and forward feed dates stay on their original close sessi
   ]);
 });
 
+test('mixed-source rows keep each verified metric when the daily store is reloaded', () => {
+  const close = prices.at(-1)!;
+  const stats = parseYahooValuationMeasuresFromHtml(`<section data-testid="valuation-measures">As of 11/23/2026${table().replace('</tbody>', '<tr><td>PEG Ratio (5yr expected)</td><td>1.45</td><td>1.60</td></tr></tbody>')}</section>`);
+  const quote = parseYahooQuotePageRatioPayload(quoteHtml('At close: November 23 at 4:00:01 PM EST', close.close, 17.73));
+  const forward = { anchors: [{ date: target, ...fiscalData }], latest: fiscalData, source: 'yahoo-forward-pe-timeseries' };
+  const current = createYahooDailyMetricSnapshots(quote, stats, forward, prices, target);
+  const saved = store([], current, {}, {}, target);
+  assert.equal(saved[0].source, forward.source);
+  const [reloaded] = store(saved, [], {}, {}, target);
+  assert.deepEqual(reloaded, saved[0]);
+  assert.deepEqual([reloaded.pe_ttm, reloaded.pe_forward, reloaded.pb, reloaded.peg], [17.73, 9.88, 14.95, 1.45]);
+});
+
 test('only fields with their own verified date can publish on a new session', () => {
   const date = '2026-11-27';
   const original = [{ date, pe_ttm: 12.4, pb: 11.37, pe_forward: 7, peg: 2 }];
