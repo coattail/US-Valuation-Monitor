@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTextFetcher } from '../packages/data-pipeline/src/fetch-text.ts';
 import { parseYahooValuationMeasuresFromHtml, parseYahooQuotePageRatioPayload } from '../packages/data-pipeline/src/build-company-snapshot.ts';
-import { isCurrentTable, publishYahooValuationObservations, valuationMetrics, matchesYahooPageSymbol, verifyYahooQuoteTtm, valuationMatchesClose, yahooForwardSourcePriority } from '../packages/data-pipeline/src/yahoo-valuation-policy.mjs';
+import { isCurrentTable, publishYahooValuationObservations, valuationMetrics, matchesYahooPageSymbol, verifyYahooQuoteTtm, valuationMatchesClose, yahooForwardSourcePriority, yahooPegSourcePriority } from '../packages/data-pipeline/src/yahoo-valuation-policy.mjs';
 import { lastCompletedSession } from '../packages/data-pipeline/src/market-calendar.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -80,6 +80,9 @@ async function main() {
             if (metric === 'pe_forward' && prior?.pe_forward != null &&
                 (values.pe_forward == null || yahooForwardSourcePriority(prior.metricSources?.pe_forward || prior.source) >
                  yahooForwardSourcePriority(provider.source))) continue;
+            if (metric === 'peg' && prior?.peg != null &&
+                (values.peg == null || yahooPegSourcePriority(prior.metricSources?.peg || prior.source) >
+                 yahooPegSourcePriority(provider.source))) continue;
             observation[metric] = values[metric];
             observation.metricSources[metric] = provider.source;
             observation.metricCapturedAt[metric] = provider.capturedAt;

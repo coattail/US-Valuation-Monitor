@@ -44,6 +44,14 @@ const nvdaDirectForward = {
   '2026-11-25': { value: 8.991117, source: 'yahoo-quote-api-forward',
     url: 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=NVDA' },
 };
+const nvdaDirectPeg = {
+  '2026-11-20': { value: 0.1519, source: 'yahoo-trailing-peg-timeseries',
+    url: 'https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/NVDA?symbol=NVDA&type=trailingPegRatio&period1=1794528000&period2=1795824000' },
+  '2026-11-23': { value: 0.19, source: 'yahoo-key-statistics-valuation-measures:finance.yahoo.com',
+    url: 'https://finance.yahoo.com/quote/NVDA/?p=NVDA' },
+  '2026-11-25': { value: 0.19, source: 'yahoo-quote-summary-peg',
+    url: 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/NVDA?modules=price,defaultKeyStatistics' },
+};
 function repairNvdaValuations(rows) {
   if (!rows.some(row => Object.hasOwn(nvdaCloses, row.date))) return rows;
   return rows.map(row => {
@@ -78,9 +86,17 @@ function repairNvdaValuations(rows) {
     }
     delete next.forwardEstimate;
     if (dates.peg !== row.date && evidence.peg?.verifiedSession !== row.date) {
-      next.peg = null;
-      delete evidence.peg;
-      delete sources.peg;
+      const peg = nvdaDirectPeg[row.date];
+      next.peg = peg?.value ?? null;
+      if (peg) {
+        dates.peg = row.date;
+        sources.peg = peg.source;
+        evidence.peg = { symbol: 'NVDA', date: row.date, verifiedSession: row.date,
+          basis: 'provider-observation', source: peg.source, url: peg.url };
+      } else {
+        delete evidence.peg;
+        delete sources.peg;
+      }
     }
     if (ledger) return { ...next, metricSources: sources, ...(Object.keys(dates).length || row.metricSessionDates ? { metricSessionDates: dates } : {}) };
     return { ...next, valuationSources: evidence };
