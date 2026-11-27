@@ -27,4 +27,5 @@ test('NVDA keeps direct Forward PE and leaves an unsupported date empty', () => 
   assert.equal(monday.valuationSources.pb.denominator, 11.06);
   assert.equal(tuesday.pe_forward, null);
   assert.equal(wednesday.pe_forward, 8.991117);
+  assert.deepEqual([friday.peg, monday.peg, tuesday.peg, wednesday.peg], [0.1519, 0.19, null, 0.19]);
 });

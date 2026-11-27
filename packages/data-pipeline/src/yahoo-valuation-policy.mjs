@@ -123,6 +123,12 @@ export function yahooForwardSourcePriority(source = '') {
   return source.startsWith('yahoo-key-statistics-valuation-measures') ? 1 : 0;
 }
 
+export function yahooPegSourcePriority(source = '') {
+  if (source === 'yahoo-trailing-peg-timeseries') return 3;
+  if (source === 'yahoo-quote-summary-peg') return 2;
+  return source.startsWith('yahoo-key-statistics-valuation-measures') ? 1 : 0;
+}
+
 // This is the last publication step, after every repair and fallback. Apply
 // observations only to their own symbol/date and retain metric-level evidence.
 export function publishYahooValuationObservations(points, observations, symbol) {
@@ -151,7 +157,9 @@ export function publishYahooValuationObservations(points, observations, symbol) 
         basis: isCurrentTable(source) && !source.includes('+') ? 'current-table' : source.includes('quote-') ? 'quote' : 'provider-observation',
         url: source === 'yahoo-quote-api-forward'
           ? `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol.replaceAll('.', '-'))}`
-          : `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.replaceAll('.', '-'))}/${isCurrentTable(source) ? 'key-statistics/' : ''}`,
+          : source === 'yahoo-quote-summary-peg'
+            ? `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol.replaceAll('.', '-'))}?modules=price,defaultKeyStatistics`
+            : `https://finance.yahoo.com/quote/${encodeURIComponent(symbol.replaceAll('.', '-'))}/${isCurrentTable(source) ? 'key-statistics/' : ''}`,
         ...(row.comparisons?.[metric] ? { comparison: row.comparisons[metric] } : {}),
       };
     }

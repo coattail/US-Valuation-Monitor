@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseYahooForwardQuote } from '../src/yahoo-forward-quote.mjs';
+import { parseYahooForwardQuote, parseYahooPegQuote } from '../src/yahoo-forward-quote.mjs';
 import { parseYahooCurrentValuationTable, publishYahooValuationObservations, readYahooClosingQuote } from '../src/yahoo-valuation-policy.mjs';
-import { createYahooDailyMetricSnapshots, parseYahooQuotePageRatioPayload, parseYahooValuationMeasuresFromHtml,
+import { createYahooDailyMetricSnapshots, parseYahooPegTimeseriesPayloadForTest, parseYahooQuotePageRatioPayload, parseYahooValuationMeasuresFromHtml,
   mergeCurrentYahooSnapshotsIntoHistoryForTest as store } from '../src/build-company-snapshot.ts';
 
 const table = (ttm = '17.73', pb = '14.95') => `<table><thead><tr><th></th><th>Current</th><th>6/30/2026</th></tr></thead>
@@ -125,4 +125,30 @@ test('a dated panel cannot overwrite a date-matched direct Forward PE', () => {
   const [kept] = store(old, newer, {}, {}, date);
   assert.equal(kept.pe_forward, 8.991117);
   assert.equal(kept.metricSources?.pe_forward, 'yahoo-quote-api-forward');
+});
+
+test('Yahoo PEG is published independently on the exact trading session', () => {
+  const raw = {
+    price: { symbol: 'NVDA', marketState: 'CLOSED', regularMarketTime: 1795640401, regularMarketPrice: 149.3 },
+    defaultKeyStatistics: { pegRatio: 0.19 },
+  };
+  const quote = parseYahooPegQuote(raw);
+  const date = '2026-11-25';
+  assert.deepEqual(quote, { symbol: 'NVDA', date, close: 149.3, value: 0.19 });
+  assert.equal(parseYahooPegQuote({ ...raw, price: { ...raw.price, marketState: 'REGULAR' } }), null);
+  const history = parseYahooPegTimeseriesPayloadForTest(JSON.stringify({
+    timeseries: { result: [{ meta: { symbol: ['NVDA'] }, trailingPegRatio: [
+      { asOfDate: '2026-11-20', reportedValue: { raw: 0.1519 } },
+    ] }] },
+  }), 'NVDA');
+  const closes = [...prices, { date, ts: Date.parse(date), close: 149.3 }];
+  const rows = createYahooDailyMetricSnapshots(null, null, null, closes, date, undefined, history, quote);
+  assert.deepEqual(rows.map(row => [row.date, row.peg, row.metricSessionDates?.peg]), [
+    ['2026-11-20', 0.1519, '2026-11-20'], [date, 0.19, date],
+  ]);
+  const panel = parseYahooValuationMeasuresFromHtml(`<section data-testid="valuation-measures">As of 11/25/2026${table()}</section>`);
+  const retry = createYahooDailyMetricSnapshots(null, panel, null, closes, date);
+  const merged = store(rows, retry, {}, {}, date);
+  assert.equal(merged.at(-1)?.peg, 0.19);
+  assert.equal(merged.at(-1)?.metricSources?.peg, 'yahoo-quote-summary-peg');
 });
