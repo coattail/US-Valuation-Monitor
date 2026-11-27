@@ -231,7 +231,8 @@ export function validateCompanySnapshotAgreement(companyPayloads, snapshot) {
     const point = payload.points.at(-1);
     if (!point && payload.valuationStatus === 'awaiting-provider') continue;
     if (!point || row.date !== point.date) throw new Error(`Company snapshot date mismatch: ${row.symbol}`);
-    for (const key of ['pe_ttm', 'pe_forward', 'pb']) {
+    for (const key of ['pe_ttm', 'pe_forward', 'pb', 'peg']) {
+      if (key === 'peg' && !Object.hasOwn(point, key)) continue;
       if (finiteNonZero(row[key]) !== finiteNonZero(point[key])) throw new Error(`Company snapshot ${key} mismatch: ${row.symbol}`);
       const evidence = point.valuationSources?.[key];
       if (evidence && (evidence.symbol !== payload.symbol || evidence.date !== point.date)) throw new Error(`Company provenance mismatch: ${row.symbol} ${key}`);
