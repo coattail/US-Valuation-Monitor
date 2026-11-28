@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseYahooForwardQuote, parseYahooPegQuote } from '../src/yahoo-forward-quote.mjs';
+import { parseYahooValuationQuote, parseYahooPegQuote } from '../src/yahoo-forward-quote.mjs';
 import { parseYahooCurrentValuationTable, publishYahooValuationObservations, readYahooClosingQuote } from '../src/yahoo-valuation-policy.mjs';
 import { createYahooDailyMetricSnapshots, parseYahooPegTimeseriesPayloadForTest, parseYahooQuotePageRatioPayload, parseYahooValuationMeasuresFromHtml,
   mergeCurrentYahooSnapshotsIntoHistoryForTest as store } from '../src/build-company-snapshot.ts';
@@ -103,17 +103,25 @@ test('dated PB with a stale numerator is rejected while independently dated Forw
   assert.equal(verified.metricSessionDates?.pb, target);
 });
 
-test('direct Yahoo forward quotes retain the original multiple and reject intraday or stale values', () => {
+test('direct Yahoo quotes verify each multiple independently against the same session close', () => {
   const raw = { symbol: 'NVDA', marketState: 'CLOSED', regularMarketTime: 1795640401,
-    regularMarketPrice: 149.3, forwardPE: 8.991117, epsForward: 16.60528 };
+    regularMarketPrice: 149.3, forwardPE: 8.991117, epsForward: 16.60528,
+    trailingPE: 16.043, epsTrailingTwelveMonths: 9.306, priceToBook: 13.5, bookValue: 11.0593 };
   const date = '2026-11-25';
-  const quote = parseYahooForwardQuote(raw);
-  assert.deepEqual(quote, { symbol: 'NVDA', date, close: 149.3, value: 8.991117 });
-  assert.equal(parseYahooForwardQuote({ ...raw, marketState: 'REGULAR' }), null);
-  assert.equal(parseYahooForwardQuote({ ...raw, forwardPE: 9.30 }), null);
+  const quote = parseYahooValuationQuote(raw);
+  assert.deepEqual(quote, { symbol: 'NVDA', date, close: 149.3, pe_forward: 8.991117, pe_ttm: 16.043, pb: 13.5 });
+  assert.equal(parseYahooValuationQuote({ ...raw, marketState: 'REGULAR' }), null);
+  const partial = parseYahooValuationQuote({ ...raw, forwardPE: 9.30, priceToBook: 15.0 });
+  assert.equal(partial?.pe_forward, null);
+  assert.equal(partial?.pb, null);
+  assert.equal(partial?.pe_ttm, 16.043);
   const closes = [{ date, ts: Date.parse(date), close: 149.3 }];
   const direct = createYahooDailyMetricSnapshots(null, null, null, closes, date, quote!);
   assert.equal(direct[0].pe_forward, 8.991117);
+  assert.equal(direct[0].pe_ttm, 16.043);
+  assert.equal(direct[0].pb, 13.5);
+  assert.equal(direct[0].metricSessionDates?.pe_ttm, date);
+  assert.equal(direct[0].metricSessionDates?.pb, date);
   assert.equal(direct[0].metricSessionDates?.pe_forward, date);
   assert.deepEqual(createYahooDailyMetricSnapshots(null, null, null, [{ ...closes[0], close: 155.38 }], date, quote!), []);
 });
@@ -131,7 +139,7 @@ test('the localized valuation date belongs to the panel rather than the quote he
 test('a dated panel cannot overwrite a date-matched direct Forward PE', () => {
   const date = '2026-11-25';
   const close = { date, close: 149.3, ts: Date.parse(date) };
-  const quote = { date, close: 149.3, value: 8.991117 };
+  const quote = { date, close: 149.3, pe_forward: 8.991117, pe_ttm: null, pb: null };
   const old = createYahooDailyMetricSnapshots(null, null, null, [close], date, quote);
   const panel = parseYahooValuationMeasuresFromHtml(`<section data-testid="valuation-measures">As of 11/25/2026${table()}</section>`);
   const newer = createYahooDailyMetricSnapshots(null, panel, null, [close], date);

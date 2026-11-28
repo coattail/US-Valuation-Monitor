@@ -14,6 +14,7 @@ interface CompanyValuationPoint {
   pb?: number | null;
   peg?: number | null;
   close?: number | null;
+  valuationSources?: Partial<Record<"pe_ttm" | "pb", unknown>>;
   [key: string]: unknown;
 }
 
@@ -62,6 +63,7 @@ interface CompanySnapshotIndex {
   z_score_3y: number | null;
   pe_ttm_change_1y: number | null;
   regime: "high" | "low" | "neutral" | "unavailable";
+  latestAvailable?: ReturnType<typeof buildLatestAvailableValuations>;
 }
 
 const CURRENT_FILE = fileURLToPath(import.meta.url);
@@ -116,7 +118,7 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
       date: String(point?.date || ""),
       pe: toFiniteNumber(point?.pe_ttm),
     }))
-    .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && row.pe !== null);
+    .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.date) && row.pe !== null && row.pe !== 0);
 
   if (!validRows.length) {
     return {
@@ -190,10 +192,28 @@ function computeLatestPeStats(points: CompanyValuationPoint[]) {
   };
 }
 
+export function buildLatestAvailableValuations(points: CompanyValuationPoint[]) {
+  const latest = points.at(-1);
+  const previousObservation = (metric: "pe_ttm" | "pb") => {
+    if (!latest || toFiniteNumber(latest[metric]) !== null || latest.valuationSources?.[metric]) return null;
+    const point = points.findLast(row => row.date < latest.date && toFiniteNumber(row[metric]) !== null && Number(row[metric]) !== 0);
+    return point ? { date: point.date, value: Number(point[metric]) } : null;
+  };
+  const pe = previousObservation("pe_ttm");
+  const pb = previousObservation("pb");
+  if (!pe && !pb) return undefined;
+  const stats = pe ? computeLatestPeStats(points) : null;
+  return {
+    ...(pe && stats ? { pe_ttm: { ...pe, percentile_10y: stats.percentile_10y, pe_ttm_change_1y: stats.pe_ttm_change_1y } } : {}),
+    ...(pb ? { pb } : {}),
+  };
+}
+
 export function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotIndex {
   const points = Array.isArray(item.points) ? item.points : [];
   const latestPoint = points[points.length - 1] || {};
   const peStats = computeLatestPeStats(toFiniteNumber(latestPoint.pe_ttm) === null ? [] : points);
+  const latestAvailable = buildLatestAvailableValuations(points);
 
   return {
     id: String(item.id || ""),
@@ -208,6 +228,7 @@ export function buildSnapshotIndexRow(item: CompanyIndexInput): CompanySnapshotI
     pointCount: points.length,
     ...(item.latestEarnings ? { valuationStatus: item.valuationStatus, latestEarnings: item.latestEarnings } : {}),
     valuationSources: latestPoint.valuationSources || {},
+    ...(latestAvailable ? { latestAvailable } : {}),
     date: String(latestPoint.date || ""),
     pe_ttm: toFiniteNumber(latestPoint.pe_ttm),
     pe_forward: toFiniteNumber(latestPoint.pe_forward),

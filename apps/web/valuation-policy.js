@@ -22,10 +22,11 @@ export function snapshotPercentile(row) {
     ? row.percentile_10y : null;
 }
 
-export function snapshotBadge(row) {
+export function snapshotBadge(row, missingPeLabel = "PE 不适用") {
   const percentile = snapshotPercentile(row);
   if (percentile === null) {
-    const label = typeof row.pe_ttm !== "number" || !Number.isFinite(row.pe_ttm) || row.pe_ttm <= 0 ? "PE 不适用" : "分位缺失";
+    const missingPe = typeof row.pe_ttm !== "number" || !Number.isFinite(row.pe_ttm);
+    const label = missingPe ? missingPeLabel : row.pe_ttm <= 0 ? "PE 不适用" : "分位缺失";
     return `<span class="badge unavailable" title="缺少有效 PE 或十年百分位，暂不判断估值状态">${label}</span>`;
   }
   const regime = regimeFromPercentile(percentile);

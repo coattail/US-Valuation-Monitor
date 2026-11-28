@@ -1,5 +1,5 @@
 import { detailChartFrame } from "./detail-chart-ui.js?v=20261014-simple-chart-layout-v1";
-import { percentileColor, regimeFromPercentile, regimeLabel, snapshotPercentile, snapshotBadge } from "./valuation-policy.js";
+import { percentileColor, regimeFromPercentile, regimeLabel, snapshotPercentile, snapshotBadge } from "./valuation-policy.js?v=20261128-dated-valuation";
 import { initAnalysisUI, formatAxisTick, createSeriesColors, resolveDetailRange, detailRangeCaption } from "./analysis-ui.js?v=20261025-object-list";
 let analysisUI;
 const SNAPSHOT_PATH_CANDIDATES = [
@@ -647,6 +647,7 @@ function normalizeSnapshotDataset(payload) {
         endDate: String(item.endDate || lastPoint?.date || ""),
         pointCount: Number(item.pointCount || points.length || 0),
         date: String(item.date || item.endDate || lastPoint?.date || ""),
+        latestAvailable: item.latestAvailable,
         pe_ttm: toFiniteNumber(item.pe_ttm),
         pe_forward: toFiniteNumber(item.pe_forward),
         pb: toFiniteNumber(item.pb),
@@ -1000,6 +1001,12 @@ function getMetricSeries(indexId, metric) {
   return result;
 }
 
+function previousValuation(observation, date, value) {
+  if (value !== null || !/^\d{4}-\d{2}-\d{2}$/.test(observation?.date || "") ||
+      observation.date >= date || toFiniteNumber(observation.value) === null) return null;
+  return observation;
+}
+
 function buildSnapshotRows() {
   state.snapshotRows = state.dataset.indices.map((indexData) => {
     const points = Array.isArray(indexData.points) ? indexData.points : [];
@@ -1018,6 +1025,11 @@ function buildSnapshotRows() {
           regime: regimeFromPercentile(clamp(Number(indexData.percentile_10y), 0, 1)),
         }
       : computeLatestPeStats(toFiniteNumber(latestRaw.pe_ttm) === null ? [] : points);
+    const date = String(indexData.date || latestRaw.date || indexData.endDate || "");
+    const pe = toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm);
+    const pb = toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb);
+    const previousPe = previousValuation(indexData.latestAvailable?.pe_ttm, date, pe);
+    const previousPb = previousValuation(indexData.latestAvailable?.pb, date, pb);
 
     return {
       indexId: indexData.id,
@@ -1026,16 +1038,18 @@ function buildSnapshotRows() {
       group: "company",
       rank: Number(indexData.rank || 9999),
       marketCap: Number(indexData.marketCap || 0),
-      date: String(indexData.date || latestRaw.date || indexData.endDate || ""),
-      pe_ttm: toFiniteNumber(indexData.pe_ttm) ?? toFiniteNumber(latestRaw.pe_ttm),
+      date,
+      pe_ttm: pe ?? toFiniteNumber(previousPe?.value),
+      peDate: previousPe?.date,
       pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward),
-      pb: toFiniteNumber(indexData.pb) ?? toFiniteNumber(latestRaw.pb),
+      pb: pb ?? toFiniteNumber(previousPb?.value),
+      pbDate: previousPb?.date,
       peg: resolveLatestPointPeg(latestRaw, indexData.peg),
       percentile_5y: latestPe.percentile_5y,
-      percentile_10y: latestPe.percentile_10y,
+      percentile_10y: previousPe ? toFiniteNumber(previousPe.percentile_10y) : latestPe.percentile_10y,
       percentile_full: latestPe.percentile_full,
       z_score_3y: latestPe.z_score_3y,
-      pe_ttm_change_1y: latestPe.pe_ttm_change_1y,
+      pe_ttm_change_1y: previousPe ? toFiniteNumber(previousPe.pe_ttm_change_1y) : latestPe.pe_ttm_change_1y,
       regime: latestPe.regime,
       startDate: String(indexData.startDate || points[0]?.date || ""),
       endDate: String(indexData.endDate || points[points.length - 1]?.date || ""),
@@ -1113,6 +1127,7 @@ function renderSnapshotGrid(rows) {
       const rawPct = hasPercentile ? clamp(percentile * 100, 0, 100) : 50;
       const pinLeft = rawPct;
       const peChangeTone = row.pe_ttm_change_1y >= 0 ? "up" : "down";
+      const asOf = (date) => date ? `<span class="metric-as-of">截至 ${date}</span>` : "";
       const toneVars = snapshotToneVars(percentile);
       const nameLength = String(row.displayName || "").length;
       const nameClass = nameLength >= 28 ? "name name--tight" : nameLength >= 20 ? "name name--compact" : "name";
@@ -1129,12 +1144,12 @@ function renderSnapshotGrid(rows) {
             <button type="button" class="${nameClass} card-detail-link" data-card-action="detail" aria-label="查看 ${row.displayName} 估值详情" title="${row.displayName}">${row.displayName}</button>
             <div class="symbol">${row.symbol} · ${companyTypeLabel(row.symbol)}</div>
           </div>
-          ${snapshotBadge(row)}
+          ${snapshotBadge(row, "PE 暂无数据")}
         </div>
-        <div class="primary-metric"><span>PE <span class="metric-period">TTM</span></span><strong>${hasPe ? `${fmt(row.pe_ttm, 2)}<small>×</small>` : "不适用"}</strong></div>
+        <div class="primary-metric"><span>PE <span class="metric-period">TTM</span>${asOf(row.peDate)}</span><strong>${hasPe ? `${fmt(row.pe_ttm, 2)}<small>×</small>` : "暂无数据"}</strong></div>
         <div class="secondary-metrics">
           <div><span>PE · FWD</span><strong>${fmt(row.pe_forward, 2)}</strong></div>
-          <div><span>PB</span><strong>${fmt(row.pb, 2)}</strong></div>
+          <div><span>PB</span><strong>${fmt(row.pb, 2)}</strong>${asOf(row.pbDate)}</div>
           <div><span>PEG</span><strong>${fmt(row.peg, 2)}</strong></div>
         </div>
         <div class="line"><span>1Y PE变化</span><strong class="${peChangeTone}">${hasPe && row.pe_ttm_change_1y !== null ? fmtSigned(row.pe_ttm_change_1y * 100, 1, true) : "--"}</strong></div>
@@ -1649,8 +1664,11 @@ function renderDetailStats(fullRows, viewRows) {
     ? fmtSigned(latest.value * 100, metricCfg.digits, true)
     : fmt(latest.value, metricCfg.digits);
 
+  const current = getDatasetIndex(state.detail.indexId)?.points?.at(-1);
+  const stale = current?.date > latest.date && toFiniteNumber(current[state.detail.metric]) === null && latest.date === latestFull.date;
+  const explicitlyUnavailable = stale && current.valuationSources?.[state.detail.metric];
   const stats = [
-    [metricCfg.label, valueText],
+    [stale && !explicitlyUnavailable ? `${metricCfg.label} · 截至 ${latest.date}` : metricCfg.label, valueText],
     ["百分位(当前区间)", formatDetailPercentile(latest.percentile_full)],
     ["百分位(全历史)", formatDetailPercentile(latestFull.percentile_full ?? latest.percentile_full)],
     ["滚动百分位(5Y)", formatDetailPercentile(latest.percentile_5y)],
@@ -1667,8 +1685,7 @@ function renderDetailStats(fullRows, viewRows) {
   elements.detailStats.children[2].style.setProperty("--stat-color", percentileColor(latest.value > 0 ? latest.percentile_full : null));
   document.getElementById("detail-secondary-stats").innerHTML = [2, 3, 4, 6, 7, 9].map((i) => pill(stats[i])).join("");
 
-  const current = getDatasetIndex(state.detail.indexId)?.points?.at(-1);
-  if (current && current.date > latest.date && toFiniteNumber(current[state.detail.metric]) === null && latest.date === latestFull.date) {
+  if (explicitlyUnavailable) {
     elements.detailStats.children[0].querySelector('.v').textContent = '--';
     elements.detailStats.children[1].querySelector('.v').textContent = '--';
     elements.detailStats.children[2].querySelector('.v').textContent = '暂无可靠数据';
