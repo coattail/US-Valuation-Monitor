@@ -1040,10 +1040,10 @@ function buildSnapshotRows() {
       marketCap: Number(indexData.marketCap || 0),
       date,
       pe_ttm: pe ?? toFiniteNumber(previousPe?.value),
-      peDate: previousPe?.date,
+      peDate: previousPe?.date ?? (pe !== null ? date : null),
       pe_forward: toFiniteNumber(indexData.pe_forward) ?? toFiniteNumber(latestRaw.pe_forward),
       pb: pb ?? toFiniteNumber(previousPb?.value),
-      pbDate: previousPb?.date,
+      pbDate: previousPb?.date ?? (pb !== null ? date : null),
       peg: resolveLatestPointPeg(latestRaw, indexData.peg),
       percentile_5y: latestPe.percentile_5y,
       percentile_10y: previousPe ? toFiniteNumber(previousPe.percentile_10y) : latestPe.percentile_10y,
@@ -1116,7 +1116,8 @@ function companyTypeLabel(symbol) {
 }
 
 function renderSnapshotGrid(rows) {
-  elements.snapshotDate.textContent = rows[0]?.date ? `更新到 ${rows[0].date}` : "--";
+  const latestDate = state.snapshotRows.reduce((latest, row) => row.date > latest ? row.date : latest, "");
+  elements.snapshotDate.textContent = latestDate ? `更新到 ${latestDate}` : "--";
   const logoVersion = encodeURIComponent(String(state.dataset?.generatedAt || "latest"));
 
   elements.snapshotGrid.innerHTML = rows
@@ -1127,7 +1128,8 @@ function renderSnapshotGrid(rows) {
       const rawPct = hasPercentile ? clamp(percentile * 100, 0, 100) : 50;
       const pinLeft = rawPct;
       const peChangeTone = row.pe_ttm_change_1y >= 0 ? "up" : "down";
-      const asOf = (date) => date ? `<span class="metric-as-of">截至 ${date}</span>` : "";
+      const asOf = (date) => /^\d{4}-\d{2}-\d{2}$/.test(date || "") && date < latestDate
+        ? `<span class="metric-as-of">截至 ${date}</span>` : "";
       const toneVars = snapshotToneVars(percentile);
       const nameLength = String(row.displayName || "").length;
       const nameClass = nameLength >= 28 ? "name name--tight" : nameLength >= 20 ? "name name--compact" : "name";
