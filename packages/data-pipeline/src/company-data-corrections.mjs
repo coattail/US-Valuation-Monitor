@@ -4,6 +4,7 @@
 export const SPCX_REPAIR_THROUGH = '2026-09-09';
 export function repairCompanyMetricHistory(symbol, rows) {
   if (symbol === 'NVDA') return repairNvdaValuations(rows);
+  if (symbol === 'MU') return repairMicronTrailingPe(rows);
   if (symbol !== 'SPCX') return rows;
   return rows.map(row => row.date <= SPCX_REPAIR_THROUGH
     ? { ...row, pe_ttm: null, peg: null }
@@ -100,5 +101,44 @@ function repairNvdaValuations(rows) {
     }
     if (ledger) return { ...next, metricSources: sources, ...(Object.keys(dates).length || row.metricSessionDates ? { metricSessionDates: dates } : {}) };
     return { ...next, valuationSources: evidence };
+  });
+}
+
+
+const micronCloses = {
+  '2023-02-28': 57.82,
+  '2023-03-01': 57.34,
+  '2023-03-02': 56.43,
+  '2023-03-03': 56.78,
+  '2023-03-06': 56.83,
+};
+const micronCloseUrl = 'https://github.com/coattail/US-Valuation-Monitor/blob/008c4b034c738903090941496692adf650c6dcf5/data/standardized/company-series/company_mu.json';
+const micronEarningsUrl = 'https://www.sec.gov/Archives/edgar/data/723125/000072312522000072/mu-20221201.htm';
+// FY2022 Q2–Q4 and FY2023 Q1 diluted EPS: 2.00 + 2.34 + 1.35 - 0.18.
+// FY2023 Q2 EPS was released after the March 28 close.
+const micronTrailingEps = 5.51;
+
+function repairMicronTrailingPe(rows) {
+  return rows.map(row => {
+    const close = micronCloses[row.date];
+    // Reconstruct the published series; keep the Yahoo observations as recorded.
+    if (!close || Object.hasOwn(row, 'capturedAt')) return row;
+    return {
+      ...row,
+      pe_ttm: Number((close / micronTrailingEps).toFixed(6)),
+      valuationSources: {
+        ...row.valuationSources,
+        pe_ttm: {
+          symbol: 'MU',
+          date: row.date,
+          basis: 'close-fundamentals',
+          source: 'reconstructed-close-fundamentals',
+          url: micronEarningsUrl,
+          priceUrl: micronCloseUrl,
+          close,
+          denominator: micronTrailingEps,
+        },
+      },
+    };
   });
 }
