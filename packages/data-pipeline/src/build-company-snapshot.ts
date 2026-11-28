@@ -1,5 +1,5 @@
 import { parseYahooCurrentValuationTable, isCurrentTable, publishYahooValuationObservations, matchesYahooPageSymbol, readYahooClosingQuote, readYahooTrailingEps, readYahooValuationTableDate, readYahooValuationMeasuresRegion, readYahooBookValuePerShare, valuationMatchesClose, verifyYahooQuoteTtm, yahooForwardSourcePriority, yahooPegSourcePriority } from './yahoo-valuation-policy.mjs';
-import { openYahooQuoteSession, fetchYahooForwardQuotes, fetchYahooPegQuote, YAHOO_FORWARD_QUOTE_SOURCE, YAHOO_PEG_QUOTE_SOURCE } from './yahoo-forward-quote.mjs';
+import { openYahooQuoteSession, fetchYahooValuationQuotes, fetchYahooPegQuote, YAHOO_QUOTE_API_SOURCE, YAHOO_FORWARD_QUOTE_SOURCE, YAHOO_PEG_QUOTE_SOURCE } from './yahoo-forward-quote.mjs';
 import { applyOfficialEarnings, normalizeListedCompany } from "./official-earnings.mjs";
 import { lastCompletedSession as getLastCompletedUsMarketDate, shiftDate, tradingDates, isTradingDate } from "./market-calendar.ts";
 import { capCompanyPublicationToYahoo, restoreCompanyPublishedArchive } from "./company-yahoo-publication.ts";
@@ -3102,7 +3102,7 @@ function createYahooDailyMetricSnapshots(
   forward: RatioPayload | null,
   closes: ClosePoint[],
   completedDate: string,
-  forwardQuote?: { date: string; close: number; value: number },
+  valuationQuote?: { date: string; close: number; pe_ttm: number | null; pe_forward: number | null; pb: number | null },
   pegPayload?: RatioPayload | null,
   pegQuote?: { date: string; close: number; value: number } | null
 ): YahooDailyMetricSnapshot[] {
@@ -3148,9 +3148,14 @@ function createYahooDailyMetricSnapshots(
   if (quote && quoteDate && closeByDate.has(quoteDate) && verifyYahooQuoteTtm(quote, quoteDate, closeByDate.get(quoteDate))) {
     setMetric(quoteDate, "pe_ttm", quote.latest.pe_ttm, quote.source);
   }
-  if (forwardQuote && Math.abs(forwardQuote.close - (closeByDate.get(forwardQuote.date) ?? Infinity)) <= 0.011 &&
-      byDate.get(forwardQuote.date)?.metricSources?.pe_forward !== "yahoo-forward-pe-timeseries") {
-    setMetric(forwardQuote.date, "pe_forward", forwardQuote.value, YAHOO_FORWARD_QUOTE_SOURCE);
+  if (valuationQuote && Math.abs(valuationQuote.close - (closeByDate.get(valuationQuote.date) ?? Infinity)) <= 0.011) {
+    const { date, pe_ttm, pe_forward, pb } = valuationQuote;
+    const sources = byDate.get(date)?.metricSources;
+    if (pe_ttm !== null && !sources?.pe_ttm) setMetric(date, "pe_ttm", pe_ttm, YAHOO_QUOTE_API_SOURCE);
+    if (pb !== null && !sources?.pb) setMetric(date, "pb", pb, YAHOO_QUOTE_API_SOURCE);
+    if (pe_forward !== null && sources?.pe_forward !== "yahoo-forward-pe-timeseries") {
+      setMetric(date, "pe_forward", pe_forward, YAHOO_FORWARD_QUOTE_SOURCE);
+    }
   }
   if (pegQuote && Math.abs(pegQuote.close - (closeByDate.get(pegQuote.date) ?? Infinity)) <= 0.011 &&
       byDate.get(pegQuote.date)?.metricSources?.peg !== "yahoo-trailing-peg-timeseries") {
@@ -7056,7 +7061,7 @@ async function main(): Promise<void> {
   }
 
   const yahooQuoteSession = openYahooQuoteSession();
-  const yahooForwardQuotes = fetchYahooForwardQuotes(
+  const yahooValuationQuotes = fetchYahooValuationQuotes(
     companies.filter(row => !symbolFilterSet || symbolFilterSet.has(row.symbol)).map(row => row.symbol),
     yahooQuoteSession
   );
@@ -7262,7 +7267,7 @@ async function main(): Promise<void> {
       yahooFetchResult?.forwardPePayload || null,
       closePoints,
       companySeriesCapDate,
-      (await yahooForwardQuotes).get(company.symbol.replaceAll(".", "-")),
+      (await yahooValuationQuotes).get(company.symbol.replaceAll(".", "-")),
       yahooFetchResult?.pegPayload,
       pegQuote
     );

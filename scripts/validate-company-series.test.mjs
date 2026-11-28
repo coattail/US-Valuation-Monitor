@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { buildSnapshotIndexRow } from "../packages/data-pipeline/src/split-company-dataset.ts";
 import { validateCompanySnapshotAgreement, validateCompanySeriesPayloads } from "./validate-company-series.mjs";
 
 test("company validation accepts a recent published Yahoo TTM anchor", () => {
@@ -172,4 +173,26 @@ test('publication validation rejects wrong symbols, dates, duplicates and snapsh
 
 test('an unavailable Current value cannot be filled with a historical or quote fallback', () => {
   assert.throws(() => validateCompanySeriesPayloads([{ symbol: 'CRWD', points: [{ date: '2026-10-29', pe_ttm: 100 }] }], { CRWD: [{ date: '2026-10-29', pe_ttm: null, metricSources: { pe_ttm: 'yahoo-key-statistics-valuation-measures:current-table' } }] }), /unavailable Current/);
+});
+
+test("company snapshot exposes previous observations with their own dates while the latest session stays incomplete", () => {
+  const points = [
+    { date: "2026-11-24", pe_ttm: 20, pb: 8 },
+    { date: "2026-11-25", pe_ttm: 30, pb: null },
+    { date: "2026-11-27", pe_ttm: null, pb: null, pe_forward: 19 },
+  ];
+  const company = { id: "company_demo", symbol: "DEMO", displayName: "Demo", points };
+  const row = buildSnapshotIndexRow(company);
+  assert.equal(row.date, "2026-11-27");
+  assert.equal(row.pe_ttm, null);
+  assert.equal(row.pb, null);
+  assert.equal(row.pe_forward, 19);
+  assert.deepEqual(row.latestAvailable, {
+    pe_ttm: { date: "2026-11-25", value: 30, percentile_10y: 0.75, pe_ttm_change_1y: 0.5 },
+    pb: { date: "2026-11-24", value: 8 },
+  });
+  points[2].valuationSources = { pe_ttm: { verifiedSession: "2026-11-27" } };
+  assert.equal(buildSnapshotIndexRow(company).latestAvailable.pe_ttm, undefined);
+  points[2].pb = 9;
+  assert.equal(buildSnapshotIndexRow(company).latestAvailable, undefined);
 });

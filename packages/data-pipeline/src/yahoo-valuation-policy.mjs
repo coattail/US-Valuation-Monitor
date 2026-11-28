@@ -155,7 +155,7 @@ export function publishYahooValuationObservations(points, observations, symbol) 
         symbol, source, date: row.date, capturedAt: row.metricCapturedAt?.[metric] || row.capturedAt || '',
         ...(hasVerifiedSession ? { verifiedSession: row.date } : {}),
         basis: isCurrentTable(source) && !source.includes('+') ? 'current-table' : source.includes('quote-') ? 'quote' : 'provider-observation',
-        url: source === 'yahoo-quote-api-forward'
+        url: source === 'yahoo-quote-api-forward' || source === 'yahoo-quote-api-latest'
           ? `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol.replaceAll('.', '-'))}`
           : source === 'yahoo-quote-summary-peg'
             ? `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol.replaceAll('.', '-'))}?modules=price,defaultKeyStatistics`

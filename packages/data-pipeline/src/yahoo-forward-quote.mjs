@@ -1,9 +1,10 @@
 import { isTradingDate } from './market-calendar.ts';
 import { valuationMatchesClose } from './yahoo-valuation-policy.mjs';
 
+export const YAHOO_QUOTE_API_SOURCE = 'yahoo-quote-api-latest';
 export const YAHOO_FORWARD_QUOTE_SOURCE = 'yahoo-quote-api-forward';
 export const YAHOO_PEG_QUOTE_SOURCE = 'yahoo-quote-summary-peg';
-export const YAHOO_FORWARD_QUOTE_URL = 'https://query1.finance.yahoo.com/v7/finance/quote';
+export const YAHOO_QUOTE_API_URL = 'https://query1.finance.yahoo.com/v7/finance/quote';
 const marketDate = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
 });
@@ -22,11 +23,17 @@ function parseYahooRegularClose(quote) {
   return isTradingDate(date) ? { symbol: quote.symbol.toUpperCase(), date, close } : null;
 }
 
-// The price and EPS check the reported P/E. Publication uses the reported value.
-export function parseYahooForwardQuote(quote) {
+// Verify each reported multiple against the regular close and its own denominator.
+export function parseYahooValuationQuote(quote) {
   const regular = parseYahooRegularClose(quote);
-  if (!regular || !valuationMatchesClose(quote.forwardPE, regular.close, quote.epsForward)) return null;
-  return { ...regular, value: quote.forwardPE };
+  if (!regular) return null;
+  const verified = (ratio, denominator) =>
+    valuationMatchesClose(raw(ratio), regular.close, raw(denominator)) ? raw(ratio) : null;
+  const pe_ttm = verified(quote.trailingPE, quote.epsTrailingTwelveMonths);
+  const pb = verified(quote.priceToBook, quote.bookValue);
+  const pe_forward = verified(quote.forwardPE, quote.epsForward);
+  return pe_ttm !== null || pb !== null || pe_forward !== null
+    ? { ...regular, pe_ttm, pb, pe_forward } : null;
 }
 
 export function parseYahooPegQuote(result) {
@@ -68,7 +75,7 @@ export async function openYahooQuoteSession(request = fetch) {
   };
 }
 
-export async function fetchYahooForwardQuotes(symbols, session) {
+export async function fetchYahooValuationQuotes(symbols, session) {
   const normalized = [...new Set(symbols.map(symbol => symbol.replaceAll('.', '-').toUpperCase()))];
   const read = await session;
   if (!read || !normalized.length) return new Map();
@@ -78,9 +85,9 @@ export async function fetchYahooForwardQuotes(symbols, session) {
     normalized.slice(index * batchSize, (index + 1) * batchSize)
   );
   await Promise.all(batches.map(async batch => {
-    const payload = await read(YAHOO_FORWARD_QUOTE_URL, { symbols: batch.join(',') });
+    const payload = await read(YAHOO_QUOTE_API_URL, { symbols: batch.join(',') });
     for (const rawQuote of payload?.quoteResponse?.result || []) {
-      const quote = parseYahooForwardQuote(rawQuote);
+      const quote = parseYahooValuationQuote(rawQuote);
       if (quote && batch.includes(quote.symbol)) quotes.set(quote.symbol, quote);
     }
   }));

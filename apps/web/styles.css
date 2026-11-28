@@ -121,6 +121,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px;
 .secondary-metrics { display: flex; padding-bottom: 10px; margin-bottom: 8px; border-bottom: 1px solid var(--border); gap: 16px; }
 .secondary-metrics > div { flex: 1; min-width: 0; }
 .secondary-metrics span { display: block; color: var(--subtle); font-size: .75rem; margin-bottom: 2px; }
+.primary-metric .metric-as-of, .secondary-metrics .metric-as-of { display: block; margin: 3px 0 0; font-size: .6875rem; }
 .secondary-metrics strong { font-family: var(--font-numeric); font-variant-numeric: tabular-nums; font-size: 1.0625rem; font-weight: 550; }
 .line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: .8125rem; margin-top: 6px; }
 .line > span { color: var(--subtle); }
